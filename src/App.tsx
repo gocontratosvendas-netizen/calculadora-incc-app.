@@ -1,0 +1,649 @@
+import { useMemo, useRef, useState } from 'react'
+import './App.css'
+import { calcularFatorCorrecaoPorAniversarios } from './inccTable'
+import html2canvas from 'html2canvas'
+import { jsPDF } from 'jspdf'
+import * as XLSX from 'xlsx'
+
+const currencyFormatter = new Intl.NumberFormat('pt-BR', {
+  style: 'currency',
+  currency: 'BRL',
+})
+
+function App() {
+  type Linha = {
+    id: string
+    dataPagamento: string // yyyy-mm-dd
+    valorContratual: string
+    valorPago: string
+  }
+
+  const mockLinhas = useMemo((): Linha[] => {
+    const mk = (dataPagamento: string, valorContratual: string, valorPago: string): Linha => ({
+      id: crypto.randomUUID(),
+      dataPagamento,
+      valorContratual,
+      valorPago,
+    })
+
+    // Mock baseado na planilha enviada (valores em BRL com vírgula decimal).
+    // Obs: o "aniversário" do contrato será a data da 1ª linha.
+    return [
+      mk('2021-06-23', '108.604,00', '108.604,00'),
+      mk('2021-07-15', '2.500,00', '2.650,00'),
+      mk('2021-08-20', '2.500,00', '2.610,70'),
+      mk('2021-09-10', '2.500,00', '2.032,80'),
+      mk('2021-10-10', '2.500,00', '2.045,00'),
+      mk('2021-11-15', '2.500,00', '2.658,40'),
+      mk('2021-12-15', '2.500,00', '2.207,40'),
+      mk('2022-01-15', '2.500,00', '2.200,32'),
+      mk('2022-02-15', '2.500,00', '2.708,77'),
+      mk('2022-03-15', '2.500,00', '2.720,00'),
+      mk('2022-04-14', '2.500,00', '2.738,36'),
+      mk('2022-05-16', '2.500,00', '2.701,91'),
+      mk('2022-06-15', '2.500,00', '2.581,15'),
+      mk('2022-07-15', '2.500,00', '2.851,72'),
+      mk('2022-08-15', '2.500,00', '2.912,75'),
+      mk('2022-09-15', '2.500,00', '2.037,80'),
+      mk('2022-10-17', '2.500,00', '2.940,44'),
+      mk('2022-11-16', '2.500,00', '2.943,09'),
+      mk('2022-12-29', '5.000,00', '5.000,00'),
+      mk('2023-01-16', '2.500,00', '2.957,23'),
+      mk('2023-02-15', '2.500,00', '2.959,80'),
+      mk('2023-03-15', '2.500,00', '2.973,51'),
+      mk('2023-04-17', '2.500,00', '2.974,99'),
+      mk('2023-05-15', '2.500,00', '2.929,00'),
+      mk('2023-06-16', '2.500,00', '3.003,72'),
+      mk('2023-07-17', '2.500,00', '3.010,73'),
+      mk('2023-11-14', '5.000,00', '5.000,00'),
+      mk('2024-01-15', '409.080,00', '300.000,00'),
+      mk('2024-11-14', '5.000,00', '1.104,50'),
+    ]
+  }, [])
+
+  const [tela, setTela] = useState<'entrada' | 'resultado'>('entrada')
+  const [linhas, setLinhas] = useState<Linha[]>([
+    { id: crypto.randomUUID(), dataPagamento: '', valorContratual: '', valorPago: '' },
+  ])
+  const [edicaoValorPago, setEdicaoValorPago] = useState<{
+    linhaId: string
+    valorPago: string
+  } | null>(null)
+  const [popupExportarAberto, setPopupExportarAberto] = useState(false)
+  const [exportando, setExportando] = useState(false)
+
+  const exportRelatorioCompletoRef = useRef<HTMLDivElement | null>(null)
+  const exportMemoriaRef = useRef<HTMLDivElement | null>(null)
+
+  async function exportarElementoComoPdf(
+    element: HTMLElement,
+    nomeArquivo: string,
+    orientation: 'portrait' | 'landscape' = 'portrait',
+  ) {
+    setExportando(true)
+    try {
+      // dá tempo da UI (popup) fechar e layout estabilizar
+      await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()))
+      await new Promise<void>((resolve) => setTimeout(() => resolve(), 50))
+
+      const canvas = await html2canvas(element, {
+        backgroundColor: '#ffffff',
+        scale: 1.5,
+        useCORS: true,
+        ignoreElements: (el) => el.classList?.contains('no-export') ?? false,
+        windowWidth: element.scrollWidth,
+        windowHeight: element.scrollHeight,
+      })
+
+      const pdf = new jsPDF({
+        orientation,
+        unit: 'pt',
+        format: 'a4',
+      })
+
+      const pageWidth = pdf.internal.pageSize.getWidth()
+      const pageHeight = pdf.internal.pageSize.getHeight()
+
+      // quebra em páginas (mais confiável do que usar y negativo)
+      const scale = pageWidth / canvas.width
+      const pageCanvas = document.createElement('canvas')
+      const pageCtx = pageCanvas.getContext('2d')
+      if (!pageCtx) throw new Error('Não foi possível criar canvas para o PDF.')
+
+      const pageHeightInCanvasPx = Math.floor(pageHeight / scale)
+      pageCanvas.width = canvas.width
+      pageCanvas.height = pageHeightInCanvasPx
+
+      const totalPages = Math.ceil(canvas.height / pageHeightInCanvasPx)
+
+      for (let page = 0; page < totalPages; page += 1) {
+        const sy = page * pageHeightInCanvasPx
+        pageCtx.fillStyle = '#ffffff'
+        pageCtx.fillRect(0, 0, pageCanvas.width, pageCanvas.height)
+        pageCtx.drawImage(
+          canvas,
+          0,
+          sy,
+          canvas.width,
+          pageHeightInCanvasPx,
+          0,
+          0,
+          pageCanvas.width,
+          pageCanvas.height,
+        )
+
+        const imgData = pageCanvas.toDataURL('image/jpeg', 0.92)
+        if (page > 0) pdf.addPage()
+        pdf.addImage(imgData, 'JPEG', 0, 0, pageWidth, pageHeight)
+      }
+
+      pdf.save(nomeArquivo)
+    } catch (err) {
+      console.error(err)
+      const msg =
+        err instanceof Error
+          ? err.message
+          : typeof err === 'string'
+            ? err
+            : 'Erro desconhecido'
+      alert(`Não foi possível exportar o PDF.\n\nDetalhes: ${msg}`)
+    } finally {
+      setExportando(false)
+    }
+  }
+
+  function exportarMemoriaComoExcel(nomeArquivo: string) {
+    const header = [
+      'Pagamento',
+      'Valor contratual',
+      'INCC (12m no aniversário)',
+      'Valor devido',
+      'Valor pago',
+      'Valor cobrado em excesso',
+    ]
+
+    const rows = relatorio.rows.map((r) => [
+      r.pagamento,
+      r.vc,
+      r.incc == null ? null : Number(r.incc.toFixed(2)),
+      r.devido,
+      r.vp,
+      r.excesso,
+    ])
+
+    const totalRow = ['Total', null, null, relatorio.totalDevido, relatorio.totalPago, relatorio.totalExcesso]
+
+    const ws = XLSX.utils.aoa_to_sheet([header, ...rows, totalRow])
+
+    ws['!cols'] = [
+      { wch: 14 },
+      { wch: 16 },
+      { wch: 22 },
+      { wch: 14 },
+      { wch: 14 },
+      { wch: 22 },
+    ]
+
+    const wb = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(wb, ws, 'Memoria')
+    XLSX.writeFile(wb, nomeArquivo)
+  }
+
+  function parseMoney(value: string) {
+    const normalized = value
+      .replace(/\s/g, '')
+      .replace('R$', '')
+      .replace(/\./g, '')
+      .replace(',', '.')
+    const num = Number(normalized)
+    return Number.isFinite(num) ? num : 0
+  }
+
+  function parseDate(value: string) {
+    // yyyy-mm-dd
+    const [y, m, d] = value.split('-').map(Number)
+    if (!y || !m || !d) return null
+    const date = new Date(y, m - 1, d)
+    if (Number.isNaN(date.getTime())) return null
+    return date
+  }
+
+  const relatorio = useMemo(() => {
+    const linhasValidas = linhas
+      .map((l) => ({
+        ...l,
+        data: parseDate(l.dataPagamento),
+        vc: parseMoney(l.valorContratual),
+        vp: parseMoney(l.valorPago),
+      }))
+      .filter((l) => l.data && l.vc > 0)
+      .sort((a, b) => a.data!.getTime() - b.data!.getTime())
+
+    const inicioEfetivo = linhasValidas[0]?.data ?? null
+
+    const rows = linhasValidas.map((l) => {
+      const baseInicio = inicioEfetivo ?? l.data!
+      const { fator, ultimaTaxa } = calcularFatorCorrecaoPorAniversarios(baseInicio, l.data!)
+      const devido = l.vc * fator
+      const excesso = l.vp - devido
+      return {
+        id: l.id,
+        pagamento: l.dataPagamento,
+        vc: l.vc,
+        vp: l.vp,
+        incc: ultimaTaxa,
+        devido,
+        excesso,
+      }
+    })
+
+    const totalDevido = rows.reduce((acc, r) => acc + r.devido, 0)
+    const totalPago = rows.reduce((acc, r) => acc + r.vp, 0)
+    const totalExcesso = rows.reduce((acc, r) => acc + r.excesso, 0)
+
+    return {
+      inicioEfetivo,
+      rows,
+      totalDevido,
+      totalPago,
+      totalExcesso,
+    }
+  }, [linhas])
+
+  const linhaEmEdicao = useMemo(() => {
+    if (!edicaoValorPago) return null
+    return linhas.find((l) => l.id === edicaoValorPago.linhaId) ?? null
+  }, [edicaoValorPago, linhas])
+
+  return (
+    <div className="app-root">
+      <header className="app-header">
+        <h1>Calculadora INCC</h1>
+        <p>
+          Lançamento de pagamentos e relatório em formato de planilha (correção no
+          aniversário do contrato).
+        </p>
+      </header>
+
+      <main className="app-main">
+        {tela === 'entrada' ? (
+          <section className="card card-wide">
+            <h2>1) Lançamento dos pagamentos</h2>
+
+            <div className="form-grid form-grid-3">
+              <div className="field">
+                <label>Data de início do contrato (aniversário)</label>
+                <div className="readonly-pill">
+                  {relatorio.inicioEfetivo
+                    ? relatorio.inicioEfetivo.toLocaleDateString('pt-BR')
+                    : 'Será a data da 1ª linha (primeiro pagamento)'}
+                </div>
+              </div>
+              <div className="field field-help">
+                <span className="help-title">Como é calculado</span>
+                <span className="help-text">
+                  No aniversário, aplicamos o INCC-DI acumulado em 12 meses do mês do aniversário.
+                </span>
+              </div>
+            </div>
+
+            <div className="table-wrap">
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th>Data de pagamento</th>
+                    <th>Valor contratual</th>
+                    <th>Valor pago</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {linhas.map((linha) => (
+                    <tr key={linha.id}>
+                      <td>
+                        <input
+                          className="table-input"
+                          type="date"
+                          value={linha.dataPagamento}
+                          onChange={(e) => {
+                            const v = e.target.value
+                            setLinhas((prev) =>
+                              prev.map((p) => (p.id === linha.id ? { ...p, dataPagamento: v } : p)),
+                            )
+                          }}
+                        />
+                      </td>
+                      <td>
+                        <input
+                          className="table-input"
+                          inputMode="decimal"
+                          placeholder="ex: 2.500,00"
+                          value={linha.valorContratual}
+                          onChange={(e) => {
+                            const v = e.target.value
+                            setLinhas((prev) =>
+                              prev.map((p) => (p.id === linha.id ? { ...p, valorContratual: v } : p)),
+                            )
+                          }}
+                        />
+                      </td>
+                      <td>
+                        <input
+                          className="table-input"
+                          inputMode="decimal"
+                          placeholder="ex: 2.650,00"
+                          value={linha.valorPago}
+                          onChange={(e) => {
+                            const v = e.target.value
+                            setLinhas((prev) =>
+                              prev.map((p) => (p.id === linha.id ? { ...p, valorPago: v } : p)),
+                            )
+                          }}
+                        />
+                      </td>
+                      <td className="table-actions">
+                        <button
+                          type="button"
+                          className="ghost-button"
+                          onClick={() =>
+                            setLinhas((prev) => prev.filter((p) => p.id !== linha.id))
+                          }
+                          disabled={linhas.length === 1}
+                        >
+                          Remover
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="actions-row">
+              <button
+                type="button"
+                className="secondary-button"
+                onClick={() => setLinhas(mockLinhas)}
+              >
+                Carregar exemplo da planilha
+              </button>
+              <button
+                type="button"
+                className="secondary-button"
+                onClick={() =>
+                  setLinhas((prev) => [
+                    ...prev,
+                    { id: crypto.randomUUID(), dataPagamento: '', valorContratual: '', valorPago: '' },
+                  ])
+                }
+              >
+                Adicionar linha
+              </button>
+              <button type="button" className="primary-button" onClick={() => setTela('resultado')}>
+                Ver relatório
+              </button>
+            </div>
+          </section>
+        ) : (
+          <section className="card card-wide">
+            <div className="results-header">
+              <h2>2) Relatório (planilha)</h2>
+              <div className="results-actions">
+                <button
+                  type="button"
+                  className="secondary-button"
+                  onClick={() => setPopupExportarAberto(true)}
+                  disabled={exportando}
+                >
+                  {exportando ? 'Exportando...' : 'Exportar'}
+                </button>
+                <button type="button" className="secondary-button" onClick={() => setTela('entrada')}>
+                  Voltar
+                </button>
+              </div>
+            </div>
+
+            <div className="export-scope" ref={exportRelatorioCompletoRef}>
+              <div className="kpi-grid" aria-label="Resumo do relatório">
+                <div className="kpi-card">
+                  <span className="kpi-label">Valor pago</span>
+                  <span className="kpi-value">{currencyFormatter.format(relatorio.totalPago)}</span>
+                </div>
+                <div className="kpi-card">
+                  <span className="kpi-label">Valor devido</span>
+                  <span className="kpi-value">{currencyFormatter.format(relatorio.totalDevido)}</span>
+                </div>
+                <div className="kpi-card">
+                  <span className="kpi-label">Valor cobrado em excesso</span>
+                  <span className="kpi-value kpi-accent">
+                    {currencyFormatter.format(relatorio.totalExcesso)}
+                  </span>
+                </div>
+                <div className="kpi-card">
+                  <span className="kpi-label">Dobro do cobrado em excesso</span>
+                  <span className="kpi-value kpi-accent-strong">
+                    {currencyFormatter.format(relatorio.totalExcesso * 2)}
+                  </span>
+                </div>
+              </div>
+
+              <div className="export-scope" ref={exportMemoriaRef}>
+                <div className="table-wrap">
+                  <table className="data-table">
+                    <thead>
+                      <tr>
+                        <th>Pagamento</th>
+                        <th>Valor contratual</th>
+                        <th>INCC (12m no aniversário)</th>
+                        <th>Valor devido</th>
+                        <th>Valor pago</th>
+                        <th>Valor cobrado em excesso</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {relatorio.rows.map((r) => (
+                        <tr key={r.id}>
+                          <td>{r.pagamento || '-'}</td>
+                          <td>{currencyFormatter.format(r.vc)}</td>
+                          <td>{r.incc == null ? '-' : `${r.incc.toFixed(2)}%`}</td>
+                          <td>{currencyFormatter.format(r.devido)}</td>
+                          <td>
+                            <div className="cell-with-action">
+                              <span>{currencyFormatter.format(r.vp)}</span>
+                              <button
+                                type="button"
+                                className="link-button no-export"
+                                onClick={() => {
+                                  const linha = linhas.find((l) => l.id === r.id)
+                                  setEdicaoValorPago({
+                                    linhaId: r.id,
+                                    valorPago: linha?.valorPago ?? '',
+                                  })
+                                }}
+                              >
+                                Editar
+                              </button>
+                            </div>
+                          </td>
+                          <td className={r.excesso >= 0 ? 'excesso-pos' : 'excesso-neg'}>
+                            {currencyFormatter.format(r.excesso)}
+                          </td>
+                        </tr>
+                      ))}
+                      <tr className="table-total">
+                        <td>Total</td>
+                        <td></td>
+                        <td></td>
+                        <td>{currencyFormatter.format(relatorio.totalDevido)}</td>
+                        <td>{currencyFormatter.format(relatorio.totalPago)}</td>
+                        <td>{currencyFormatter.format(relatorio.totalExcesso)}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+
+            <p className="result-highlight">
+              Observação: se o período do aniversário exigir meses fora de 2021–2024, o INCC não será calculado.
+            </p>
+          </section>
+        )}
+      </main>
+
+      {popupExportarAberto ? (
+        <div
+          className="modal-overlay"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Exportar relatório"
+          onMouseDown={(e) => {
+            if (e.target === e.currentTarget) setPopupExportarAberto(false)
+          }}
+        >
+          <div className="modal">
+            <div className="modal-header">
+              <h3>Exportar</h3>
+              <button
+                type="button"
+                className="ghost-button"
+                onClick={() => setPopupExportarAberto(false)}
+              >
+                Fechar
+              </button>
+            </div>
+
+            <div className="modal-body">
+              <div className="export-options">
+                <button
+                  type="button"
+                  className="primary-button"
+                  disabled={exportando}
+                  onClick={async () => {
+                    const el = exportRelatorioCompletoRef.current
+                    if (!el) return
+                    setPopupExportarAberto(false)
+                    await exportarElementoComoPdf(el, 'relatorio-completo.pdf', 'portrait')
+                  }}
+                >
+                  Relatório completo (PDF)
+                </button>
+
+                <button
+                  type="button"
+                  className="secondary-button"
+                  disabled={exportando}
+                  onClick={() => {
+                    setPopupExportarAberto(false)
+                    exportarMemoriaComoExcel('memoria-de-calculos.xlsx')
+                  }}
+                >
+                  Memória de cálculos (Excel)
+                </button>
+
+                <button
+                  type="button"
+                  className="secondary-button"
+                  disabled={exportando}
+                  onClick={async () => {
+                    const el = exportMemoriaRef.current
+                    if (!el) return
+                    setPopupExportarAberto(false)
+                    await exportarElementoComoPdf(el, 'memoria-de-calculos.pdf', 'landscape')
+                  }}
+                >
+                  Memória de cálculos (PDF)
+                </button>
+              </div>
+              <p className="result-highlight">
+                Dica: o PDF é gerado com base na renderização da tela (fica igualzinho ao relatório).
+              </p>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {edicaoValorPago ? (
+        <div
+          className="modal-overlay"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Editar valor pago"
+          onMouseDown={(e) => {
+            if (e.target === e.currentTarget) setEdicaoValorPago(null)
+          }}
+        >
+          <div className="modal">
+            <div className="modal-header">
+              <h3>Editar valor pago</h3>
+              <button
+                type="button"
+                className="ghost-button"
+                onClick={() => setEdicaoValorPago(null)}
+              >
+                Fechar
+              </button>
+            </div>
+
+            <div className="modal-body">
+              <div className="field">
+                <label>Pagamento</label>
+                <div className="readonly-pill">
+                  {linhaEmEdicao?.dataPagamento
+                    ? new Date(linhaEmEdicao.dataPagamento).toLocaleDateString('pt-BR')
+                    : '-'}
+                </div>
+              </div>
+              <div className="field">
+                <label htmlFor="novoValorPago">Novo valor pago</label>
+                <input
+                  id="novoValorPago"
+                  className="table-input"
+                  inputMode="decimal"
+                  placeholder="ex: 2.650,00"
+                  value={edicaoValorPago.valorPago}
+                  onChange={(e) =>
+                    setEdicaoValorPago((prev) => (prev ? { ...prev, valorPago: e.target.value } : prev))
+                  }
+                  autoFocus
+                />
+              </div>
+            </div>
+
+            <div className="modal-footer">
+              <button
+                type="button"
+                className="secondary-button"
+                onClick={() => setEdicaoValorPago(null)}
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                className="primary-button"
+                onClick={() => {
+                  setLinhas((prev) =>
+                    prev.map((l) =>
+                      l.id === edicaoValorPago.linhaId
+                        ? { ...l, valorPago: edicaoValorPago.valorPago }
+                        : l,
+                    ),
+                  )
+                  setEdicaoValorPago(null)
+                }}
+              >
+                Salvar
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      <footer className="app-footer">
+        <small>Simulador ilustrativo. Confirme sempre os índices oficiais.</small>
+      </footer>
+    </div>
+  )
+}
+
+export default App
