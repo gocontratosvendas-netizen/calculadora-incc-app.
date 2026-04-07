@@ -62,6 +62,7 @@ function App() {
   }, [])
 
   const [tela, setTela] = useState<'entrada' | 'resultado'>('entrada')
+  const [dataAniversarioManual, setDataAniversarioManual] = useState('')
   const [linhas, setLinhas] = useState<Linha[]>([
     { id: crypto.randomUUID(), dataPagamento: '', valorContratual: '', valorPago: '' },
   ])
@@ -219,7 +220,7 @@ function App() {
       .filter((l) => l.data && l.vc > 0)
       .sort((a, b) => a.data!.getTime() - b.data!.getTime())
 
-    const inicioEfetivo = linhasValidas[0]?.data ?? null
+    const inicioEfetivo = parseDate(dataAniversarioManual) ?? (linhasValidas[0]?.data ?? null)
 
     const rows = linhasValidas.map((l) => {
       const baseInicio = inicioEfetivo ?? l.data!
@@ -248,12 +249,19 @@ function App() {
       totalPago,
       totalExcesso,
     }
-  }, [linhas])
+  }, [linhas, dataAniversarioManual])
 
   const linhaEmEdicao = useMemo(() => {
     if (!edicaoValorPago) return null
     return linhas.find((l) => l.id === edicaoValorPago.linhaId) ?? null
   }, [edicaoValorPago, linhas])
+
+  const resumoLancamentos = useMemo(() => {
+    const totalLinhas = linhas.length
+    const linhasComData = linhas.filter((l) => Boolean(parseDate(l.dataPagamento))).length
+    const linhasComPagamento = linhas.filter((l) => parseMoney(l.valorPago) > 0).length
+    return { totalLinhas, linhasComData, linhasComPagamento }
+  }, [linhas])
 
   return (
     <div className="app-root">
@@ -267,16 +275,59 @@ function App() {
 
       <main className="app-main">
         {tela === 'entrada' ? (
-          <section className="card card-wide">
-            <h2>1) Lançamento dos pagamentos</h2>
+          <section className="card card-wide launch-card">
+            <div className="launch-header">
+              <div>
+                <h2>1) Lançamento dos pagamentos</h2>
+                <p className="launch-subtitle">
+                  Preencha os lançamentos mensais para gerar o relatório de cobrança.
+                </p>
+              </div>
+              <div className="launch-kpis">
+                <div className="launch-kpi">
+                  <span>Linhas</span>
+                  <strong>{resumoLancamentos.totalLinhas}</strong>
+                </div>
+                <div className="launch-kpi">
+                  <span>Com data</span>
+                  <strong>{resumoLancamentos.linhasComData}</strong>
+                </div>
+                <div className="launch-kpi">
+                  <span>Com valor pago</span>
+                  <strong>{resumoLancamentos.linhasComPagamento}</strong>
+                </div>
+              </div>
+            </div>
 
             <div className="form-grid form-grid-3">
               <div className="field">
                 <label>Data de início do contrato (aniversário)</label>
-                <div className="readonly-pill">
-                  {relatorio.inicioEfetivo
-                    ? relatorio.inicioEfetivo.toLocaleDateString('pt-BR')
-                    : 'Será a data da 1ª linha (primeiro pagamento)'}
+                <div className="aniversario-inline">
+                  <span className="aniversario-helper">
+                    Defina a data de aniversário (se vazio, usamos a 1ª linha).
+                  </span>
+                  <div className="aniversario-input-row">
+                    <input
+                      type="date"
+                      className="table-input aniversario-input"
+                      value={
+                        dataAniversarioManual ||
+                        (relatorio.inicioEfetivo
+                          ? `${relatorio.inicioEfetivo.getFullYear()}-${String(
+                              relatorio.inicioEfetivo.getMonth() + 1,
+                            ).padStart(2, '0')}-${String(relatorio.inicioEfetivo.getDate()).padStart(2, '0')}`
+                          : '')
+                      }
+                      onChange={(e) => setDataAniversarioManual(e.target.value)}
+                    />
+                    <button
+                      type="button"
+                      className="ghost-button aniversario-reset"
+                      onClick={() => setDataAniversarioManual('')}
+                    >
+                      Usar 1ª linha
+                    </button>
+                  </div>
                 </div>
               </div>
               <div className="field field-help">
@@ -287,8 +338,8 @@ function App() {
               </div>
             </div>
 
-            <div className="table-wrap">
-              <table className="data-table">
+            <div className="table-wrap launch-table-wrap">
+              <table className="data-table launch-table">
                 <thead>
                   <tr>
                     <th>Data de pagamento</th>
@@ -359,7 +410,7 @@ function App() {
               </table>
             </div>
 
-            <div className="actions-row">
+            <div className="actions-row launch-actions-row">
               <button
                 type="button"
                 className="secondary-button"
@@ -385,7 +436,7 @@ function App() {
             </div>
           </section>
         ) : (
-          <section className="card card-wide">
+          <section className="card card-wide report-card">
             <div className="results-header">
               <h2>2) Relatório (planilha)</h2>
               <div className="results-actions">
