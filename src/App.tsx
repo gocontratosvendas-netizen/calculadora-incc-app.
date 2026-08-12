@@ -125,6 +125,7 @@ function App() {
     element: HTMLElement,
     nomeArquivo: string,
     orientation: 'portrait' | 'landscape' = 'portrait',
+    titulo = 'Memória de Cálculos',
   ) {
     setExportando(true)
     try {
@@ -149,38 +150,68 @@ function App() {
 
       const pageWidth = pdf.internal.pageSize.getWidth()
       const pageHeight = pdf.internal.pageSize.getHeight()
+      const marginX = 36
+      const marginY = 36
+      const titleGap = 28
+      const contentWidth = pageWidth - marginX * 2
+      const firstPageContentTop = marginY + titleGap
+      const firstPageContentHeight = pageHeight - firstPageContentTop - marginY
+      const otherPageContentHeight = pageHeight - marginY * 2
 
-      // quebra em páginas (mais confiável do que usar y negativo)
-      const scale = pageWidth / canvas.width
+      // escala a imagem para caber na largura útil (com margem)
+      const scale = contentWidth / canvas.width
       const pageCanvas = document.createElement('canvas')
       const pageCtx = pageCanvas.getContext('2d')
       if (!pageCtx) throw new Error('Não foi possível criar canvas para o PDF.')
 
-      const pageHeightInCanvasPx = Math.floor(pageHeight / scale)
       pageCanvas.width = canvas.width
-      pageCanvas.height = pageHeightInCanvasPx
 
-      const totalPages = Math.ceil(canvas.height / pageHeightInCanvasPx)
+      let sourceY = 0
+      let pageIndex = 0
 
-      for (let page = 0; page < totalPages; page += 1) {
-        const sy = page * pageHeightInCanvasPx
+      while (sourceY < canvas.height) {
+        const isFirstPage = pageIndex === 0
+        const availableHeightPt = isFirstPage ? firstPageContentHeight : otherPageContentHeight
+        const sliceHeightPx = Math.min(
+          Math.floor(availableHeightPt / scale),
+          canvas.height - sourceY,
+        )
+
+        pageCanvas.height = sliceHeightPx
         pageCtx.fillStyle = '#ffffff'
         pageCtx.fillRect(0, 0, pageCanvas.width, pageCanvas.height)
         pageCtx.drawImage(
           canvas,
           0,
-          sy,
+          sourceY,
           canvas.width,
-          pageHeightInCanvasPx,
+          sliceHeightPx,
           0,
           0,
           pageCanvas.width,
-          pageCanvas.height,
+          sliceHeightPx,
         )
 
         const imgData = pageCanvas.toDataURL('image/jpeg', 0.92)
-        if (page > 0) pdf.addPage()
-        pdf.addImage(imgData, 'JPEG', 0, 0, pageWidth, pageHeight)
+        if (pageIndex > 0) pdf.addPage()
+
+        // fundo branco + título na primeira página
+        pdf.setFillColor(255, 255, 255)
+        pdf.rect(0, 0, pageWidth, pageHeight, 'F')
+
+        if (isFirstPage) {
+          pdf.setFont('helvetica', 'bold')
+          pdf.setFontSize(16)
+          pdf.setTextColor(16, 57, 111)
+          pdf.text(titulo, pageWidth / 2, marginY + 8, { align: 'center' })
+        }
+
+        const drawY = isFirstPage ? firstPageContentTop : marginY
+        const drawHeight = sliceHeightPx * scale
+        pdf.addImage(imgData, 'JPEG', marginX, drawY, contentWidth, drawHeight)
+
+        sourceY += sliceHeightPx
+        pageIndex += 1
       }
 
       pdf.save(nomeArquivo)
@@ -643,7 +674,12 @@ function App() {
                     const el = exportRelatorioCompletoRef.current
                     if (!el) return
                     setPopupExportarAberto(false)
-                    await exportarElementoComoPdf(el, 'relatorio-completo.pdf', 'portrait')
+                    await exportarElementoComoPdf(
+                      el,
+                      'relatorio-completo.pdf',
+                      'portrait',
+                      'Memória de Cálculos',
+                    )
                   }}
                 >
                   Relatório completo (PDF)
@@ -669,7 +705,12 @@ function App() {
                     const el = exportMemoriaRef.current
                     if (!el) return
                     setPopupExportarAberto(false)
-                    await exportarElementoComoPdf(el, 'memoria-de-calculos.pdf', 'landscape')
+                    await exportarElementoComoPdf(
+                      el,
+                      'memoria-de-calculos.pdf',
+                      'landscape',
+                      'Memória de Cálculos',
+                    )
                   }}
                 >
                   Memória de cálculos (PDF)
