@@ -157,22 +157,97 @@ function App() {
   async function exportarElementoComoPdf(
     element: HTMLElement,
     nomeArquivo: string,
-    orientation: 'portrait' | 'landscape' = 'portrait',
+    orientation: 'portrait' | 'landscape' = 'landscape',
     titulo = 'Memória de cálculo',
   ) {
     setExportando(true)
+    const restoreStyles: Array<() => void> = []
     try {
       // dá tempo da UI (popup) fechar e layout estabilizar
       await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()))
       await new Promise<void>((resolve) => setTimeout(() => resolve(), 50))
 
+      // Expande wraps/tabelas para o html2canvas não cortar colunas (overflow:auto)
+      element.classList.add('is-exporting-pdf')
+      restoreStyles.push(() => element.classList.remove('is-exporting-pdf'))
+
+      for (const wrap of element.querySelectorAll<HTMLElement>('.table-wrap')) {
+        const prev = {
+          overflow: wrap.style.overflow,
+          width: wrap.style.width,
+          maxWidth: wrap.style.maxWidth,
+        }
+        wrap.style.overflow = 'visible'
+        wrap.style.width = 'max-content'
+        wrap.style.maxWidth = 'none'
+        restoreStyles.push(() => {
+          wrap.style.overflow = prev.overflow
+          wrap.style.width = prev.width
+          wrap.style.maxWidth = prev.maxWidth
+        })
+      }
+
+      for (const table of element.querySelectorAll<HTMLElement>('.data-table')) {
+        const prev = {
+          width: table.style.width,
+          minWidth: table.style.minWidth,
+          tableLayout: table.style.tableLayout,
+        }
+        table.style.width = 'max-content'
+        table.style.minWidth = 'max-content'
+        table.style.tableLayout = 'auto'
+        restoreStyles.push(() => {
+          table.style.width = prev.width
+          table.style.minWidth = prev.minWidth
+          table.style.tableLayout = prev.tableLayout
+        })
+      }
+
+      await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()))
+
+      const captureWidth = Math.max(
+        element.scrollWidth,
+        element.offsetWidth,
+        ...[...element.querySelectorAll<HTMLElement>('.table-wrap, .data-table')].map(
+          (el) => Math.max(el.scrollWidth, el.offsetWidth),
+        ),
+      )
+      const captureHeight = Math.max(element.scrollHeight, element.offsetHeight)
+
       const canvas = await html2canvas(element, {
         backgroundColor: '#ffffff',
-        scale: 1.5,
+        scale: 2,
         useCORS: true,
         ignoreElements: (el) => el.classList?.contains('no-export') ?? false,
-        windowWidth: element.scrollWidth,
-        windowHeight: element.scrollHeight,
+        width: captureWidth,
+        height: captureHeight,
+        windowWidth: captureWidth,
+        windowHeight: captureHeight,
+        onclone: (_doc, cloned) => {
+          cloned.classList.add('is-exporting-pdf')
+          for (const el of cloned.querySelectorAll('.no-export')) {
+            el.remove()
+          }
+          for (const wrap of cloned.querySelectorAll<HTMLElement>('.table-wrap')) {
+            wrap.style.overflow = 'visible'
+            wrap.style.width = 'max-content'
+            wrap.style.maxWidth = 'none'
+          }
+          for (const table of cloned.querySelectorAll<HTMLElement>('.data-table')) {
+            table.style.width = 'max-content'
+            table.style.minWidth = 'max-content'
+            table.style.tableLayout = 'auto'
+          }
+          for (const cell of cloned.querySelectorAll<HTMLElement>(
+            '.data-table th, .data-table td',
+          )) {
+            cell.style.overflow = 'visible'
+            cell.style.textOverflow = 'clip'
+            cell.style.whiteSpace = 'nowrap'
+            cell.style.fontSize = '9px'
+            cell.style.padding = '5px 6px'
+          }
+        },
       })
 
       const pdf = new jsPDF({
@@ -183,8 +258,8 @@ function App() {
 
       const pageWidth = pdf.internal.pageSize.getWidth()
       const pageHeight = pdf.internal.pageSize.getHeight()
-      const marginX = 36
-      const marginY = 36
+      const marginX = 24
+      const marginY = 28
       const titleGap = 28
       const contentWidth = pageWidth - marginX * 2
       const firstPageContentTop = marginY + titleGap
@@ -258,6 +333,7 @@ function App() {
             : 'Erro desconhecido'
       alert(`Não foi possível exportar o PDF.\n\nDetalhes: ${msg}`)
     } finally {
+      for (const restore of restoreStyles.reverse()) restore()
       setExportando(false)
     }
   }
@@ -776,7 +852,7 @@ function App() {
                     await exportarElementoComoPdf(
                       el,
                       'relatorio-completo.pdf',
-                      'portrait',
+                      'landscape',
                       'Memória de cálculo',
                     )
                   }}
