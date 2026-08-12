@@ -675,6 +675,7 @@ function App() {
                         <th>INCC acum.</th>
                         <th>Valor devido</th>
                         <th>Valor pago</th>
+                        <th className="no-export">Ação</th>
                         <th>Excesso</th>
                       </tr>
                     </thead>
@@ -690,23 +691,21 @@ function App() {
                           <td>{currencyFormatter.format(r.taxasAdicionais)}</td>
                           <td>{r.incc == null ? '-' : `${r.incc.toFixed(2)}%`}</td>
                           <td>{currencyFormatter.format(r.devido)}</td>
-                          <td>
-                            <div className="cell-with-action">
-                              <span>{currencyFormatter.format(r.vp)}</span>
-                              <button
-                                type="button"
-                                className="link-button no-export"
-                                onClick={() => {
-                                  const linha = linhas.find((l) => l.id === r.id)
-                                  setEdicaoValorPago({
-                                    linhaId: r.id,
-                                    valorPago: linha?.valorPago ?? '',
-                                  })
-                                }}
-                              >
-                                Editar
-                              </button>
-                            </div>
+                          <td>{currencyFormatter.format(r.vp)}</td>
+                          <td className="table-actions no-export">
+                            <button
+                              type="button"
+                              className="link-button"
+                              onClick={() => {
+                                const linha = linhas.find((l) => l.id === r.id)
+                                setEdicaoValorPago({
+                                  linhaId: r.id,
+                                  valorPago: linha?.valorPago ?? '',
+                                })
+                              }}
+                            >
+                              Editar
+                            </button>
                           </td>
                           <td className={r.excesso >= 0 ? 'excesso-pos' : 'excesso-neg'}>
                             {currencyFormatter.format(r.excesso)}
@@ -724,6 +723,7 @@ function App() {
                         <td></td>
                         <td>{currencyFormatter.format(relatorio.totalDevido)}</td>
                         <td>{currencyFormatter.format(relatorio.totalPago)}</td>
+                        <td className="no-export"></td>
                         <td>{currencyFormatter.format(relatorio.totalExcesso)}</td>
                       </tr>
                     </tbody>

@@ -581,7 +581,17 @@
   }
 
   .report-table-wide {
-    min-width: 1080px;
+    min-width: 1180px;
+  }
+
+  .report-table-wide .table-actions {
+    width: 64px;
+    white-space: nowrap;
+  }
+
+  .report-table-wide .link-button {
+    flex-shrink: 0;
+    white-space: nowrap;
   }
 
   .launch-table-wide th,
