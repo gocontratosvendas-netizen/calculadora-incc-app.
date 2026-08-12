@@ -109,9 +109,9 @@ function groupRows(items: TextItem[]) {
 }
 
 /**
- * Ordem monetária no Extrato CivilWeb (após as 2 datas):
- * 0 Contratual, 1 Juros Contr., 2 Correção, 3 Renegociação, 4 Multa,
- * 5 Descontos, 6 Juros de Mora, 7 Taxas Adicionais, 8 Corrigido, 9 Presente, 10 Pago
+ * Ordem monetária no Extrato CivilWeb (após as 2 datas), da esquerda p/ direita:
+ * 0 Contratual, 1 Juros Contr., 2 Correção Monetária, 3 Renegociação, 4 Multa,
+ * 5 Juros de Mora, 6 Descontos, 7 Taxas Adicionais, 8 Corrigido, 9 Presente, 10 Pago
  */
 function parseLancamentoFromTokens(tokens: string[]): LancamentoExtraido | null {
   const dates = tokens.filter(isDateBr)
@@ -130,8 +130,8 @@ function parseLancamentoFromTokens(tokens: string[]): LancamentoExtraido | null 
       valorContratual: moneys[0],
       renegociacao: moneys[3] ?? zero,
       multa: moneys[4] ?? zero,
-      descontos: moneys[5] ?? zero,
-      jurosMora: moneys[6] ?? zero,
+      jurosMora: moneys[5] ?? zero,
+      descontos: moneys[6] ?? zero,
       taxasAdicionais: moneys[7] ?? zero,
       valorPago: moneys[10] ?? moneys[moneys.length - 1],
       parcela,
