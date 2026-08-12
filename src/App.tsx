@@ -125,7 +125,7 @@ function App() {
     element: HTMLElement,
     nomeArquivo: string,
     orientation: 'portrait' | 'landscape' = 'portrait',
-    titulo = 'Memória de Cálculos',
+    titulo = 'Memória de cálculo',
   ) {
     setExportando(true)
     try {
@@ -678,7 +678,7 @@ function App() {
                       el,
                       'relatorio-completo.pdf',
                       'portrait',
-                      'Memória de Cálculos',
+                      'Memória de cálculo',
                     )
                   }}
                 >
@@ -694,7 +694,7 @@ function App() {
                     exportarMemoriaComoExcel('memoria-de-calculos.xlsx')
                   }}
                 >
-                  Memória de cálculos (Excel)
+                  Memória de cálculo (Excel)
                 </button>
 
                 <button
@@ -709,11 +709,11 @@ function App() {
                       el,
                       'memoria-de-calculos.pdf',
                       'landscape',
-                      'Memória de Cálculos',
+                      'Memória de cálculo',
                     )
                   }}
                 >
-                  Memória de cálculos (PDF)
+                  Memória de cálculo (PDF)
                 </button>
               </div>
               <p className="result-highlight">
