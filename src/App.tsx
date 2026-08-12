@@ -605,7 +605,7 @@ function App() {
             </div>
 
             <p className="result-highlight">
-              Observação: a correção é aplicada a cada aniversário do contrato, com o INCC-DI acumulado desde o início até o último aniversário ocorrido. Tabela disponível de 2021 a jul/2026.
+              Observação: a correção só começa após o 1º aniversário do contrato. Antes disso, Valor devido = Valor contratual. Tabela INCC-DI de jan/2020 a jul/2026.
             </p>
           </section>
         )}

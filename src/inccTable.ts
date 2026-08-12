@@ -2,6 +2,20 @@ type YearMonth = `${number}-${string}`
 
 // Fonte: tabela INCC-DI (FGV). Mantemos local para o app funcionar offline.
 const inccMensal: Record<YearMonth, number> = {
+  // 2020
+  '2020-01': 0.38,
+  '2020-02': 0.33,
+  '2020-03': 0.26,
+  '2020-04': 0.22,
+  '2020-05': 0.2,
+  '2020-06': 0.34,
+  '2020-07': 1.17,
+  '2020-08': 0.72,
+  '2020-09': 1.16,
+  '2020-10': 1.73,
+  '2020-11': 1.28,
+  '2020-12': 0.7,
+
   // 2021
   '2021-01': 0.89,
   '2021-02': 1.89,
@@ -114,13 +128,20 @@ export function calcularInccAcumuladoEntre(anoMesInicio: YearMonth, anoMesFim: Y
   let meses = 0
   let incompleto = false
   let atual = anoMesInicio
+  let iniciou = false
 
   while (compareYearMonth(atual, anoMesFim) <= 0) {
     const taxa = getInccMensal(atual)
     if (taxa == null) {
-      incompleto = true
-      break
+      // Antes do primeiro mês disponível: pula. Depois de iniciado: marca incompleto e para.
+      if (iniciou) {
+        incompleto = true
+        break
+      }
+      atual = addMonths(atual, 1)
+      continue
     }
+    iniciou = true
     fator *= 1 + taxa / 100
     meses += 1
     atual = addMonths(atual, 1)
