@@ -2,13 +2,17 @@ import { useMemo, useRef, useState } from 'react'
 import './App.css'
 import { calcularFatorCorrecaoPorAniversarios } from './inccTable'
 import { parseExtratoFinanceiroPdf } from './parseExtratoPdf'
-import html2canvas from 'html2canvas'
 import { jsPDF } from 'jspdf'
 import * as XLSX from 'xlsx'
 
 const currencyFormatter = new Intl.NumberFormat('pt-BR', {
   style: 'currency',
   currency: 'BRL',
+})
+
+const numberFormatter = new Intl.NumberFormat('pt-BR', {
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
 })
 
 function App() {
@@ -104,8 +108,6 @@ function App() {
   const [importandoPdf, setImportandoPdf] = useState(false)
   const [mensagemImportacao, setMensagemImportacao] = useState<string | null>(null)
 
-  const exportRelatorioCompletoRef = useRef<HTMLDivElement | null>(null)
-  const exportMemoriaRef = useRef<HTMLDivElement | null>(null)
   const pdfInputRef = useRef<HTMLInputElement | null>(null)
 
   async function handleImportarPdf(file: File) {
@@ -154,173 +156,209 @@ function App() {
     }
   }
 
-  async function exportarElementoComoPdf(
-    element: HTMLElement,
+  function formatPdfMoney(value: number) {
+    return numberFormatter.format(value)
+  }
+
+  function drawPdfTextFit(
+    pdf: jsPDF,
+    text: string,
+    x: number,
+    y: number,
+    maxWidth: number,
+    align: 'left' | 'right' | 'center',
+    baseSize: number,
+  ) {
+    let size = baseSize
+    pdf.setFontSize(size)
+    while (size > 5 && pdf.getTextWidth(text) > maxWidth - 1.5) {
+      size -= 0.4
+      pdf.setFontSize(size)
+    }
+    const drawX =
+      align === 'right' ? x + maxWidth - 1 : align === 'center' ? x + maxWidth / 2 : x + 1
+    pdf.text(text, drawX, y, { align, baseline: 'middle' })
+  }
+
+  function exportarRelatorioComoPdf(
     nomeArquivo: string,
-    orientation: 'portrait' | 'landscape' = 'landscape',
-    titulo = 'Memória de cálculo',
+    opcoes: { incluirResumo: boolean } = { incluirResumo: true },
   ) {
     setExportando(true)
-    const restoreStyles: Array<() => void> = []
     try {
-      // dá tempo da UI (popup) fechar e layout estabilizar
-      await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()))
-      await new Promise<void>((resolve) => setTimeout(() => resolve(), 50))
-
-      // Expande wraps/tabelas para o html2canvas não cortar colunas (overflow:auto)
-      element.classList.add('is-exporting-pdf')
-      restoreStyles.push(() => element.classList.remove('is-exporting-pdf'))
-
-      for (const wrap of element.querySelectorAll<HTMLElement>('.table-wrap')) {
-        const prev = {
-          overflow: wrap.style.overflow,
-          width: wrap.style.width,
-          maxWidth: wrap.style.maxWidth,
-        }
-        wrap.style.overflow = 'visible'
-        wrap.style.width = 'max-content'
-        wrap.style.maxWidth = 'none'
-        restoreStyles.push(() => {
-          wrap.style.overflow = prev.overflow
-          wrap.style.width = prev.width
-          wrap.style.maxWidth = prev.maxWidth
-        })
-      }
-
-      for (const table of element.querySelectorAll<HTMLElement>('.data-table')) {
-        const prev = {
-          width: table.style.width,
-          minWidth: table.style.minWidth,
-          tableLayout: table.style.tableLayout,
-        }
-        table.style.width = 'max-content'
-        table.style.minWidth = 'max-content'
-        table.style.tableLayout = 'auto'
-        restoreStyles.push(() => {
-          table.style.width = prev.width
-          table.style.minWidth = prev.minWidth
-          table.style.tableLayout = prev.tableLayout
-        })
-      }
-
-      await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()))
-
-      const captureWidth = Math.max(
-        element.scrollWidth,
-        element.offsetWidth,
-        ...[...element.querySelectorAll<HTMLElement>('.table-wrap, .data-table')].map(
-          (el) => Math.max(el.scrollWidth, el.offsetWidth),
-        ),
-      )
-      const captureHeight = Math.max(element.scrollHeight, element.offsetHeight)
-
-      const canvas = await html2canvas(element, {
-        backgroundColor: '#ffffff',
-        scale: 2,
-        useCORS: true,
-        ignoreElements: (el) => el.classList?.contains('no-export') ?? false,
-        width: captureWidth,
-        height: captureHeight,
-        windowWidth: captureWidth,
-        windowHeight: captureHeight,
-        onclone: (_doc, cloned) => {
-          cloned.classList.add('is-exporting-pdf')
-          for (const el of cloned.querySelectorAll('.no-export')) {
-            el.remove()
-          }
-          for (const wrap of cloned.querySelectorAll<HTMLElement>('.table-wrap')) {
-            wrap.style.overflow = 'visible'
-            wrap.style.width = 'max-content'
-            wrap.style.maxWidth = 'none'
-          }
-          for (const table of cloned.querySelectorAll<HTMLElement>('.data-table')) {
-            table.style.width = 'max-content'
-            table.style.minWidth = 'max-content'
-            table.style.tableLayout = 'auto'
-          }
-          for (const cell of cloned.querySelectorAll<HTMLElement>(
-            '.data-table th, .data-table td',
-          )) {
-            cell.style.overflow = 'visible'
-            cell.style.textOverflow = 'clip'
-            cell.style.whiteSpace = 'nowrap'
-            cell.style.fontSize = '9px'
-            cell.style.padding = '5px 6px'
-          }
-        },
-      })
-
       const pdf = new jsPDF({
-        orientation,
+        orientation: 'landscape',
         unit: 'pt',
         format: 'a4',
       })
 
       const pageWidth = pdf.internal.pageSize.getWidth()
       const pageHeight = pdf.internal.pageSize.getHeight()
-      const marginX = 24
-      const marginY = 28
-      const titleGap = 28
-      const contentWidth = pageWidth - marginX * 2
-      const firstPageContentTop = marginY + titleGap
-      const firstPageContentHeight = pageHeight - firstPageContentTop - marginY
-      const otherPageContentHeight = pageHeight - marginY * 2
+      const marginX = 18
+      const marginY = 22
+      const usableWidth = pageWidth - marginX * 2
 
-      // escala a imagem para caber na largura útil (com margem)
-      const scale = contentWidth / canvas.width
-      const pageCanvas = document.createElement('canvas')
-      const pageCtx = pageCanvas.getContext('2d')
-      if (!pageCtx) throw new Error('Não foi possível criar canvas para o PDF.')
+      const headers = [
+        'Pagamento',
+        'Contratual',
+        'Renegociação',
+        'Multa',
+        'Juros mora',
+        'Descontos',
+        'Taxas',
+        'INCC %',
+        'Devido',
+        'Pago',
+        'Excesso',
+      ]
 
-      pageCanvas.width = canvas.width
+      // Larguras proporcionais à quantidade de dígitos típica
+      const colWeights = [1.15, 1.45, 1.25, 1.05, 1.25, 1.25, 1.1, 0.85, 1.45, 1.45, 1.35]
+      const weightSum = colWeights.reduce((a, b) => a + b, 0)
+      const colWidths = colWeights.map((w) => (w / weightSum) * usableWidth)
 
-      let sourceY = 0
-      let pageIndex = 0
+      const rowHeight = 14
+      const headerHeight = 22
+      const fontBody = 6.8
+      const fontHeader = 6.5
 
-      while (sourceY < canvas.height) {
-        const isFirstPage = pageIndex === 0
-        const availableHeightPt = isFirstPage ? firstPageContentHeight : otherPageContentHeight
-        const sliceHeightPx = Math.min(
-          Math.floor(availableHeightPt / scale),
-          canvas.height - sourceY,
-        )
+      let y = marginY
 
-        pageCanvas.height = sliceHeightPx
-        pageCtx.fillStyle = '#ffffff'
-        pageCtx.fillRect(0, 0, pageCanvas.width, pageCanvas.height)
-        pageCtx.drawImage(
-          canvas,
-          0,
-          sourceY,
-          canvas.width,
-          sliceHeightPx,
-          0,
-          0,
-          pageCanvas.width,
-          sliceHeightPx,
-        )
-
-        const imgData = pageCanvas.toDataURL('image/jpeg', 0.92)
-        if (pageIndex > 0) pdf.addPage()
-
-        // fundo branco + título na primeira página
-        pdf.setFillColor(255, 255, 255)
-        pdf.rect(0, 0, pageWidth, pageHeight, 'F')
-
-        if (isFirstPage) {
-          pdf.setFont('helvetica', 'bold')
-          pdf.setFontSize(16)
-          pdf.setTextColor(16, 57, 111)
-          pdf.text(titulo, pageWidth / 2, marginY + 8, { align: 'center' })
-        }
-
-        const drawY = isFirstPage ? firstPageContentTop : marginY
-        const drawHeight = sliceHeightPx * scale
-        pdf.addImage(imgData, 'JPEG', marginX, drawY, contentWidth, drawHeight)
-
-        sourceY += sliceHeightPx
-        pageIndex += 1
+      const paintTitle = () => {
+        pdf.setFont('helvetica', 'bold')
+        pdf.setFontSize(14)
+        pdf.setTextColor(16, 57, 111)
+        pdf.text('Memória de cálculo', pageWidth / 2, y + 6, { align: 'center' })
+        y += 22
+        pdf.setFont('helvetica', 'normal')
+        pdf.setFontSize(8)
+        pdf.setTextColor(90, 90, 90)
+        pdf.text('Valores em R$ (reais)', marginX, y)
+        y += 12
       }
+
+      const paintResumo = () => {
+        const cards = [
+          { label: 'Valor pago', value: currencyFormatter.format(relatorio.totalPago) },
+          { label: 'Valor devido', value: currencyFormatter.format(relatorio.totalDevido) },
+          {
+            label: 'Cobrado em excesso',
+            value: currencyFormatter.format(relatorio.totalExcesso),
+          },
+          {
+            label: 'Dobro do excesso',
+            value: currencyFormatter.format(relatorio.totalExcesso * 2),
+          },
+        ]
+        const gap = 8
+        const cardW = (usableWidth - gap * 3) / 4
+        const cardH = 36
+        cards.forEach((card, i) => {
+          const x = marginX + i * (cardW + gap)
+          pdf.setFillColor(235, 242, 250)
+          pdf.setDrawColor(180, 200, 220)
+          pdf.roundedRect(x, y, cardW, cardH, 4, 4, 'FD')
+          pdf.setFont('helvetica', 'normal')
+          pdf.setFontSize(7)
+          pdf.setTextColor(70, 90, 120)
+          pdf.text(card.label, x + 8, y + 12)
+          pdf.setFont('helvetica', 'bold')
+          pdf.setFontSize(9)
+          pdf.setTextColor(15, 47, 95)
+          drawPdfTextFit(pdf, card.value, x + 6, y + 25, cardW - 12, 'left', 9)
+        })
+        y += cardH + 14
+      }
+
+      const ensureSpace = (needed: number) => {
+        if (y + needed <= pageHeight - marginY) return
+        pdf.addPage()
+        y = marginY
+        paintTableHeader()
+      }
+
+      const paintTableHeader = () => {
+        pdf.setFillColor(16, 57, 111)
+        pdf.rect(marginX, y, usableWidth, headerHeight, 'F')
+        pdf.setFont('helvetica', 'bold')
+        pdf.setTextColor(255, 255, 255)
+        let x = marginX
+        headers.forEach((header, i) => {
+          const lines = pdf.splitTextToSize(header, colWidths[i] - 3)
+          pdf.setFontSize(fontHeader)
+          const lineH = 8
+          const startY = y + (headerHeight - lines.length * lineH) / 2 + lineH / 2
+          lines.forEach((line: string, li: number) => {
+            pdf.text(line, x + colWidths[i] / 2, startY + li * lineH, {
+              align: 'center',
+              baseline: 'middle',
+            })
+          })
+          x += colWidths[i]
+        })
+        y += headerHeight
+      }
+
+      const paintDataRow = (cells: string[], opts?: { bold?: boolean; fill?: boolean }) => {
+        ensureSpace(rowHeight)
+        if (opts?.fill) {
+          pdf.setFillColor(245, 248, 252)
+          pdf.rect(marginX, y, usableWidth, rowHeight, 'F')
+        }
+        pdf.setDrawColor(220, 228, 236)
+        pdf.setLineWidth(0.3)
+        pdf.line(marginX, y + rowHeight, marginX + usableWidth, y + rowHeight)
+
+        pdf.setFont('helvetica', opts?.bold ? 'bold' : 'normal')
+        pdf.setTextColor(30, 30, 30)
+        let x = marginX
+        cells.forEach((cell, i) => {
+          const align = i === 0 || i === 7 ? 'left' : 'right'
+          drawPdfTextFit(pdf, cell, x, y + rowHeight / 2, colWidths[i], align, fontBody)
+          x += colWidths[i]
+        })
+        y += rowHeight
+      }
+
+      paintTitle()
+      if (opcoes.incluirResumo) paintResumo()
+      paintTableHeader()
+
+      relatorio.rows.forEach((r, idx) => {
+        paintDataRow(
+          [
+            r.pagamento || '-',
+            formatPdfMoney(r.vc),
+            formatPdfMoney(r.renegociacao),
+            formatPdfMoney(r.multa),
+            formatPdfMoney(r.jurosMora),
+            formatPdfMoney(r.descontos),
+            formatPdfMoney(r.taxasAdicionais),
+            r.incc == null ? '-' : r.incc.toFixed(2),
+            formatPdfMoney(r.devido),
+            formatPdfMoney(r.vp),
+            formatPdfMoney(r.excesso),
+          ],
+          { fill: idx % 2 === 1 },
+        )
+      })
+
+      paintDataRow(
+        [
+          'Total',
+          '',
+          formatPdfMoney(relatorio.totalRenegociacao),
+          formatPdfMoney(relatorio.totalMulta),
+          formatPdfMoney(relatorio.totalJurosMora),
+          formatPdfMoney(relatorio.totalDescontos),
+          formatPdfMoney(relatorio.totalTaxasAdicionais),
+          '',
+          formatPdfMoney(relatorio.totalDevido),
+          formatPdfMoney(relatorio.totalPago),
+          formatPdfMoney(relatorio.totalExcesso),
+        ],
+        { bold: true, fill: true },
+      )
 
       pdf.save(nomeArquivo)
     } catch (err) {
@@ -333,7 +371,6 @@ function App() {
             : 'Erro desconhecido'
       alert(`Não foi possível exportar o PDF.\n\nDetalhes: ${msg}`)
     } finally {
-      for (const restore of restoreStyles.reverse()) restore()
       setExportando(false)
     }
   }
@@ -712,7 +749,7 @@ function App() {
               </div>
             </div>
 
-            <div className="export-scope" ref={exportRelatorioCompletoRef}>
+            <div className="export-scope">
               <div className="kpi-grid" aria-label="Resumo do relatório">
                 <div className="kpi-card">
                   <span className="kpi-label">Valor pago</span>
@@ -736,7 +773,7 @@ function App() {
                 </div>
               </div>
 
-              <div className="export-scope" ref={exportMemoriaRef}>
+              <div className="export-scope">
                 <div className="table-wrap">
                   <table className="data-table report-table-wide">
                     <thead>
@@ -845,16 +882,11 @@ function App() {
                   type="button"
                   className="primary-button"
                   disabled={exportando}
-                  onClick={async () => {
-                    const el = exportRelatorioCompletoRef.current
-                    if (!el) return
+                  onClick={() => {
                     setPopupExportarAberto(false)
-                    await exportarElementoComoPdf(
-                      el,
-                      'relatorio-completo.pdf',
-                      'landscape',
-                      'Memória de cálculo',
-                    )
+                    exportarRelatorioComoPdf('relatorio-completo.pdf', {
+                      incluirResumo: true,
+                    })
                   }}
                 >
                   Relatório completo (PDF)
@@ -876,23 +908,18 @@ function App() {
                   type="button"
                   className="secondary-button"
                   disabled={exportando}
-                  onClick={async () => {
-                    const el = exportMemoriaRef.current
-                    if (!el) return
+                  onClick={() => {
                     setPopupExportarAberto(false)
-                    await exportarElementoComoPdf(
-                      el,
-                      'memoria-de-calculos.pdf',
-                      'landscape',
-                      'Memória de cálculo',
-                    )
+                    exportarRelatorioComoPdf('memoria-de-calculos.pdf', {
+                      incluirResumo: false,
+                    })
                   }}
                 >
                   Memória de cálculo (PDF)
                 </button>
               </div>
               <p className="result-highlight">
-                Dica: o PDF é gerado com base na renderização da tela (fica igualzinho ao relatório).
+                Dica: o PDF é gerado em paisagem com todas as colunas e valores legíveis.
               </p>
             </div>
           </div>

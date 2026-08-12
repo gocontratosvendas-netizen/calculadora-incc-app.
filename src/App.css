@@ -470,27 +470,8 @@
     gap: 12px;
   }
 
-  .export-scope.is-exporting-pdf .table-wrap {
-    overflow: visible !important;
-    width: max-content !important;
-    max-width: none !important;
-  }
-
-  .export-scope.is-exporting-pdf .data-table {
-    width: max-content !important;
-    min-width: max-content !important;
-    table-layout: auto !important;
-  }
-
-  .export-scope.is-exporting-pdf .data-table th,
-  .export-scope.is-exporting-pdf .data-table td {
-    overflow: visible !important;
-    text-overflow: clip !important;
-    white-space: nowrap !important;
-  }
-
   .no-export {
-    /* usado apenas para o html2canvas ignorar elementos */
+    /* usado apenas para ocultar ações na exportação visual */
   }
 
   .kpi-grid {
