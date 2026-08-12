@@ -10,6 +10,11 @@ export type LancamentoExtraido = {
   dataPagamento: string // yyyy-mm-dd
   valorContratual: string // pt-BR
   valorPago: string // pt-BR
+  renegociacao: string
+  multa: string
+  descontos: string
+  jurosMora: string
+  taxasAdicionais: string
   parcela?: string
 }
 
@@ -103,6 +108,11 @@ function groupRows(items: TextItem[]) {
     }))
 }
 
+/**
+ * Ordem monetária no Extrato CivilWeb (após as 2 datas):
+ * 0 Contratual, 1 Juros Contr., 2 Correção, 3 Renegociação, 4 Multa,
+ * 5 Descontos, 6 Juros de Mora, 7 Taxas Adicionais, 8 Corrigido, 9 Presente, 10 Pago
+ */
 function parseLancamentoFromTokens(tokens: string[]): LancamentoExtraido | null {
   const dates = tokens.filter(isDateBr)
   const moneys = tokens.filter(isMoney).map(normalizeMoneyToken)
@@ -112,10 +122,31 @@ function parseLancamentoFromTokens(tokens: string[]): LancamentoExtraido | null 
   if (!dataPagamento) return null
 
   const parcela = tokens.find((t) => /^\d{3}\/\d{3}-[A-Z]$/i.test(t))
+  const zero = '0,00'
 
+  if (moneys.length >= 11) {
+    return {
+      dataPagamento,
+      valorContratual: moneys[0],
+      renegociacao: moneys[3] ?? zero,
+      multa: moneys[4] ?? zero,
+      descontos: moneys[5] ?? zero,
+      jurosMora: moneys[6] ?? zero,
+      taxasAdicionais: moneys[7] ?? zero,
+      valorPago: moneys[10] ?? moneys[moneys.length - 1],
+      parcela,
+    }
+  }
+
+  // Fallback quando a linha veio incompleta no PDF
   return {
     dataPagamento,
     valorContratual: moneys[0],
+    renegociacao: zero,
+    multa: zero,
+    descontos: zero,
+    jurosMora: zero,
+    taxasAdicionais: zero,
     valorPago: moneys[moneys.length - 1],
     parcela,
   }
@@ -123,7 +154,7 @@ function parseLancamentoFromTokens(tokens: string[]): LancamentoExtraido | null 
 
 /**
  * Lê um PDF de "Extrato de Cliente / Extrato Financeiro" (CivilWeb)
- * e extrai data de pagamento, valor contratual e valor pago.
+ * e extrai pagamento, valores e encargos/descontos.
  */
 export async function parseExtratoFinanceiroPdf(file: File): Promise<ExtratoParseResult> {
   const items = await extractTextItems(file)
@@ -150,7 +181,6 @@ export async function parseExtratoFinanceiroPdf(file: File): Promise<ExtratoPars
       ...current.cells.map((c) => c.str),
     ]
 
-    // Também tenta só a linha atual
     const candidates = [mergedTokens, current.cells.map((c) => c.str)]
     for (const tokens of candidates) {
       const parsed = parseLancamentoFromTokens(tokens)
@@ -163,7 +193,6 @@ export async function parseExtratoFinanceiroPdf(file: File): Promise<ExtratoPars
     }
   }
 
-  // Ordena por data de pagamento
   lancamentos.sort((a, b) => a.dataPagamento.localeCompare(b.dataPagamento))
 
   return { dataAssinatura, lancamentos }

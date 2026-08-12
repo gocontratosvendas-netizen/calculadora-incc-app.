@@ -576,6 +576,24 @@
     font-weight: 700;
   }
 
+  .launch-table-wide {
+    min-width: 1100px;
+  }
+
+  .report-table-wide {
+    min-width: 1080px;
+  }
+
+  .launch-table-wide th,
+  .report-table-wide th {
+    font-size: 10px;
+  }
+
+  .launch-table-wide .table-input {
+    font-size: 12px;
+    padding: 6px 8px;
+  }
+
   .launch-table td {
     background: rgba(255, 255, 255, 0.92);
   }

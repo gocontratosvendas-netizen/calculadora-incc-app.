@@ -17,18 +17,48 @@ function App() {
     dataPagamento: string // yyyy-mm-dd
     valorContratual: string
     valorPago: string
+    renegociacao: string
+    multa: string
+    descontos: string
+    jurosMora: string
+    taxasAdicionais: string
+  }
+
+  function criarLinhaVazia(): Linha {
+    return {
+      id: crypto.randomUUID(),
+      dataPagamento: '',
+      valorContratual: '',
+      valorPago: '',
+      renegociacao: '0,00',
+      multa: '0,00',
+      descontos: '0,00',
+      jurosMora: '0,00',
+      taxasAdicionais: '0,00',
+    }
   }
 
   const mockLinhas = useMemo((): Linha[] => {
-    const mk = (dataPagamento: string, valorContratual: string, valorPago: string): Linha => ({
+    const mk = (
+      dataPagamento: string,
+      valorContratual: string,
+      valorPago: string,
+      extras?: Partial<
+        Pick<Linha, 'renegociacao' | 'multa' | 'descontos' | 'jurosMora' | 'taxasAdicionais'>
+      >,
+    ): Linha => ({
       id: crypto.randomUUID(),
       dataPagamento,
       valorContratual,
       valorPago,
+      renegociacao: extras?.renegociacao ?? '0,00',
+      multa: extras?.multa ?? '0,00',
+      descontos: extras?.descontos ?? '0,00',
+      jurosMora: extras?.jurosMora ?? '0,00',
+      taxasAdicionais: extras?.taxasAdicionais ?? '0,00',
     })
 
     // Mock baseado na planilha enviada (valores em BRL com vírgula decimal).
-    // Obs: o "aniversário" do contrato será a data da 1ª linha.
     return [
       mk('2021-06-23', '108.604,00', '108.604,00'),
       mk('2021-07-15', '2.500,00', '2.650,00'),
@@ -64,9 +94,7 @@ function App() {
 
   const [tela, setTela] = useState<'entrada' | 'resultado'>('entrada')
   const [dataAniversarioManual, setDataAniversarioManual] = useState('')
-  const [linhas, setLinhas] = useState<Linha[]>([
-    { id: crypto.randomUUID(), dataPagamento: '', valorContratual: '', valorPago: '' },
-  ])
+  const [linhas, setLinhas] = useState<Linha[]>([criarLinhaVazia()])
   const [edicaoValorPago, setEdicaoValorPago] = useState<{
     linhaId: string
     valorPago: string
@@ -97,6 +125,11 @@ function App() {
         dataPagamento: l.dataPagamento,
         valorContratual: l.valorContratual,
         valorPago: l.valorPago,
+        renegociacao: l.renegociacao,
+        multa: l.multa,
+        descontos: l.descontos,
+        jurosMora: l.jurosMora,
+        taxasAdicionais: l.taxasAdicionais,
       }))
 
       setLinhas(novasLinhas)
@@ -233,6 +266,11 @@ function App() {
     const header = [
       'Pagamento',
       'Valor contratual',
+      'Renegociação',
+      'Multa',
+      'Juros de mora',
+      'Descontos',
+      'Taxas adicionais',
       'INCC acumulado',
       'Valor devido',
       'Valor pago',
@@ -242,20 +280,42 @@ function App() {
     const rows = relatorio.rows.map((r) => [
       r.pagamento,
       r.vc,
+      r.renegociacao,
+      r.multa,
+      r.jurosMora,
+      r.descontos,
+      r.taxasAdicionais,
       r.incc == null ? null : Number(r.incc.toFixed(2)),
       r.devido,
       r.vp,
       r.excesso,
     ])
 
-    const totalRow = ['Total', null, null, relatorio.totalDevido, relatorio.totalPago, relatorio.totalExcesso]
+    const totalRow = [
+      'Total',
+      null,
+      relatorio.totalRenegociacao,
+      relatorio.totalMulta,
+      relatorio.totalJurosMora,
+      relatorio.totalDescontos,
+      relatorio.totalTaxasAdicionais,
+      null,
+      relatorio.totalDevido,
+      relatorio.totalPago,
+      relatorio.totalExcesso,
+    ]
 
     const ws = XLSX.utils.aoa_to_sheet([header, ...rows, totalRow])
 
     ws['!cols'] = [
       { wch: 14 },
       { wch: 16 },
-      { wch: 22 },
+      { wch: 14 },
+      { wch: 12 },
+      { wch: 14 },
+      { wch: 12 },
+      { wch: 16 },
+      { wch: 14 },
       { wch: 14 },
       { wch: 14 },
       { wch: 22 },
@@ -292,6 +352,11 @@ function App() {
         data: parseDate(l.dataPagamento),
         vc: parseMoney(l.valorContratual),
         vp: parseMoney(l.valorPago),
+        renegociacao: parseMoney(l.renegociacao),
+        multa: parseMoney(l.multa),
+        descontos: parseMoney(l.descontos),
+        jurosMora: parseMoney(l.jurosMora),
+        taxasAdicionais: parseMoney(l.taxasAdicionais),
       }))
       .filter((l) => l.data && l.vc > 0)
       .sort((a, b) => a.data!.getTime() - b.data!.getTime())
@@ -301,14 +366,23 @@ function App() {
     const rows = linhasValidas.map((l) => {
       const baseInicio = inicioEfetivo ?? l.data!
       const { fator, ultimaTaxa } = calcularFatorCorrecaoPorAniversarios(baseInicio, l.data!)
-      const devido = l.vc * fator
+      const baseCorrigida = l.vc * fator
+      const encargos =
+        l.renegociacao + l.multa + l.jurosMora + l.taxasAdicionais - l.descontos
+      const devido = baseCorrigida + encargos
       const excesso = l.vp - devido
       return {
         id: l.id,
         pagamento: l.dataPagamento,
         vc: l.vc,
         vp: l.vp,
+        renegociacao: l.renegociacao,
+        multa: l.multa,
+        descontos: l.descontos,
+        jurosMora: l.jurosMora,
+        taxasAdicionais: l.taxasAdicionais,
         incc: ultimaTaxa,
+        baseCorrigida,
         devido,
         excesso,
       }
@@ -317,6 +391,11 @@ function App() {
     const totalDevido = rows.reduce((acc, r) => acc + r.devido, 0)
     const totalPago = rows.reduce((acc, r) => acc + r.vp, 0)
     const totalExcesso = rows.reduce((acc, r) => acc + r.excesso, 0)
+    const totalRenegociacao = rows.reduce((acc, r) => acc + r.renegociacao, 0)
+    const totalMulta = rows.reduce((acc, r) => acc + r.multa, 0)
+    const totalDescontos = rows.reduce((acc, r) => acc + r.descontos, 0)
+    const totalJurosMora = rows.reduce((acc, r) => acc + r.jurosMora, 0)
+    const totalTaxasAdicionais = rows.reduce((acc, r) => acc + r.taxasAdicionais, 0)
 
     return {
       inicioEfetivo,
@@ -324,6 +403,11 @@ function App() {
       totalDevido,
       totalPago,
       totalExcesso,
+      totalRenegociacao,
+      totalMulta,
+      totalDescontos,
+      totalJurosMora,
+      totalTaxasAdicionais,
     }
   }, [linhas, dataAniversarioManual])
 
@@ -415,11 +499,16 @@ function App() {
             </div>
 
             <div className="table-wrap launch-table-wrap">
-              <table className="data-table launch-table">
+              <table className="data-table launch-table launch-table-wide">
                 <thead>
                   <tr>
-                    <th>Data de pagamento</th>
+                    <th>Data pagamento</th>
                     <th>Valor contratual</th>
+                    <th>Renegociação</th>
+                    <th>Multa</th>
+                    <th>Juros de mora</th>
+                    <th>Descontos</th>
+                    <th>Taxas adicionais</th>
                     <th>Valor pago</th>
                     <th></th>
                   </tr>
@@ -440,34 +529,32 @@ function App() {
                           }}
                         />
                       </td>
-                      <td>
-                        <input
-                          className="table-input"
-                          inputMode="decimal"
-                          placeholder="ex: 2.500,00"
-                          value={linha.valorContratual}
-                          onChange={(e) => {
-                            const v = e.target.value
-                            setLinhas((prev) =>
-                              prev.map((p) => (p.id === linha.id ? { ...p, valorContratual: v } : p)),
-                            )
-                          }}
-                        />
-                      </td>
-                      <td>
-                        <input
-                          className="table-input"
-                          inputMode="decimal"
-                          placeholder="ex: 2.650,00"
-                          value={linha.valorPago}
-                          onChange={(e) => {
-                            const v = e.target.value
-                            setLinhas((prev) =>
-                              prev.map((p) => (p.id === linha.id ? { ...p, valorPago: v } : p)),
-                            )
-                          }}
-                        />
-                      </td>
+                      {(
+                        [
+                          ['valorContratual', 'ex: 2.500,00'],
+                          ['renegociacao', '0,00'],
+                          ['multa', '0,00'],
+                          ['jurosMora', '0,00'],
+                          ['descontos', '0,00'],
+                          ['taxasAdicionais', '0,00'],
+                          ['valorPago', 'ex: 2.650,00'],
+                        ] as const
+                      ).map(([campo, placeholder]) => (
+                        <td key={campo}>
+                          <input
+                            className="table-input"
+                            inputMode="decimal"
+                            placeholder={placeholder}
+                            value={linha[campo]}
+                            onChange={(e) => {
+                              const v = e.target.value
+                              setLinhas((prev) =>
+                                prev.map((p) => (p.id === linha.id ? { ...p, [campo]: v } : p)),
+                              )
+                            }}
+                          />
+                        </td>
+                      ))}
                       <td className="table-actions">
                         <button
                           type="button"
@@ -518,12 +605,7 @@ function App() {
               <button
                 type="button"
                 className="secondary-button"
-                onClick={() =>
-                  setLinhas((prev) => [
-                    ...prev,
-                    { id: crypto.randomUUID(), dataPagamento: '', valorContratual: '', valorPago: '' },
-                  ])
-                }
+                onClick={() => setLinhas((prev) => [...prev, criarLinhaVazia()])}
               >
                 Adicionar linha
               </button>
@@ -580,15 +662,20 @@ function App() {
 
               <div className="export-scope" ref={exportMemoriaRef}>
                 <div className="table-wrap">
-                  <table className="data-table">
+                  <table className="data-table report-table-wide">
                     <thead>
                       <tr>
                         <th>Pagamento</th>
                         <th>Valor contratual</th>
-                        <th>INCC acumulado</th>
+                        <th>Renegociação</th>
+                        <th>Multa</th>
+                        <th>Juros mora</th>
+                        <th>Descontos</th>
+                        <th>Taxas adic.</th>
+                        <th>INCC acum.</th>
                         <th>Valor devido</th>
                         <th>Valor pago</th>
-                        <th>Valor cobrado em excesso</th>
+                        <th>Excesso</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -596,6 +683,11 @@ function App() {
                         <tr key={r.id}>
                           <td>{r.pagamento || '-'}</td>
                           <td>{currencyFormatter.format(r.vc)}</td>
+                          <td>{currencyFormatter.format(r.renegociacao)}</td>
+                          <td>{currencyFormatter.format(r.multa)}</td>
+                          <td>{currencyFormatter.format(r.jurosMora)}</td>
+                          <td>{currencyFormatter.format(r.descontos)}</td>
+                          <td>{currencyFormatter.format(r.taxasAdicionais)}</td>
                           <td>{r.incc == null ? '-' : `${r.incc.toFixed(2)}%`}</td>
                           <td>{currencyFormatter.format(r.devido)}</td>
                           <td>
@@ -624,6 +716,11 @@ function App() {
                       <tr className="table-total">
                         <td>Total</td>
                         <td></td>
+                        <td>{currencyFormatter.format(relatorio.totalRenegociacao)}</td>
+                        <td>{currencyFormatter.format(relatorio.totalMulta)}</td>
+                        <td>{currencyFormatter.format(relatorio.totalJurosMora)}</td>
+                        <td>{currencyFormatter.format(relatorio.totalDescontos)}</td>
+                        <td>{currencyFormatter.format(relatorio.totalTaxasAdicionais)}</td>
                         <td></td>
                         <td>{currencyFormatter.format(relatorio.totalDevido)}</td>
                         <td>{currencyFormatter.format(relatorio.totalPago)}</td>
@@ -636,7 +733,9 @@ function App() {
             </div>
 
             <p className="result-highlight">
-              Observação: a correção só começa após o 1º aniversário do contrato. Antes disso, Valor devido = Valor contratual. Tabela INCC-DI de jan/2020 a jul/2026.
+              Observação: Valor devido = (Valor contratual × fator INCC) + Renegociação + Multa +
+              Juros de mora + Taxas adicionais − Descontos. A correção INCC só começa após o 1º
+              aniversário.
             </p>
           </section>
         )}
