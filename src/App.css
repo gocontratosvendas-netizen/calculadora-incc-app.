@@ -599,6 +599,17 @@
     font-weight: 600;
   }
 
+  .hidden-file-input {
+    display: none;
+  }
+
+  .import-feedback {
+    margin: 0;
+    font-size: 13px;
+    color: #0d7c3b;
+    font-weight: 600;
+  }
+
   .result-card {
     align-self: flex-start;
   }

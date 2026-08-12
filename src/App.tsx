@@ -1,6 +1,7 @@
 import { useMemo, useRef, useState } from 'react'
 import './App.css'
 import { calcularFatorCorrecaoPorAniversarios } from './inccTable'
+import { parseExtratoFinanceiroPdf } from './parseExtratoPdf'
 import html2canvas from 'html2canvas'
 import { jsPDF } from 'jspdf'
 import * as XLSX from 'xlsx'
@@ -72,9 +73,53 @@ function App() {
   } | null>(null)
   const [popupExportarAberto, setPopupExportarAberto] = useState(false)
   const [exportando, setExportando] = useState(false)
+  const [importandoPdf, setImportandoPdf] = useState(false)
+  const [mensagemImportacao, setMensagemImportacao] = useState<string | null>(null)
 
   const exportRelatorioCompletoRef = useRef<HTMLDivElement | null>(null)
   const exportMemoriaRef = useRef<HTMLDivElement | null>(null)
+  const pdfInputRef = useRef<HTMLInputElement | null>(null)
+
+  async function handleImportarPdf(file: File) {
+    setImportandoPdf(true)
+    setMensagemImportacao(null)
+    try {
+      const resultado = await parseExtratoFinanceiroPdf(file)
+      if (!resultado.lancamentos.length) {
+        setMensagemImportacao(
+          'Não encontrei lançamentos neste PDF. Confira se é um Extrato Financeiro/Extrato de Cliente.',
+        )
+        return
+      }
+
+      const novasLinhas: Linha[] = resultado.lancamentos.map((l) => ({
+        id: crypto.randomUUID(),
+        dataPagamento: l.dataPagamento,
+        valorContratual: l.valorContratual,
+        valorPago: l.valorPago,
+      }))
+
+      setLinhas(novasLinhas)
+      setDataAniversarioManual(
+        resultado.dataAssinatura ?? novasLinhas[0]?.dataPagamento ?? '',
+      )
+      setMensagemImportacao(
+        `PDF importado: ${novasLinhas.length} lançamento(s)${
+          resultado.dataAssinatura
+            ? ` · aniversário ${resultado.dataAssinatura.split('-').reverse().join('/')}`
+            : ''
+        }.`,
+      )
+    } catch (err) {
+      console.error(err)
+      setMensagemImportacao(
+        'Falha ao ler o PDF. Tente outro arquivo ou informe o erro do console.',
+      )
+    } finally {
+      setImportandoPdf(false)
+      if (pdfInputRef.current) pdfInputRef.current.value = ''
+    }
+  }
 
   async function exportarElementoComoPdf(
     element: HTMLElement,
@@ -411,6 +456,24 @@ function App() {
             </div>
 
             <div className="actions-row launch-actions-row">
+              <input
+                ref={pdfInputRef}
+                type="file"
+                accept="application/pdf,.pdf"
+                className="hidden-file-input"
+                onChange={(e) => {
+                  const file = e.target.files?.[0]
+                  if (file) void handleImportarPdf(file)
+                }}
+              />
+              <button
+                type="button"
+                className="secondary-button"
+                disabled={importandoPdf}
+                onClick={() => pdfInputRef.current?.click()}
+              >
+                {importandoPdf ? 'Lendo PDF...' : 'Importar PDF do extrato'}
+              </button>
               <button
                 type="button"
                 className="secondary-button"
@@ -437,6 +500,9 @@ function App() {
                 Ver relatório
               </button>
             </div>
+            {mensagemImportacao ? (
+              <p className="import-feedback">{mensagemImportacao}</p>
+            ) : null}
           </section>
         ) : (
           <section className="card card-wide report-card">
