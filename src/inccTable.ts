@@ -1,7 +1,6 @@
 type YearMonth = `${number}-${string}`
 
-// Fonte: tabela INCC-DI (FGV) exibida pela Yahii (valores % ao mês).
-// Mantemos local para o app funcionar offline.
+// Fonte: tabela INCC-DI (FGV). Mantemos local para o app funcionar offline.
 const inccMensal: Record<YearMonth, number> = {
   // 2021
   '2021-01': 0.89,
@@ -58,6 +57,29 @@ const inccMensal: Record<YearMonth, number> = {
   '2024-10': 0.68,
   '2024-11': 0.4,
   '2024-12': 0.5,
+
+  // 2025
+  '2025-01': 0.83,
+  '2025-02': 0.4,
+  '2025-03': 0.39,
+  '2025-04': 0.52,
+  '2025-05': 0.58,
+  '2025-06': 0.69,
+  '2025-07': 0.91,
+  '2025-08': 0.52,
+  '2025-09': 0.17,
+  '2025-10': 0.3,
+  '2025-11': 0.27,
+  '2025-12': 0.21,
+
+  // 2026
+  '2026-01': 0.72,
+  '2026-02': 0.28,
+  '2026-03': 0.54,
+  '2026-04': 1.0,
+  '2026-05': 0.88,
+  '2026-06': 0.78,
+  '2026-07': 0.61,
 }
 
 function toYearMonth(date: Date): YearMonth {
@@ -72,49 +94,97 @@ function addMonths(ym: YearMonth, delta: number): YearMonth {
   return toYearMonth(date)
 }
 
+function compareYearMonth(a: YearMonth, b: YearMonth) {
+  if (a === b) return 0
+  return a < b ? -1 : 1
+}
+
 export function getInccMensal(anoMes: YearMonth) {
   const val = inccMensal[anoMes]
   return typeof val === 'number' ? val : null
 }
 
-export function calcularIncc12MesesNoMes(anoMesFim: YearMonth) {
-  let fator = 1
-  for (let i = 0; i < 12; i += 1) {
-    const ym = addMonths(anoMesFim, -i)
-    const taxa = getInccMensal(ym)
-    if (taxa == null) return null
-    fator *= 1 + taxa / 100
+/** Acumula INCC-DI mês a mês entre dois ano-mês (inclusive). */
+export function calcularInccAcumuladoEntre(anoMesInicio: YearMonth, anoMesFim: YearMonth) {
+  if (compareYearMonth(anoMesFim, anoMesInicio) < 0) {
+    return { acumuladoPercentual: 0, mesesConsiderados: 0, incompleto: false }
   }
-  return (fator - 1) * 100
+
+  let fator = 1
+  let meses = 0
+  let incompleto = false
+  let atual = anoMesInicio
+
+  while (compareYearMonth(atual, anoMesFim) <= 0) {
+    const taxa = getInccMensal(atual)
+    if (taxa == null) {
+      incompleto = true
+      break
+    }
+    fator *= 1 + taxa / 100
+    meses += 1
+    atual = addMonths(atual, 1)
+  }
+
+  return {
+    acumuladoPercentual: (fator - 1) * 100,
+    mesesConsiderados: meses,
+    incompleto,
+  }
 }
 
+/**
+ * Correção anual no aniversário do contrato.
+ * Usa o INCC acumulado desde o mês seguinte ao início até o mês do último aniversário
+ * já ocorrido na data do pagamento (aplicado de forma linear sobre o valor contratual).
+ */
 export function calcularFatorCorrecaoPorAniversarios(
   dataInicioContrato: Date,
   dataPagamento: Date,
 ) {
-  if (dataPagamento < dataInicioContrato) return { fator: 1, ultimaTaxa: null as number | null }
+  if (dataPagamento.getTime() < dataInicioContrato.getTime()) {
+    return { fator: 1, ultimaTaxa: null as number | null, aviso: null as string | null }
+  }
 
   const dia = dataInicioContrato.getDate()
   const mes = dataInicioContrato.getMonth()
+  const anoInicio = dataInicioContrato.getFullYear()
 
-  let fator = 1
-  let ultimaTaxa: number | null = null
-
-  // Primeiro aniversário = +1 ano
-  let ano = dataInicioContrato.getFullYear() + 1
+  // Último aniversário já ocorrido até a data do pagamento
+  let ultimoAniversario: Date | null = null
+  let ano = anoInicio + 1
   while (true) {
     const aniversario = new Date(ano, mes, dia)
-    if (aniversario > dataPagamento) break
-
-    const ymAniversario = toYearMonth(aniversario)
-    const taxa12m = calcularIncc12MesesNoMes(ymAniversario)
-    if (taxa12m == null) return { fator: 1, ultimaTaxa: null }
-
-    fator *= 1 + taxa12m / 100
-    ultimaTaxa = taxa12m
+    if (aniversario.getTime() > dataPagamento.getTime()) break
+    ultimoAniversario = aniversario
     ano += 1
   }
 
-  return { fator, ultimaTaxa }
-}
+  if (!ultimoAniversario) {
+    return { fator: 1, ultimaTaxa: null, aviso: null }
+  }
 
+  // Acumula do mês seguinte ao início do contrato até o mês do aniversário
+  const inicioAcumulo = addMonths(toYearMonth(dataInicioContrato), 1)
+  const fimAcumulo = toYearMonth(ultimoAniversario)
+  const { acumuladoPercentual, mesesConsiderados, incompleto } = calcularInccAcumuladoEntre(
+    inicioAcumulo,
+    fimAcumulo,
+  )
+
+  if (mesesConsiderados === 0) {
+    return {
+      fator: 1,
+      ultimaTaxa: null,
+      aviso: 'Sem índices INCC suficientes para este período.',
+    }
+  }
+
+  return {
+    fator: 1 + acumuladoPercentual / 100,
+    ultimaTaxa: acumuladoPercentual,
+    aviso: incompleto
+      ? 'Cálculo parcial: faltam índices INCC em parte do período.'
+      : null,
+  }
+}

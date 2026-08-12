@@ -157,7 +157,7 @@ function App() {
     const header = [
       'Pagamento',
       'Valor contratual',
-      'INCC (12m no aniversário)',
+      'INCC acumulado',
       'Valor devido',
       'Valor pago',
       'Valor cobrado em excesso',
@@ -414,7 +414,10 @@ function App() {
               <button
                 type="button"
                 className="secondary-button"
-                onClick={() => setLinhas(mockLinhas)}
+                onClick={() => {
+                  setLinhas(mockLinhas)
+                  setDataAniversarioManual(mockLinhas[0]?.dataPagamento ?? '')
+                }}
               >
                 Carregar exemplo da planilha
               </button>
@@ -485,7 +488,7 @@ function App() {
                       <tr>
                         <th>Pagamento</th>
                         <th>Valor contratual</th>
-                        <th>INCC (12m no aniversário)</th>
+                        <th>INCC acumulado</th>
                         <th>Valor devido</th>
                         <th>Valor pago</th>
                         <th>Valor cobrado em excesso</th>
@@ -536,7 +539,7 @@ function App() {
             </div>
 
             <p className="result-highlight">
-              Observação: se o período do aniversário exigir meses fora de 2021–2024, o INCC não será calculado.
+              Observação: a correção é aplicada a cada aniversário do contrato, com o INCC-DI acumulado desde o início até o último aniversário ocorrido. Tabela disponível de 2021 a jul/2026.
             </p>
           </section>
         )}
