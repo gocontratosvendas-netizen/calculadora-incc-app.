@@ -486,3 +486,11 @@ export async function atualizarParceiro(
   store = store.map((p) => (p.id === id ? atualizado : p))
   return { ...atualizado, contato: { ...atualizado.contato }, responsavel: { ...atualizado.responsavel }, comissionamento: { ...atualizado.comissionamento } } // TODO: conectar ao backend
 }
+
+export async function excluirParceiro(id: string): Promise<void> {
+  await delay(220)
+  const idx = store.findIndex((p) => p.id === id)
+  if (idx < 0) throw new Error('Parceiro não encontrado')
+  store = store.filter((p) => p.id !== id)
+  return // TODO: conectar ao backend
+}

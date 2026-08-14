@@ -1,14 +1,18 @@
 import {
   useCallback,
   useEffect,
+  useId,
   useMemo,
   useRef,
   useState,
   type KeyboardEvent as ReactKeyboardEvent,
+  type MouseEvent as ReactMouseEvent,
+  type ReactNode,
 } from 'react'
 import { ParceiroFormModal } from '../components/ParceiroFormModal'
 import {
   ESTAGIO_META,
+  excluirParceiro,
   formatarEncerradaEm,
   formatarMoeda,
   formatarTempoRelativo,
@@ -104,6 +108,93 @@ function IconNextStep({ color }: { color: string }) {
   )
 }
 
+function IconTrash() {
+  return (
+    <svg viewBox="0 0 16 16" fill="none" aria-hidden="true">
+      <path
+        d="M3.5 4.5h9M6.25 4.5V3.4c0-.5.4-.9.9-.9h1.7c.5 0 .9.4.9.9v1.1M5.25 4.5l.5 8.1c.05.5.45.9.95.9h2.6c.5 0 .9-.4.95-.9l.5-8.1"
+        stroke="currentColor"
+        strokeWidth="1.2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  )
+}
+
+function ConfirmDialog({
+  labelledBy,
+  onClose,
+  children,
+}: {
+  labelledBy: string
+  onClose: () => void
+  children: ReactNode
+}) {
+  const dialogRef = useRef<HTMLDivElement>(null)
+  const onCloseRef = useRef(onClose)
+
+  useEffect(() => {
+    onCloseRef.current = onClose
+  }, [onClose])
+
+  useEffect(() => {
+    const previouslyFocused = document.activeElement as HTMLElement | null
+    const root = dialogRef.current
+    if (!root) return
+
+    const focaveis = [
+      ...root.querySelectorAll<HTMLElement>(
+        'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+      ),
+    ]
+    focaveis[0]?.focus()
+
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === 'Escape') {
+        event.preventDefault()
+        onCloseRef.current()
+        return
+      }
+      if (event.key !== 'Tab' || focaveis.length === 0) return
+      const primeiro = focaveis[0]
+      const ultimo = focaveis[focaveis.length - 1]
+      if (event.shiftKey && document.activeElement === primeiro) {
+        event.preventDefault()
+        ultimo.focus()
+      } else if (!event.shiftKey && document.activeElement === ultimo) {
+        event.preventDefault()
+        primeiro.focus()
+      }
+    }
+
+    document.addEventListener('keydown', onKeyDown)
+    return () => {
+      document.removeEventListener('keydown', onKeyDown)
+      previouslyFocused?.focus()
+    }
+  }, [])
+
+  return (
+    <div
+      className="parcerias-confirm-overlay"
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget) onClose()
+      }}
+    >
+      <div
+        ref={dialogRef}
+        className="parcerias-confirm-dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={labelledBy}
+      >
+        {children}
+      </div>
+    </div>
+  )
+}
+
 function iniciaisAvatar(bg: string, fg: string) {
   return { background: bg, color: fg } as const
 }
@@ -147,6 +238,7 @@ function exportarCsv(parceiros: Parceiro[]) {
 }
 
 export default function Parcerias() {
+  const tituloExcluirId = useId()
   const [parceiros, setParceiros] = useState<Parceiro[]>([])
   const [resumo, setResumo] = useState<ParceriasResumo>(EMPTY_RESUMO)
   const [loading, setLoading] = useState(true)
@@ -159,6 +251,8 @@ export default function Parcerias() {
   const [editando, setEditando] = useState<Parceiro | null>(null)
   const [origemFoco, setOrigemFoco] = useState<HTMLElement | null>(null)
   const [destaqueId, setDestaqueId] = useState<string | null>(null)
+  const [paraExcluir, setParaExcluir] = useState<Parceiro | null>(null)
+  const [excluindo, setExcluindo] = useState(false)
   const cadastrarRef = useRef<HTMLButtonElement>(null)
   const destaqueTimer = useRef<number | null>(null)
 
@@ -251,6 +345,37 @@ export default function Parcerias() {
     if (event.key === 'Enter' || event.key === ' ') {
       event.preventDefault()
       abrirEdicao(parceiro, event.currentTarget as HTMLElement)
+    }
+  }
+
+  function pedirExclusao(parceiro: Parceiro, event: ReactMouseEvent<HTMLButtonElement>) {
+    event.stopPropagation()
+    setOrigemFoco(event.currentTarget)
+    setParaExcluir(parceiro)
+  }
+
+  function cancelarExclusao() {
+    if (excluindo) return
+    setParaExcluir(null)
+  }
+
+  async function confirmarExclusao() {
+    if (!paraExcluir || excluindo) return
+    setExcluindo(true)
+    try {
+      await excluirParceiro(paraExcluir.id)
+      setParceiros((atual) => atual.filter((item) => item.id !== paraExcluir.id))
+      const indicadores = await obterResumoParcerias()
+      setResumo(indicadores)
+      if (editando?.id === paraExcluir.id) {
+        setModalAberto(false)
+        setEditando(null)
+      }
+      setParaExcluir(null)
+    } catch {
+      setParaExcluir(null)
+    } finally {
+      setExcluindo(false)
     }
   }
 
@@ -559,11 +684,22 @@ export default function Parcerias() {
                         {parceiro.responsavel.nome}
                       </span>
                     </div>
-                    <span className="parcerias-card-contact">
-                      {encerrada
-                        ? formatarEncerradaEm(parceiro.encerradaEm)
-                        : `contato ${formatarTempoRelativo(parceiro.ultimoContatoEm)}`}
-                    </span>
+                    <div className="parcerias-card-footer-right">
+                      <span className="parcerias-card-contact">
+                        {encerrada
+                          ? formatarEncerradaEm(parceiro.encerradaEm)
+                          : `contato ${formatarTempoRelativo(parceiro.ultimoContatoEm)}`}
+                      </span>
+                      <button
+                        type="button"
+                        className="parcerias-delete"
+                        aria-label={`Excluir ${parceiro.nome}`}
+                        title="Excluir parceiro"
+                        onClick={(event) => pedirExclusao(parceiro, event)}
+                      >
+                        <IconTrash />
+                      </button>
+                    </div>
                   </div>
                 </article>
               )
@@ -573,7 +709,7 @@ export default function Parcerias() {
         </>
       ) : null}
 
-      {modalAberto ? (
+      {modalAberto && !paraExcluir ? (
         <ParceiroFormModal
           parceiro={editando}
           returnFocusTo={origemFoco ?? cadastrarRef.current}
@@ -582,6 +718,35 @@ export default function Parcerias() {
             void onSaved(p, criado)
           }}
         />
+      ) : null}
+
+      {paraExcluir ? (
+        <ConfirmDialog labelledBy={tituloExcluirId} onClose={cancelarExclusao}>
+          <h2 className="parcerias-confirm-title" id={tituloExcluirId}>
+            Excluir parceiro
+          </h2>
+          <p className="parcerias-confirm-text">
+            Tem certeza de que deseja excluir {paraExcluir.nome}? Esta ação não pode ser desfeita.
+          </p>
+          <div className="parcerias-confirm-actions">
+            <button
+              type="button"
+              className="parcerias-btn parcerias-btn--secondary parcerias-btn--dialog"
+              onClick={cancelarExclusao}
+              disabled={excluindo}
+            >
+              Cancelar
+            </button>
+            <button
+              type="button"
+              className="parcerias-btn parcerias-btn--danger parcerias-btn--dialog"
+              onClick={() => void confirmarExclusao()}
+              disabled={excluindo}
+            >
+              {excluindo ? 'Excluindo…' : 'Excluir'}
+            </button>
+          </div>
+        </ConfirmDialog>
       ) : null}
     </div>
   )

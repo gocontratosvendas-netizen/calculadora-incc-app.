@@ -482,6 +482,13 @@
   gap: 8px;
 }
 
+.parcerias-card-footer-right {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
 .parcerias-card-owner {
   display: inline-flex;
   align-items: center;
@@ -521,6 +528,88 @@
   color: var(--p-meta);
   white-space: nowrap;
   flex-shrink: 0;
+}
+
+.parcerias-delete {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: none;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--p-apoio);
+  cursor: pointer;
+}
+
+.parcerias-delete svg {
+  width: 15px;
+  height: 15px;
+}
+
+.parcerias-delete:hover {
+  background: #f8f0f0;
+  color: var(--p-erro);
+}
+
+.parcerias-delete:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(22, 52, 107, 0.18);
+}
+
+.parcerias-btn--danger {
+  padding: 0 14px;
+  border: none;
+  background: var(--p-erro);
+  color: #ffffff;
+  font-size: 12.5px;
+  font-weight: 500;
+}
+
+.parcerias-btn--danger:hover:not(:disabled) {
+  background: #8f2626;
+}
+
+.parcerias-confirm-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(16, 24, 40, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 32px 16px;
+  z-index: 50;
+}
+
+.parcerias-confirm-dialog {
+  width: calc(100% - 32px);
+  max-width: 420px;
+  background: #ffffff;
+  border-radius: 12px;
+  padding: 18px 20px 16px;
+}
+
+.parcerias-confirm-title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--p-azul);
+}
+
+.parcerias-confirm-text {
+  margin: 10px 0 0;
+  font-size: 12.5px;
+  color: var(--p-apoio);
+  line-height: 1.45;
+}
+
+.parcerias-confirm-actions {
+  margin-top: 16px;
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
 }
 
 .parcerias-list-footer {
