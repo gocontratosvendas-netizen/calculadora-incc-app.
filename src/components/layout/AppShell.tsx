@@ -2,6 +2,7 @@ import App from '../../App'
 import Casos from '../../pages/Casos'
 import Home from '../../pages/Home'
 import Materiais from '../../pages/Materiais'
+import Parcerias from '../../pages/Parcerias'
 import { useRouter } from '../../lib/router-context'
 import { theme } from '../../theme'
 import { Sidebar } from './Sidebar'
@@ -25,6 +26,7 @@ export function AppShell({ onSignOut }: AppShellProps) {
         {pathname === '/' ? <Home /> : null}
         {isCalculator ? <App /> : null}
         {pathname === '/casos' ? <Casos /> : null}
+        {pathname === '/parcerias' ? <Parcerias /> : null}
         {pathname === '/materiais' ? <Materiais /> : null}
       </main>
     </div>

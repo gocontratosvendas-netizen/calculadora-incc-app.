@@ -1,14 +1,18 @@
 import {
   useCallback,
   useEffect,
+  useId,
   useMemo,
+  useRef,
   useState,
   type KeyboardEvent as ReactKeyboardEvent,
+  type MouseEvent as ReactMouseEvent,
+  type ReactNode,
 } from 'react'
 import {
+  calcularResumoCarteira,
+  excluirCaso,
   listarCasos,
-  obterResumoCarteira,
-  type CarteiraResumo,
   type Caso,
   type CasoStatus,
 } from '../lib/casos'
@@ -37,7 +41,7 @@ const STATUS_META: Record<
   encerrado: { rotulo: 'Encerrado', className: 'casos-badge--encerrado' },
 }
 
-const EMPTY_RESUMO: CarteiraResumo = {
+const EMPTY_RESUMO = {
   casosCadastrados: 0,
   emAndamento: 0,
   valorTotalCausa: 0,
@@ -168,6 +172,93 @@ function IconChevron({ dir }: { dir: 'left' | 'right' }) {
   )
 }
 
+function IconTrash() {
+  return (
+    <svg viewBox="0 0 16 16" fill="none" aria-hidden="true">
+      <path
+        d="M3.5 4.5h9M6.25 4.5V3.4c0-.5.4-.9.9-.9h1.7c.5 0 .9.4.9.9v1.1M5.25 4.5l.5 8.1c.05.5.45.9.95.9h2.6c.5 0 .9-.4.95-.9l.5-8.1"
+        stroke="currentColor"
+        strokeWidth="1.2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  )
+}
+
+function ConfirmDialog({
+  labelledBy,
+  onClose,
+  children,
+}: {
+  labelledBy: string
+  onClose: () => void
+  children: ReactNode
+}) {
+  const dialogRef = useRef<HTMLDivElement>(null)
+  const onCloseRef = useRef(onClose)
+
+  useEffect(() => {
+    onCloseRef.current = onClose
+  }, [onClose])
+
+  useEffect(() => {
+    const previouslyFocused = document.activeElement as HTMLElement | null
+    const root = dialogRef.current
+    if (!root) return
+
+    const focaveis = [
+      ...root.querySelectorAll<HTMLElement>(
+        'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+      ),
+    ]
+    focaveis[0]?.focus()
+
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === 'Escape') {
+        event.preventDefault()
+        onCloseRef.current()
+        return
+      }
+      if (event.key !== 'Tab' || focaveis.length === 0) return
+      const primeiro = focaveis[0]
+      const ultimo = focaveis[focaveis.length - 1]
+      if (event.shiftKey && document.activeElement === primeiro) {
+        event.preventDefault()
+        ultimo.focus()
+      } else if (!event.shiftKey && document.activeElement === ultimo) {
+        event.preventDefault()
+        primeiro.focus()
+      }
+    }
+
+    document.addEventListener('keydown', onKeyDown)
+    return () => {
+      document.removeEventListener('keydown', onKeyDown)
+      previouslyFocused?.focus()
+    }
+  }, [])
+
+  return (
+    <div
+      className="casos-overlay"
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget) onClose()
+      }}
+    >
+      <div
+        ref={dialogRef}
+        className="casos-dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={labelledBy}
+      >
+        {children}
+      </div>
+    </div>
+  )
+}
+
 function exportarCsv(casos: Caso[]) {
   const header = [
     'Cliente',
@@ -206,8 +297,8 @@ function exportarCsv(casos: Caso[]) {
 
 export default function Casos() {
   const { navigate } = useRouter()
+  const tituloExcluirId = useId()
   const [casos, setCasos] = useState<Caso[]>([])
-  const [resumo, setResumo] = useState<CarteiraResumo>(EMPTY_RESUMO)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(false)
   const [statusFiltro, setStatusFiltro] = useState<StatusFiltro>('todos')
@@ -217,14 +308,15 @@ export default function Casos() {
   const [sortKey, setSortKey] = useState<SortKey>('excessoApurado')
   const [sortDir, setSortDir] = useState<SortDir>('desc')
   const [page, setPage] = useState(1)
+  const [paraExcluir, setParaExcluir] = useState<Caso | null>(null)
+  const [excluindo, setExcluindo] = useState(false)
 
   const carregar = useCallback(async () => {
     setLoading(true)
     setError(false)
     try {
-      const [lista, carteira] = await Promise.all([listarCasos(), obterResumoCarteira()])
+      const lista = await listarCasos()
       setCasos(lista)
-      setResumo(carteira)
     } catch {
       setError(true)
     } finally {
@@ -266,6 +358,8 @@ export default function Casos() {
       )
     })
   }, [casos, statusFiltro, anoFiltro, buscaDebounced])
+
+  const resumo = useMemo(() => calcularResumoCarteira(filtrados), [filtrados])
 
   const ordenados = useMemo(() => {
     return [...filtrados].sort((a, b) => compareNullable(a[sortKey], b[sortKey], sortDir))
@@ -327,6 +421,28 @@ export default function Casos() {
     if (event.key === 'Enter' || event.key === ' ') {
       event.preventDefault()
       abrirCaso(id)
+    }
+  }
+
+  function pedirExclusao(caso: Caso, event: ReactMouseEvent<HTMLButtonElement>) {
+    event.stopPropagation()
+    setParaExcluir(caso)
+  }
+
+  function cancelarExclusao() {
+    if (excluindo) return
+    setParaExcluir(null)
+  }
+
+  async function confirmarExclusao() {
+    if (!paraExcluir) return
+    setExcluindo(true)
+    try {
+      await excluirCaso(paraExcluir.id)
+      setCasos((atual) => atual.filter((item) => item.id !== paraExcluir.id))
+      setParaExcluir(null)
+    } finally {
+      setExcluindo(false)
     }
   }
 
@@ -502,12 +618,15 @@ export default function Casos() {
                 <th scope="col" role="columnheader" className="is-right">
                   Status
                 </th>
+                <th scope="col" role="columnheader">
+                  <span className="casos-visually-hidden">Ações</span>
+                </th>
               </tr>
             </thead>
             <tbody>
               {Array.from({ length: 10 }, (_, i) => (
                 <tr key={i} className="casos-skel-row" role="row">
-                  {Array.from({ length: 8 }, (_, j) => (
+                  {Array.from({ length: 9 }, (_, j) => (
                     <td key={j} role="cell">
                       <div className="casos-skeleton" />
                     </td>
@@ -604,6 +723,9 @@ export default function Casos() {
                 <th scope="col" role="columnheader" className="is-right">
                   Status
                 </th>
+                <th scope="col" role="columnheader">
+                  <span className="casos-visually-hidden">Ações</span>
+                </th>
               </tr>
             </thead>
             <tbody>
@@ -662,6 +784,17 @@ export default function Casos() {
                     <td role="cell" className="is-right">
                       <span className={`casos-badge ${status.className}`}>{status.rotulo}</span>
                     </td>
+                    <td role="cell" className="is-center">
+                      <button
+                        type="button"
+                        className="casos-delete"
+                        aria-label={`Excluir caso de ${caso.cliente}`}
+                        title="Excluir caso"
+                        onClick={(event) => pedirExclusao(caso, event)}
+                      >
+                        <IconTrash />
+                      </button>
+                    </td>
                   </tr>
                 )
               })}
@@ -682,6 +815,7 @@ export default function Casos() {
                 <td role="cell" className="is-num">
                   <span className="casos-total-causa">{moneyCell.format(pageTotals.causa)}</span>
                 </td>
+                <td role="cell" />
                 <td role="cell" />
                 <td role="cell" />
               </tr>
@@ -732,6 +866,36 @@ export default function Casos() {
             </button>
           </nav>
         </div>
+      ) : null}
+
+      {paraExcluir ? (
+        <ConfirmDialog labelledBy={tituloExcluirId} onClose={cancelarExclusao}>
+          <h2 className="casos-dialog-title" id={tituloExcluirId}>
+            Excluir caso
+          </h2>
+          <p className="casos-dialog-text">
+            Tem certeza de que deseja excluir o caso de {paraExcluir.cliente}? Esta ação não pode ser
+            desfeita.
+          </p>
+          <div className="casos-dialog-actions">
+            <button
+              type="button"
+              className="casos-btn casos-btn--secondary"
+              onClick={cancelarExclusao}
+              disabled={excluindo}
+            >
+              Cancelar
+            </button>
+            <button
+              type="button"
+              className="casos-btn casos-btn--danger"
+              onClick={() => void confirmarExclusao()}
+              disabled={excluindo}
+            >
+              {excluindo ? 'Excluindo…' : 'Excluir'}
+            </button>
+          </div>
+        </ConfirmDialog>
       ) : null}
     </div>
   )

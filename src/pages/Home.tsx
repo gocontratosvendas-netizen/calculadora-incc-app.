@@ -15,6 +15,8 @@ import {
   comentar,
   curtirPost,
   equipe,
+  excluirComentario,
+  excluirPost,
   listarPosts,
   marcarMencoesComoLidas,
   obterItensAtencao,
@@ -27,6 +29,7 @@ import {
   usuarioPorId,
   type AnexoPost,
   type CasoVinculado,
+  type Comentario,
   type ItemAtencao,
   type Marcacao,
   type Mencao,
@@ -41,6 +44,10 @@ type FiltroFeed = 'tudo' | 'marcacoes' | 'atualizacoes'
 type PostUI = Post & { falhaPublicacao?: boolean }
 
 type OpcaoMencao = { id: string | 'todos'; nome: string; iniciais: string }
+
+type ConfirmacaoExclusao =
+  | { tipo: 'post'; postId: string }
+  | { tipo: 'comentario'; postId: string; comentarioId: string }
 
 type PublicarEstado = {
   texto: string
@@ -153,6 +160,16 @@ function queryMencao(texto: string, cursor: number): { start: number; query: str
 
 function postMenciona(post: Post, usuarioId: string) {
   return post.mencoes.some((item) => item.usuarioId === usuarioId || item.usuarioId === 'todos')
+}
+
+function podeExcluirPost(post: Post) {
+  if (usuarioAtual.papel === 'socio') return true
+  return post.autor?.id === usuarioAtual.id
+}
+
+function podeExcluirComentario(comentario: Comentario) {
+  if (usuarioAtual.papel === 'socio') return true
+  return comentario.autor.id === usuarioAtual.id
 }
 
 function nomeDaMencao(usuarioId: string | 'todos') {
@@ -268,6 +285,17 @@ function IconDocAlerta() {
       <path d="M7.4 1.85v3.15h3.1" stroke="currentColor" strokeWidth="1.2" />
       <path d="M7 6.4v2.4" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
       <circle cx="7" cy="10.35" r="0.5" fill="currentColor" />
+    </svg>
+  )
+}
+
+function IconExcluir() {
+  return (
+    <svg viewBox="0 0 15 15" fill="none" aria-hidden="true">
+      <path d="M3.2 4.1h8.6" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+      <path d="M5.15 4.1V3.15A1.05 1.05 0 0 1 6.2 2.1h2.6a1.05 1.05 0 0 1 1.05 1.05V4.1" stroke="currentColor" strokeWidth="1.2" />
+      <path d="M4.35 4.1h6.3v7.55a1.1 1.1 0 0 1-1.1 1.1H5.45a1.1 1.1 0 0 1-1.1-1.1V4.1Z" stroke="currentColor" strokeWidth="1.2" />
+      <path d="M6.35 6.2v4.1M8.65 6.2v4.1" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
     </svg>
   )
 }
@@ -504,6 +532,8 @@ export default function Home() {
   const [comentarioTexto, setComentarioTexto] = useState('')
   const [comentariosAbertos, setComentariosAbertos] = useState<Record<string, boolean>>({})
   const [rascunhoFalha, setRascunhoFalha] = useState<PublicarEstado | null>(null)
+  const [confirmando, setConfirmando] = useState<ConfirmacaoExclusao | null>(null)
+  const [falhaExclusao, setFalhaExclusao] = useState<string | null>(null)
   const [scrollAlvo, setScrollAlvo] = useState<string | null>(null)
 
   const naoLidas = marcacoes.filter((item) => !item.lida)
@@ -861,6 +891,63 @@ export default function Home() {
     }
   }
 
+  async function confirmarExclusao() {
+    if (!confirmando) return
+    const alvo = confirmando
+    setFalhaExclusao(null)
+    if (alvo.tipo === 'post') {
+      const indice = posts.findIndex((item) => item.id === alvo.postId)
+      const removido = indice >= 0 ? posts[indice] : undefined
+      if (!removido) return
+      setPosts((atual) => atual.filter((item) => item.id !== alvo.postId))
+      setConfirmando(null)
+      try {
+        await excluirPost(alvo.postId)
+        setMarcacoes(obterMarcacoesNaoLidas())
+      } catch {
+        setPosts((atual) => {
+          if (atual.some((item) => item.id === removido.id)) return atual
+          const copia = [...atual]
+          copia.splice(Math.min(indice, copia.length), 0, removido)
+          return copia
+        })
+        setFalhaExclusao(alvo.postId)
+      }
+      return
+    }
+    const post = posts.find((item) => item.id === alvo.postId)
+    const comentario = post?.comentarios.find((item) => item.id === alvo.comentarioId)
+    if (!post || !comentario) return
+    setPosts((atual) =>
+      atual.map((item) =>
+        item.id === alvo.postId
+          ? {
+              ...item,
+              comentarios: item.comentarios.filter((c) => c.id !== alvo.comentarioId),
+              totalComentarios: Math.max(0, item.totalComentarios - 1),
+            }
+          : item,
+      ),
+    )
+    setConfirmando(null)
+    try {
+      await excluirComentario(alvo.postId, alvo.comentarioId)
+    } catch {
+      setPosts((atual) =>
+        atual.map((item) =>
+          item.id === alvo.postId
+            ? {
+                ...item,
+                comentarios: [comentario, ...item.comentarios.filter((c) => c.id !== comentario.id)],
+                totalComentarios: item.totalComentarios + 1,
+              }
+            : item,
+        ),
+      )
+      setFalhaExclusao(alvo.comentarioId)
+    }
+  }
+
   async function irParaMarcacao(marcacao: Marcacao) {
     setFiltro('tudo')
     setScrollAlvo(marcacao.postId)
@@ -1204,7 +1291,39 @@ export default function Home() {
                                   Abrir caso
                                 </Link>
                               ) : null}
+                              {podeExcluirPost(post) ? (
+                                <button
+                                  type="button"
+                                  className="mural-bar-btn mural-bar-btn--danger"
+                                  aria-label="Excluir para todos"
+                                  onClick={() => {
+                                    setFalhaExclusao(null)
+                                    setConfirmando({ tipo: 'post', postId: post.id })
+                                  }}
+                                >
+                                  <IconExcluir />
+                                  Excluir para todos
+                                </button>
+                              ) : null}
                             </div>
+
+                            {confirmando?.tipo === 'post' && confirmando.postId === post.id ? (
+                              <div className="mural-confirm">
+                                <p>Excluir para todos? A publicação some para toda a equipe.</p>
+                                <div className="mural-confirm-actions">
+                                  <button type="button" className="mural-text-btn" onClick={() => setConfirmando(null)}>
+                                    Cancelar
+                                  </button>
+                                  <button type="button" className="mural-confirm-danger" onClick={() => void confirmarExclusao()}>
+                                    Excluir para todos
+                                  </button>
+                                </div>
+                              </div>
+                            ) : null}
+
+                            {falhaExclusao === post.id ? (
+                              <p className="mural-fail">Não foi possível excluir.</p>
+                            ) : null}
 
                             {post.falhaPublicacao ? (
                               <p className="mural-fail">
@@ -1232,10 +1351,51 @@ export default function Home() {
                                 {preview.map((comentario) => (
                                   <div className="mural-comment" key={comentario.id}>
                                     <Avatar usuario={comentario.autor} size={24} variant="neutral" />
-                                    <p className="mural-comment-text">
-                                      <span className="mural-comment-author">{comentario.autor.nome} </span>
-                                      {comentario.texto}
-                                    </p>
+                                    <div className="mural-comment-body">
+                                      <p className="mural-comment-text">
+                                        <span className="mural-comment-author">{comentario.autor.nome} </span>
+                                        {comentario.texto}
+                                      </p>
+                                      {podeExcluirComentario(comentario) ? (
+                                        confirmando?.tipo === 'comentario' &&
+                                        confirmando.comentarioId === comentario.id ? (
+                                          <div className="mural-confirm mural-confirm--comment">
+                                            <p>Excluir para todos? O comentário some para toda a equipe.</p>
+                                            <div className="mural-confirm-actions">
+                                              <button type="button" className="mural-text-btn" onClick={() => setConfirmando(null)}>
+                                                Cancelar
+                                              </button>
+                                              <button
+                                                type="button"
+                                                className="mural-confirm-danger"
+                                                onClick={() => void confirmarExclusao()}
+                                              >
+                                                Excluir para todos
+                                              </button>
+                                            </div>
+                                          </div>
+                                        ) : (
+                                          <button
+                                            type="button"
+                                            className="mural-comment-delete"
+                                            aria-label="Excluir para todos"
+                                            onClick={() => {
+                                              setFalhaExclusao(null)
+                                              setConfirmando({
+                                                tipo: 'comentario',
+                                                postId: post.id,
+                                                comentarioId: comentario.id,
+                                              })
+                                            }}
+                                          >
+                                            Excluir para todos
+                                          </button>
+                                        )
+                                      ) : null}
+                                      {falhaExclusao === comentario.id ? (
+                                        <p className="mural-fail">Não foi possível excluir.</p>
+                                      ) : null}
+                                    </div>
                                   </div>
                                 ))}
                                 {mostraVerTodos ? (

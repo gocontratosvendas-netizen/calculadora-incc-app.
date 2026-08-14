@@ -320,3 +320,21 @@ export async function marcarMencoesComoLidas(postId?: string): Promise<void> {
   }
   return // TODO: conectar ao backend
 }
+
+export async function excluirPost(id: string): Promise<void> {
+  const indice = store.posts.findIndex((item) => item.id === id)
+  if (indice < 0) throw new Error('Post não encontrado')
+  store.posts.splice(indice, 1)
+  store.marcacoes = store.marcacoes.filter((item) => item.postId !== id)
+  return // TODO: conectar ao backend
+}
+
+export async function excluirComentario(postId: string, comentarioId: string): Promise<void> {
+  const post = store.posts.find((item) => item.id === postId)
+  if (!post) throw new Error('Post não encontrado')
+  const antes = post.comentarios.length
+  post.comentarios = post.comentarios.filter((item) => item.id !== comentarioId)
+  if (post.comentarios.length === antes) throw new Error('Comentário não encontrado')
+  post.totalComentarios = Math.max(0, post.totalComentarios - 1)
+  return // TODO: conectar ao backend
+}

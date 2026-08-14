@@ -8,7 +8,7 @@ const NAV_ITEMS = [
   { to: '/', label: 'Início', icon: 'home' },
   { to: '/calculadora', label: 'Calculadora', icon: 'calculator' },
   { to: '/casos', label: 'Casos', icon: 'briefcase' },
-  { to: '/memoriais', label: 'Memoriais', icon: 'memorial' },
+  { to: '/parcerias', label: 'Parcerias', icon: 'handshake' },
   { to: '/materiais', label: 'Documentos', icon: 'folders' },
 ] as const
 
@@ -53,17 +53,37 @@ function IconBriefcase() {
   )
 }
 
-function IconMemorial() {
+function IconHandshake() {
   return (
     <svg viewBox="0 0 16 16" fill="none" aria-hidden="true">
       <path
-        d="M4.25 2.25h5.1L12.25 5v8.75H4.25V2.25Z"
+        d="M1.8 7.2 4.1 5.1a1.2 1.2 0 0 1 1.55-.08l1.55 1.2 1.4-1.15a1.15 1.15 0 0 1 1.45 0L14.2 8.1"
         stroke="currentColor"
         strokeWidth="1.2"
+        strokeLinecap="round"
         strokeLinejoin="round"
       />
-      <path d="M9.3 2.35V5h2.7" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round" />
-      <path d="M6 12V9.4M8 12V8.2M10 12v-2.1" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+      <path
+        d="M2.35 7.55v2.4c0 .55.35 1.05.88 1.22l2.02.66c.38.12.79.08 1.14-.12L8.1 10.5"
+        stroke="currentColor"
+        strokeWidth="1.2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M13.65 8.25v1.85c0 .5-.3.95-.77 1.15l-1.78.76a1.8 1.8 0 0 1-1.3 0l-1.05-.45"
+        stroke="currentColor"
+        strokeWidth="1.2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M6.7 8.55 8 9.65l1.45-1.05"
+        stroke="currentColor"
+        strokeWidth="1.2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
     </svg>
   )
 }
@@ -91,7 +111,7 @@ const ICONS: Record<(typeof NAV_ITEMS)[number]['icon'], () => ReactNode> = {
   home: IconHome,
   calculator: IconCalculator,
   briefcase: IconBriefcase,
-  memorial: IconMemorial,
+  handshake: IconHandshake,
   folders: IconFolders,
 }
 

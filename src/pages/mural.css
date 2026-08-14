@@ -699,6 +699,84 @@
   color: var(--mural-azul);
 }
 
+.mural-bar-btn--danger {
+  margin-left: auto;
+}
+
+.mural-bar-btn--danger:hover {
+  color: var(--mural-urgente);
+}
+
+.mural-confirm {
+  border-top: 1px solid var(--mural-divisor);
+  margin-top: 10px;
+  padding-top: 9px;
+}
+
+.mural-confirm p {
+  margin: 0;
+  font-size: 11.5px;
+  color: var(--mural-sec);
+  line-height: 1.45;
+}
+
+.mural-confirm-actions {
+  display: flex;
+  gap: 12px;
+  margin-top: 8px;
+}
+
+.mural-confirm-danger {
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--mural-urgente);
+  font-family: inherit;
+  font-size: 11.5px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.mural-confirm-danger:focus,
+.mural-comment-delete:focus {
+  outline: none;
+}
+
+.mural-confirm-danger:focus-visible,
+.mural-comment-delete:focus-visible {
+  outline: 2px solid var(--mural-azul);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+.mural-comment-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.mural-comment-delete {
+  margin: 4px 0 0;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--mural-meta);
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 400;
+  cursor: pointer;
+}
+
+.mural-comment-delete:hover {
+  color: var(--mural-urgente);
+}
+
+.mural-confirm--comment {
+  border-top: none;
+  margin-top: 6px;
+  padding-top: 0;
+}
+
 .mural-bar-link {
   color: var(--mural-link);
   font-weight: 500;

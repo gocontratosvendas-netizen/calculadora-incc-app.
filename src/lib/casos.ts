@@ -22,6 +22,36 @@ export interface CarteiraResumo {
   recuperado: number
 }
 
+export function calcularResumoCarteira(casos: Caso[]): CarteiraResumo {
+  let emAndamento = 0
+  let valorTotalCausa = 0
+  let excessoTotalCarteira = 0
+  let recuperado = 0
+
+  for (const caso of casos) {
+    if (caso.status === 'ajuizado' || caso.status === 'processo_de_venda') {
+      emAndamento += 1
+    }
+    if (caso.valorCausa != null) {
+      valorTotalCausa += caso.valorCausa
+    }
+    if (caso.excessoApurado != null) {
+      excessoTotalCarteira += caso.excessoApurado
+    }
+    if (caso.status === 'encerrado' && caso.excessoApurado != null) {
+      recuperado += caso.excessoApurado
+    }
+  }
+
+  return {
+    casosCadastrados: casos.length,
+    emAndamento,
+    valorTotalCausa,
+    excessoTotalCarteira,
+    recuperado,
+  }
+}
+
 const RESPONSAVEIS = {
   VP: { nome: 'Vitor Paludetto', iniciais: 'VP' },
   RM: { nome: 'Renata Martins', iniciais: 'RM' },
@@ -122,20 +152,12 @@ const CASOS: Caso[] = [
   },
 ]
 
-const RESUMO: CarteiraResumo = {
-  casosCadastrados: 47,
-  emAndamento: 18,
-  valorTotalCausa: 2_410_000,
-  excessoTotalCarteira: 1_240_000,
-  recuperado: 312_500,
-}
-
 export async function listarCasos(): Promise<Caso[]> {
   return CASOS.map((caso) => ({ ...caso, responsavel: { ...caso.responsavel } })) // TODO: conectar ao backend
 }
 
 export async function obterResumoCarteira(): Promise<CarteiraResumo> {
-  return { ...RESUMO } // TODO: conectar ao backend
+  return calcularResumoCarteira(CASOS) // TODO: conectar ao backend
 }
 
 export type NovoCasoInput = {
@@ -168,14 +190,6 @@ export async function cadastrarCaso(input: NovoCasoInput): Promise<Caso> {
   }
 
   CASOS.unshift(caso)
-  RESUMO.casosCadastrados += 1
-  RESUMO.emAndamento += 1
-  if (caso.excessoApurado != null && caso.excessoApurado > 0) {
-    RESUMO.excessoTotalCarteira += caso.excessoApurado
-  }
-  if (caso.valorCausa != null) {
-    RESUMO.valorTotalCausa += caso.valorCausa
-  }
 
   return { ...caso, responsavel: { ...caso.responsavel } } // TODO: conectar ao backend
 }
@@ -185,16 +199,6 @@ export async function excluirCaso(id: string): Promise<void> {
   if (indice === -1) {
     throw new Error('Caso não encontrado')
   }
-  const [removido] = CASOS.splice(indice, 1)
-  RESUMO.casosCadastrados = Math.max(0, RESUMO.casosCadastrados - 1)
-  if (removido.status === 'ajuizado' || removido.status === 'processo_de_venda') {
-    RESUMO.emAndamento = Math.max(0, RESUMO.emAndamento - 1)
-  }
-  if (removido.valorCausa != null) {
-    RESUMO.valorTotalCausa = Math.max(0, RESUMO.valorTotalCausa - removido.valorCausa)
-  }
-  if (removido.excessoApurado != null) {
-    RESUMO.excessoTotalCarteira = Math.max(0, RESUMO.excessoTotalCarteira - removido.excessoApurado)
-  }
+  CASOS.splice(indice, 1)
   return // TODO: conectar ao backend
 }
