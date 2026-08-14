@@ -13,6 +13,7 @@ import {
   arquivoExcedeLimite,
   CATEGORIA_ROTULO,
   criarMaterial,
+  excluirMaterial,
   formatarData,
   formatarTamanho,
   formatoDeArquivo,
@@ -95,6 +96,20 @@ function IconDownload() {
   )
 }
 
+function IconTrash() {
+  return (
+    <svg viewBox="0 0 16 16" fill="none" aria-hidden="true">
+      <path
+        d="M3.5 4.5h9M6.25 4.5V3.4c0-.5.4-.9.9-.9h1.7c.5 0 .9.4.9.9v1.1M5.25 4.5l.5 8.1c.05.5.45.9.95.9h2.6c.5 0 .9-.4.95-.9l.5-8.1"
+        stroke="currentColor"
+        strokeWidth="1.2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  )
+}
+
 function Modal({
   labelledBy,
   onClose,
@@ -169,6 +184,7 @@ function Modal({
 export default function Materiais() {
   const tituloPreviewId = useId()
   const tituloAddId = useId()
+  const tituloExcluirId = useId()
   const [itens, setItens] = useState<Material[]>([])
   const [carregando, setCarregando] = useState(true)
   const [erro, setErro] = useState(false)
@@ -177,6 +193,8 @@ export default function Materiais() {
   const [buscaDebounced, setBuscaDebounced] = useState('')
   const [preview, setPreview] = useState<Material | null>(null)
   const [addAberto, setAddAberto] = useState(false)
+  const [paraExcluir, setParaExcluir] = useState<Material | null>(null)
+  const [excluindo, setExcluindo] = useState(false)
   const [origemFoco, setOrigemFoco] = useState<HTMLElement | null>(null)
 
   const carregar = useCallback(() => {
@@ -233,6 +251,29 @@ export default function Materiais() {
   function abrirAdd(origem: HTMLElement) {
     setOrigemFoco(origem)
     setAddAberto(true)
+  }
+
+  function pedirExclusao(material: Material, origem: HTMLElement) {
+    setOrigemFoco(origem)
+    setParaExcluir(material)
+  }
+
+  function cancelarExclusao() {
+    if (excluindo) return
+    setParaExcluir(null)
+  }
+
+  async function confirmarExclusao() {
+    if (!paraExcluir) return
+    setExcluindo(true)
+    try {
+      await excluirMaterial(paraExcluir.id)
+      setItens((atual) => atual.filter((item) => item.id !== paraExcluir.id))
+      setPreview((atual) => (atual?.id === paraExcluir.id ? null : atual))
+      setParaExcluir(null)
+    } finally {
+      setExcluindo(false)
+    }
   }
 
   function handleCardKeyDown(event: ReactKeyboardEvent<HTMLElement>, material: Material) {
@@ -339,17 +380,30 @@ export default function Materiais() {
                   <span className="materiais-card-meta">
                     {CATEGORIA_ROTULO[item.categoria]} · {formatarTamanho(item.tamanhoBytes)}
                   </span>
-                  <button
-                    type="button"
-                    className="materiais-download"
-                    aria-label={`Baixar ${item.nome}`}
-                    onClick={(event) => {
-                      event.stopPropagation()
-                      baixarMaterial(item)
-                    }}
-                  >
-                    <IconDownload />
-                  </button>
+                  <div className="materiais-card-actions">
+                    <button
+                      type="button"
+                      className="materiais-icon-btn"
+                      aria-label={`Baixar ${item.nome}`}
+                      onClick={(event) => {
+                        event.stopPropagation()
+                        baixarMaterial(item)
+                      }}
+                    >
+                      <IconDownload />
+                    </button>
+                    <button
+                      type="button"
+                      className="materiais-icon-btn materiais-icon-btn--danger"
+                      aria-label={`Excluir ${item.nome}`}
+                      onClick={(event) => {
+                        event.stopPropagation()
+                        pedirExclusao(item, event.currentTarget)
+                      }}
+                    >
+                      <IconTrash />
+                    </button>
+                  </div>
                 </div>
               </div>
             </article>
@@ -357,7 +411,7 @@ export default function Materiais() {
         </div>
       )}
 
-      {preview ? (
+      {preview && !paraExcluir ? (
         <Modal
           labelledBy={tituloPreviewId}
           onClose={() => setPreview(null)}
@@ -383,12 +437,54 @@ export default function Materiais() {
           </div>
           <p className="materiais-preview-desc">{preview.descricao}</p>
           <p className="materiais-preview-date">Atualizado em {formatarData(preview.atualizadoEm)}</p>
-          <div className="materiais-dialog-actions">
-            <button type="button" className="materiais-secondary" onClick={() => setPreview(null)}>
-              Fechar
+          <div className="materiais-dialog-actions materiais-dialog-actions--split">
+            <button
+              type="button"
+              className="materiais-danger-ghost"
+              onClick={(event) => pedirExclusao(preview, event.currentTarget)}
+            >
+              Excluir
             </button>
-            <button type="button" className="materiais-add" onClick={() => baixarMaterial(preview)}>
-              Baixar
+            <div className="materiais-dialog-actions-right">
+              <button type="button" className="materiais-secondary" onClick={() => setPreview(null)}>
+                Fechar
+              </button>
+              <button type="button" className="materiais-add" onClick={() => baixarMaterial(preview)}>
+                Baixar
+              </button>
+            </div>
+          </div>
+        </Modal>
+      ) : null}
+
+      {paraExcluir ? (
+        <Modal
+          labelledBy={tituloExcluirId}
+          onClose={cancelarExclusao}
+          returnFocusTo={preview ? null : origemFoco}
+        >
+          <h2 className="materiais-dialog-title" id={tituloExcluirId}>
+            Excluir documento
+          </h2>
+          <p className="materiais-confirm-text">
+            Tem certeza de que deseja excluir "{paraExcluir.nome}"? Esta ação não pode ser desfeita.
+          </p>
+          <div className="materiais-dialog-actions">
+            <button
+              type="button"
+              className="materiais-secondary"
+              onClick={cancelarExclusao}
+              disabled={excluindo}
+            >
+              Cancelar
+            </button>
+            <button
+              type="button"
+              className="materiais-danger"
+              onClick={() => void confirmarExclusao()}
+              disabled={excluindo}
+            >
+              {excluindo ? 'Excluindo…' : 'Excluir'}
             </button>
           </div>
         </Modal>

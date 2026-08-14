@@ -9,7 +9,7 @@ const NAV_ITEMS = [
   { to: '/calculadora', label: 'Calculadora', icon: 'calculator' },
   { to: '/casos', label: 'Casos', icon: 'briefcase' },
   { to: '/memoriais', label: 'Memoriais', icon: 'memorial' },
-  { to: '/documentos', label: 'Documentos', icon: 'folders' },
+  { to: '/materiais', label: 'Documentos', icon: 'folders' },
 ] as const
 
 function isActivePath(pathname: string, to: string) {

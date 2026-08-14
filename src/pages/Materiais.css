@@ -59,7 +59,9 @@
 .materiais-add:focus,
 .materiais-secondary:focus,
 .materiais-chip:focus,
-.materiais-download:focus,
+.materiais-icon-btn:focus,
+.materiais-danger:focus,
+.materiais-danger-ghost:focus,
 .materiais-text-btn:focus,
 .materiais-search:focus,
 .materiais-input:focus,
@@ -279,7 +281,13 @@
   color: #a6acb4;
 }
 
-.materiais-download {
+.materiais-card-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.materiais-icon-btn {
   width: 16px;
   height: 16px;
   padding: 0;
@@ -292,16 +300,29 @@
   justify-content: center;
 }
 
-.materiais-download:hover {
+.materiais-icon-btn:hover {
   color: #132339;
 }
 
-.materiais-download:focus-visible {
+.materiais-icon-btn--danger {
+  color: #a32d2d;
+}
+
+.materiais-icon-btn--danger:hover {
+  color: #7f2323;
+}
+
+.materiais-icon-btn:focus-visible {
   box-shadow: 0 0 0 2px #1f3a5f;
   border-radius: 2px;
 }
 
-.materiais-download svg {
+.materiais-icon-btn--danger:focus-visible {
+  box-shadow: 0 0 0 2px #a32d2d;
+  border-radius: 2px;
+}
+
+.materiais-icon-btn svg {
   width: 16px;
   height: 16px;
   display: block;
@@ -440,6 +461,76 @@
   justify-content: flex-end;
   gap: 8px;
   margin-top: 20px;
+}
+
+.materiais-dialog-actions--split {
+  justify-content: space-between;
+  align-items: center;
+}
+
+.materiais-dialog-actions-right {
+  display: flex;
+  gap: 8px;
+}
+
+.materiais-confirm-text {
+  margin: 0;
+  font-size: 12.5px;
+  font-weight: 400;
+  color: #6c7684;
+  line-height: 1.5;
+}
+
+.materiais-danger {
+  height: 36px;
+  padding: 0 15px;
+  border: none;
+  border-radius: 6px;
+  background: #a32d2d;
+  color: #fbfaf7;
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.materiais-danger:hover {
+  background: #7f2323;
+}
+
+.materiais-danger:active {
+  transform: scale(0.99);
+}
+
+.materiais-danger:focus-visible {
+  box-shadow: 0 0 0 2px #fbfaf7, 0 0 0 4px #a32d2d;
+}
+
+.materiais-danger:disabled,
+.materiais-danger-ghost:disabled {
+  opacity: 0.7;
+  cursor: default;
+}
+
+.materiais-danger-ghost {
+  height: 36px;
+  padding: 0 15px;
+  border: 0.5px solid #e4e1da;
+  border-radius: 6px;
+  background: #ffffff;
+  color: #a32d2d;
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.materiais-danger-ghost:hover {
+  border-color: #a32d2d;
+}
+
+.materiais-danger-ghost:focus-visible {
+  box-shadow: 0 0 0 2px #a32d2d;
 }
 
 .materiais-secondary {

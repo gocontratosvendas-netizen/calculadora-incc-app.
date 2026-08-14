@@ -1,4 +1,5 @@
 import App from '../../App'
+import Casos from '../../pages/Casos'
 import Home from '../../pages/Home'
 import Materiais from '../../pages/Materiais'
 import { useRouter } from '../../lib/router-context'
@@ -23,6 +24,7 @@ export function AppShell({ onSignOut }: AppShellProps) {
       >
         {pathname === '/' ? <Home /> : null}
         {isCalculator ? <App /> : null}
+        {pathname === '/casos' ? <Casos /> : null}
         {pathname === '/materiais' ? <Materiais /> : null}
       </main>
     </div>

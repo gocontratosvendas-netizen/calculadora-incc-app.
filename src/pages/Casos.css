@@ -1,0 +1,659 @@
+.casos-visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.casos-page {
+  --casos-bg: #ffffff;
+  --casos-azul: #16346b;
+  --casos-azul-hover: #1d4382;
+  --casos-dourado: #b9975b;
+  --casos-borda-card: #e6e9ef;
+  --casos-borda-campo: #dde1e8;
+  --casos-divisor-header: #eceef2;
+  --casos-divisor-linha: #f1f3f6;
+  --casos-header-bg: #f8f9fb;
+  --casos-linha-alt: #fcfcfd;
+  --casos-linha-hover: #f8f9fb;
+  --casos-texto: #101828;
+  --casos-texto-sec: #5b6474;
+  --casos-rotulo: #6b7686;
+  --casos-terciario: #8a93a2;
+  --casos-vazio: #c3c9d2;
+  --casos-recuperado: #0f6e56;
+  --casos-erro: #a32d2d;
+  --casos-skeleton: #f0f2f6;
+  --casos-busca-ph: #aeb5c0;
+  --casos-avatar-bg: #f0f2f6;
+  --casos-status-venda-bg: #faeeda;
+  --casos-status-venda-fg: #854f0b;
+  --casos-status-ajuizado-bg: #e6f1fb;
+  --casos-status-ajuizado-fg: #185fa5;
+  --casos-status-encerrado-bg: #f0f2f6;
+  --casos-status-encerrado-fg: #5b6474;
+
+  background: var(--casos-bg);
+  color: var(--casos-texto);
+  max-width: 1120px;
+  margin: 0 auto;
+}
+
+.casos-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--casos-divisor-header);
+  margin-bottom: 14px;
+}
+
+.casos-header h1 {
+  margin: 0;
+  font-size: 19px;
+  font-weight: 500;
+  color: var(--casos-azul);
+  line-height: 1.25;
+}
+
+.casos-header-rule {
+  width: 30px;
+  height: 2px;
+  background: var(--casos-dourado);
+  margin: 7px 0 6px;
+}
+
+.casos-header-sub {
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--casos-rotulo);
+  line-height: 1.4;
+}
+
+.casos-header-actions {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.casos-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 34px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 400;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.casos-btn svg {
+  flex-shrink: 0;
+}
+
+.casos-btn--secondary {
+  padding: 0 12px;
+  border: 1px solid var(--casos-borda-campo);
+  background: var(--casos-bg);
+  color: var(--casos-texto-sec);
+}
+
+.casos-btn--secondary:hover {
+  border-color: var(--casos-borda-card);
+}
+
+.casos-btn--primary {
+  padding: 0 14px;
+  border: none;
+  background: var(--casos-azul);
+  color: #ffffff;
+  font-size: 12.5px;
+  font-weight: 500;
+}
+
+.casos-btn--primary:hover {
+  background: var(--casos-azul-hover);
+}
+
+.casos-btn--text {
+  height: auto;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--casos-azul);
+  font-size: 12.5px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.casos-btn--text:hover {
+  color: var(--casos-azul-hover);
+}
+
+.casos-kpis {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 9px;
+  margin-bottom: 16px;
+}
+
+.casos-kpi {
+  background: var(--casos-bg);
+  border: 1px solid var(--casos-borda-card);
+  border-radius: 10px;
+  padding: 10px 11px;
+}
+
+.casos-kpi--destaque {
+  border-left: 2px solid var(--casos-dourado);
+}
+
+.casos-kpi-label {
+  display: block;
+  font-size: 10px;
+  color: var(--casos-terciario);
+  letter-spacing: 0.04em;
+  line-height: 1.35;
+  min-height: 36px;
+}
+
+.casos-kpi-value {
+  display: block;
+  font-size: 18px;
+  font-weight: 500;
+  margin-top: 2px;
+  color: var(--casos-texto);
+  font-variant-numeric: tabular-nums;
+  line-height: 1.2;
+}
+
+.casos-kpi-value--azul {
+  color: var(--casos-azul);
+}
+
+.casos-kpi-value--verde {
+  color: var(--casos-recuperado);
+}
+
+.casos-filters {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+
+.casos-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.casos-chip {
+  font-size: 11.5px;
+  padding: 5px 11px;
+  border-radius: 14px;
+  border: 1px solid var(--casos-borda-campo);
+  background: var(--casos-bg);
+  color: var(--casos-texto-sec);
+  cursor: pointer;
+  font-weight: 400;
+}
+
+.casos-chip.is-active {
+  background: var(--casos-azul);
+  color: #ffffff;
+  border-color: transparent;
+  border: none;
+  padding: 6px 12px;
+}
+
+.casos-filters-right {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+}
+
+.casos-year {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+.casos-year select {
+  appearance: none;
+  height: 30px;
+  padding: 0 28px 0 9px;
+  border: 1px solid var(--casos-borda-campo);
+  border-radius: 8px;
+  background: var(--casos-bg);
+  font-size: 11.5px;
+  color: var(--casos-texto-sec);
+  cursor: pointer;
+}
+
+.casos-year-caret {
+  position: absolute;
+  right: 8px;
+  pointer-events: none;
+  color: var(--casos-texto-sec);
+  display: flex;
+}
+
+.casos-search {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+.casos-search-icon {
+  position: absolute;
+  left: 8px;
+  width: 14px;
+  height: 14px;
+  color: var(--casos-terciario);
+  pointer-events: none;
+}
+
+.casos-search input {
+  height: 30px;
+  width: 104px;
+  padding: 0 8px 0 26px;
+  border: 1px solid var(--casos-borda-campo);
+  border-radius: 8px;
+  background: var(--casos-bg);
+  font-size: 11.5px;
+  color: var(--casos-texto);
+}
+
+.casos-search input::placeholder {
+  color: var(--casos-busca-ph);
+  font-size: 11.5px;
+}
+
+.casos-search input:focus,
+.casos-year select:focus,
+.casos-btn:focus-visible,
+.casos-chip:focus-visible,
+.casos-sort:focus-visible,
+.casos-page-btn:focus-visible,
+.casos-row:focus-visible {
+  outline: 2px solid var(--casos-azul);
+  outline-offset: 1px;
+}
+
+.casos-table-wrap {
+  background: var(--casos-bg);
+  border: 1px solid var(--casos-borda-card);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.casos-table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+.casos-table thead tr,
+.casos-table tbody tr,
+.casos-table tfoot tr {
+  display: grid;
+  grid-template-columns:
+    minmax(120px, 1.5fr)
+    minmax(72px, 0.8fr)
+    46px
+    minmax(66px, 0.85fr)
+    minmax(66px, 0.85fr)
+    minmax(70px, 0.9fr)
+    36px
+    minmax(112px, 1.2fr);
+  width: 100%;
+}
+
+.casos-table thead {
+  background: var(--casos-header-bg);
+  border-bottom: 1px solid var(--casos-borda-card);
+}
+
+.casos-table th {
+  font-size: 10px;
+  font-weight: 400;
+  color: var(--casos-rotulo);
+  line-height: 1.3;
+  text-align: left;
+  padding: 8px 5px;
+  display: flex;
+  align-items: flex-end;
+}
+
+.casos-table th:first-child,
+.casos-table td:first-child {
+  padding-left: 12px;
+  padding-right: 12px;
+}
+
+.casos-table th:last-child,
+.casos-table td:last-child {
+  padding-left: 5px;
+  padding-right: 12px;
+}
+
+.casos-table th.is-right,
+.casos-table td.is-right {
+  justify-content: flex-end;
+  text-align: right;
+}
+
+.casos-table th.is-center,
+.casos-table td.is-center {
+  justify-content: center;
+  text-align: center;
+}
+
+.casos-table th.is-sorted {
+  color: var(--casos-azul);
+  font-weight: 500;
+}
+
+.casos-sort {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  border: none;
+  background: none;
+  padding: 0;
+  margin: 0;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  text-align: inherit;
+}
+
+.casos-sort-arrow {
+  width: 10px;
+  height: 10px;
+  flex-shrink: 0;
+}
+
+.casos-table tbody tr {
+  border-bottom: 1px solid var(--casos-divisor-linha);
+  cursor: pointer;
+}
+
+.casos-table tbody tr:nth-child(even) {
+  background: var(--casos-linha-alt);
+}
+
+.casos-table tbody tr:hover {
+  background: var(--casos-linha-hover);
+}
+
+.casos-table td {
+  padding: 10px 5px;
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  font-size: 11.5px;
+  color: var(--casos-texto-sec);
+}
+
+.casos-table td.is-num {
+  font-variant-numeric: tabular-nums;
+  justify-content: flex-end;
+  text-align: right;
+}
+
+.casos-caso-nome {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--casos-texto);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.3;
+  width: 100%;
+}
+
+.casos-caso-emp {
+  font-size: 10.5px;
+  color: var(--casos-terciario);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.3;
+  width: 100%;
+}
+
+.casos-caso-cell {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1px;
+  min-width: 0;
+}
+
+.casos-excesso {
+  font-weight: 500;
+  color: var(--casos-azul);
+}
+
+.casos-causa {
+  color: var(--casos-texto);
+}
+
+.casos-empty-dash {
+  color: var(--casos-vazio);
+}
+
+.casos-avatar {
+  width: 21px;
+  height: 21px;
+  border-radius: 50%;
+  background: var(--casos-avatar-bg);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 9px;
+  font-weight: 500;
+  color: var(--casos-texto-sec);
+  flex-shrink: 0;
+}
+
+.casos-badge {
+  font-size: 10px;
+  padding: 3px 8px;
+  border-radius: 4px;
+  white-space: nowrap;
+  font-weight: 400;
+}
+
+.casos-badge--venda {
+  background: var(--casos-status-venda-bg);
+  color: var(--casos-status-venda-fg);
+}
+
+.casos-badge--ajuizado {
+  background: var(--casos-status-ajuizado-bg);
+  color: var(--casos-status-ajuizado-fg);
+}
+
+.casos-badge--encerrado {
+  background: var(--casos-status-encerrado-bg);
+  color: var(--casos-status-encerrado-fg);
+}
+
+.casos-table tfoot tr {
+  background: var(--casos-header-bg);
+  border-top: 1px solid var(--casos-borda-card);
+}
+
+.casos-table tfoot td {
+  padding: 10px 5px;
+  display: flex;
+  align-items: center;
+}
+
+.casos-total-label {
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  color: var(--casos-rotulo);
+  font-weight: 400;
+}
+
+.casos-total-contrato {
+  font-size: 11.5px;
+  color: var(--casos-texto-sec);
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+}
+
+.casos-total-excesso {
+  font-size: 11.5px;
+  font-weight: 500;
+  color: var(--casos-azul);
+  font-variant-numeric: tabular-nums;
+}
+
+.casos-total-causa {
+  font-size: 11.5px;
+  font-weight: 500;
+  color: var(--casos-texto);
+  font-variant-numeric: tabular-nums;
+}
+
+.casos-table-empty {
+  padding: 44px 16px;
+  text-align: center;
+}
+
+.casos-table-empty p {
+  margin: 0 0 10px;
+  font-size: 12.5px;
+  color: var(--casos-terciario);
+}
+
+.casos-table-empty p.is-error {
+  color: var(--casos-erro);
+}
+
+.casos-pagination {
+  padding: 11px 2px 0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+.casos-pagination-info {
+  font-size: 11.5px;
+  color: var(--casos-terciario);
+}
+
+.casos-pagination-nav {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.casos-page-btn {
+  width: 28px;
+  height: 28px;
+  border-radius: 7px;
+  border: 1px solid var(--casos-borda-campo);
+  background: var(--casos-bg);
+  color: var(--casos-texto-sec);
+  font-size: 11.5px;
+  font-weight: 400;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+}
+
+.casos-page-btn.is-active {
+  background: var(--casos-azul);
+  color: #ffffff;
+  border-color: var(--casos-azul);
+}
+
+.casos-page-btn:disabled {
+  color: var(--casos-vazio);
+  cursor: default;
+}
+
+.casos-page-ellipsis {
+  width: 28px;
+  text-align: center;
+  font-size: 11.5px;
+  color: var(--casos-terciario);
+}
+
+.casos-skeleton {
+  background: var(--casos-skeleton);
+  border-radius: 4px;
+  animation: casos-pulse 1.4s ease-in-out infinite;
+}
+
+.casos-kpi .casos-skeleton {
+  height: 14px;
+  width: 70%;
+  margin-bottom: 10px;
+}
+
+.casos-kpi .casos-skeleton--value {
+  height: 20px;
+  width: 55%;
+  margin-bottom: 0;
+  margin-top: 2px;
+}
+
+.casos-skel-row td {
+  padding: 10px 5px;
+}
+
+.casos-skel-row .casos-skeleton {
+  height: 14px;
+  width: 80%;
+}
+
+@keyframes casos-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.55;
+  }
+}
+
+@media (max-width: 1100px) {
+  .casos-kpis {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 820px) {
+  .casos-kpis {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .casos-filters-right {
+    margin-left: 0;
+    width: 100%;
+  }
+
+  .casos-header {
+    flex-wrap: wrap;
+  }
+}

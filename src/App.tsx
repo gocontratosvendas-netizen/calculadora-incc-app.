@@ -15,6 +15,8 @@ const numberFormatter = new Intl.NumberFormat('pt-BR', {
   maximumFractionDigits: 2,
 })
 
+let ultimoNomePdfImportado = ''
+
 function App() {
   type Linha = {
     id: string
@@ -536,103 +538,361 @@ function App() {
     return { totalLinhas, linhasComData, linhasComPagamento }
   }, [linhas])
 
+  const importacaoOk = Boolean(mensagemImportacao?.startsWith('PDF importado'))
+  const importacaoErro = Boolean(mensagemImportacao && !importacaoOk)
+
+  function aplicarTextoColado(text: string) {
+    const bruto = text.replace(/\r/g, '').trim()
+    if (!bruto) return
+    const parsed = bruto
+      .split('\n')
+      .map((linhaTexto) => linhaTexto.split(/\t|;/))
+      .filter((cols) => cols.some((c) => c.trim()))
+    if (!parsed.length) return
+    const start = parsed[0]?.[0] && /data/i.test(parsed[0][0]) ? 1 : 0
+    const novas: Linha[] = parsed.slice(start).map((cols) => {
+      const base = criarLinhaVazia()
+      const rawDate = (cols[0] ?? '').trim()
+      let dataPagamento = ''
+      if (/^\d{4}-\d{2}-\d{2}$/.test(rawDate)) {
+        dataPagamento = rawDate
+      } else {
+        const m = rawDate.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/)
+        if (m) {
+          dataPagamento = `${m[3]}-${m[2].padStart(2, '0')}-${m[1].padStart(2, '0')}`
+        }
+      }
+      const full = cols.length >= 8
+      return {
+        ...base,
+        dataPagamento,
+        valorContratual: (cols[1] ?? '').trim(),
+        renegociacao: full ? (cols[2] ?? '').trim() || '0,00' : '0,00',
+        multa: full ? (cols[3] ?? '').trim() || '0,00' : '0,00',
+        jurosMora: full ? (cols[4] ?? '').trim() || '0,00' : '0,00',
+        descontos: full ? (cols[5] ?? '').trim() || '0,00' : '0,00',
+        taxasAdicionais: full ? (cols[6] ?? '').trim() || '0,00' : '0,00',
+        valorPago: (full ? (cols[7] ?? '') : (cols[2] ?? '')).trim(),
+      }
+    })
+    if (!novas.length) return
+    setLinhas(novas)
+    setDataAniversarioManual(novas[0]?.dataPagamento ?? '')
+  }
+
+  const totalContratualEntrada = linhas.reduce((acc, l) => acc + parseMoney(l.valorContratual), 0)
+  const totalPagoEntrada = linhas.reduce((acc, l) => acc + parseMoney(l.valorPago), 0)
+  const totalRenegociacaoEntrada = linhas.reduce((acc, l) => acc + parseMoney(l.renegociacao), 0)
+  const totalMultaEntrada = linhas.reduce((acc, l) => acc + parseMoney(l.multa), 0)
+  const totalJurosEntrada = linhas.reduce((acc, l) => acc + parseMoney(l.jurosMora), 0)
+  const totalDescontosEntrada = linhas.reduce((acc, l) => acc + parseMoney(l.descontos), 0)
+  const totalTaxasEntrada = linhas.reduce((acc, l) => acc + parseMoney(l.taxasAdicionais), 0)
+
   return (
     <div className="app-root">
-      <header className="app-header">
-        <h1>Calculadora INCC</h1>
-        <p>
-          Lançamento de pagamentos e relatório em formato de planilha (correção no
-          aniversário do contrato).
-        </p>
-      </header>
+      {tela === 'entrada' ? (
+        <>
+          <header className="app-header">
+            <h1>Calculadora INCC</h1>
+            <p className="app-subtitle">
+              Lançamento de pagamentos e apuração da correção no aniversário do contrato.
+            </p>
+          </header>
 
-      <main className="app-main">
-        {tela === 'entrada' ? (
-          <section className="card card-wide launch-card">
-            <div className="launch-header">
-              <div>
-                <h2>1) Lançamento dos pagamentos</h2>
-                <p className="launch-subtitle">
-                  Preencha os lançamentos mensais para gerar o relatório de cobrança.
-                </p>
-              </div>
-              <div className="launch-kpis">
-                <div className="launch-kpi">
-                  <span>Linhas</span>
-                  <strong>{resumoLancamentos.totalLinhas}</strong>
-                </div>
-                <div className="launch-kpi">
-                  <span>Com data</span>
-                  <strong>{resumoLancamentos.linhasComData}</strong>
-                </div>
-                <div className="launch-kpi">
-                  <span>Com valor pago</span>
-                  <strong>{resumoLancamentos.linhasComPagamento}</strong>
-                </div>
-              </div>
-            </div>
+          <div
+            className={[
+              'import-card',
+              importacaoOk && !importandoPdf && !importacaoErro ? 'import-card--compact' : '',
+              importandoPdf ? 'is-disabled' : '',
+            ]
+              .filter(Boolean)
+              .join(' ')}
+            onDragOver={(e) => {
+              e.preventDefault()
+              e.currentTarget.classList.add('is-dragging')
+            }}
+            onDragLeave={(e) => {
+              if (!e.currentTarget.contains(e.relatedTarget as Node | null)) {
+                e.currentTarget.classList.remove('is-dragging')
+              }
+            }}
+            onDrop={(e) => {
+              e.preventDefault()
+              e.currentTarget.classList.remove('is-dragging')
+              const file = e.dataTransfer.files?.[0]
+              if (file) {
+                ultimoNomePdfImportado = file.name
+                void handleImportarPdf(file)
+              }
+            }}
+          >
+            <input
+              ref={pdfInputRef}
+              type="file"
+              accept="application/pdf,.pdf"
+              className="hidden-file-input"
+              onChange={(e) => {
+                const file = e.target.files?.[0]
+                if (file) {
+                  ultimoNomePdfImportado = file.name
+                  void handleImportarPdf(file)
+                }
+              }}
+            />
 
-            <div className="form-grid form-grid-3">
-              <div className="field">
-                <label>Data de início do contrato (aniversário)</label>
-                <div className="aniversario-inline">
-                  <span className="aniversario-helper">
-                    Defina a data de aniversário (se vazio, usamos a 1ª linha).
-                  </span>
-                  <div className="aniversario-input-row">
-                    <input
-                      type="date"
-                      className="table-input aniversario-input"
-                      value={
-                        dataAniversarioManual ||
-                        (relatorio.inicioEfetivo
-                          ? `${relatorio.inicioEfetivo.getFullYear()}-${String(
-                              relatorio.inicioEfetivo.getMonth() + 1,
-                            ).padStart(2, '0')}-${String(relatorio.inicioEfetivo.getDate()).padStart(2, '0')}`
-                          : '')
-                      }
-                      onChange={(e) => setDataAniversarioManual(e.target.value)}
-                    />
+            {importandoPdf ? (
+              <div className="import-reading">
+                <span className="import-spinner" aria-hidden="true" />
+                Lendo o extrato…
+              </div>
+            ) : importacaoOk && !importacaoErro ? (
+              <div className="import-compact-row">
+                <span>
+                  {ultimoNomePdfImportado || 'PDF'} · {resumoLancamentos.totalLinhas}{' '}
+                  lançamentos importados
+                </span>
+                <button
+                  type="button"
+                  className="import-link"
+                  onClick={() => pdfInputRef.current?.click()}
+                >
+                  Trocar arquivo
+                </button>
+              </div>
+            ) : (
+              <>
+                <div className="import-main">
+                  <div className="import-icon" aria-hidden="true">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+                      <path
+                        d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6z"
+                        stroke="currentColor"
+                        strokeWidth="1.6"
+                      />
+                      <path d="M14 2v6h6" stroke="currentColor" strokeWidth="1.6" />
+                      <path d="M8 13h8M8 17h5" stroke="currentColor" strokeWidth="1.6" />
+                    </svg>
+                  </div>
+                  <div className="import-copy">
+                    <p className="import-title">Importar PDF do extrato</p>
+                    <p className="import-hint">
+                      Arraste aqui o extrato financeiro da incorporadora. Os lançamentos são
+                      preenchidos automaticamente.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    className="primary-button"
+                    disabled={importandoPdf}
+                    onClick={() => pdfInputRef.current?.click()}
+                  >
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                      <path
+                        d="M12 16V4M12 4l-4 4M12 4l4 4M4 20h16"
+                        stroke="currentColor"
+                        strokeWidth="1.8"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+                    </svg>
+                    Selecionar arquivo
+                  </button>
+                </div>
+                <div className="import-secondary">
+                  <span className="import-manual-label">Prefere lançar manualmente?</span>
+                  <button
+                    type="button"
+                    className="import-link"
+                    onClick={() => setLinhas((prev) => [...prev, criarLinhaVazia()])}
+                  >
+                    Adicionar linha
+                  </button>
+                  <button
+                    type="button"
+                    className="import-link"
+                    onClick={() => {
+                      setLinhas(mockLinhas)
+                      setDataAniversarioManual(mockLinhas[0]?.dataPagamento ?? '')
+                    }}
+                  >
+                    Carregar exemplo
+                  </button>
+                  <button
+                    type="button"
+                    className="import-link"
+                    onClick={() => {
+                      void navigator.clipboard
+                        .readText()
+                        .then(aplicarTextoColado)
+                        .catch(() => {})
+                    }}
+                  >
+                    Colar do Excel
+                  </button>
+                </div>
+                {importacaoErro ? (
+                  <p className="import-error">
+                    {mensagemImportacao}
                     <button
                       type="button"
-                      className="ghost-button aniversario-reset"
-                      onClick={() => setDataAniversarioManual('')}
+                      className="import-link"
+                      onClick={() => pdfInputRef.current?.click()}
                     >
-                      Usar 1ª linha
+                      Tentar outro arquivo
                     </button>
-                  </div>
-                </div>
-              </div>
-              <div className="field field-help">
-                <span className="help-title">Como é calculado</span>
-                <span className="help-text">
-                  No aniversário, aplicamos o INCC-DI acumulado em 12 meses do mês do aniversário.
-                </span>
+                  </p>
+                ) : null}
+              </>
+            )}
+          </div>
+
+          <div className="params-card">
+            <div className="param-field">
+              <label htmlFor="dataInicioContrato">Data de início do contrato</label>
+              <div className="param-date-wrap">
+                <input
+                  id="dataInicioContrato"
+                  type="date"
+                  className="table-input aniversario-input"
+                  value={
+                    dataAniversarioManual ||
+                    (relatorio.inicioEfetivo
+                      ? `${relatorio.inicioEfetivo.getFullYear()}-${String(
+                          relatorio.inicioEfetivo.getMonth() + 1,
+                        ).padStart(2, '0')}-${String(relatorio.inicioEfetivo.getDate()).padStart(2, '0')}`
+                      : '')
+                  }
+                  onChange={(e) => setDataAniversarioManual(e.target.value)}
+                />
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                  <rect
+                    x="3"
+                    y="5"
+                    width="18"
+                    height="16"
+                    rx="2"
+                    stroke="#8794A8"
+                    strokeWidth="1.6"
+                  />
+                  <path
+                    d="M3 10h18M8 3v4M16 3v4"
+                    stroke="#8794A8"
+                    strokeWidth="1.6"
+                    strokeLinecap="round"
+                  />
+                </svg>
               </div>
             </div>
+            <label className="param-check">
+              <input
+                type="checkbox"
+                checked={!dataAniversarioManual}
+                onChange={() => setDataAniversarioManual('')}
+              />
+              Usar a data da 1ª linha
+            </label>
+            <details className="method-pill">
+              <summary>
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                  <circle cx="12" cy="12" r="9" stroke="#4A6FA8" strokeWidth="1.6" />
+                  <path
+                    d="M12 11v6M12 8h.01"
+                    stroke="#4A6FA8"
+                    strokeWidth="1.8"
+                    strokeLinecap="round"
+                  />
+                </svg>
+                <span>
+                  INCC-DI acumulado 12 meses · <em>metodologia</em>
+                </span>
+              </summary>
+              <div className="method-panel">
+                No aniversário, aplicamos o INCC-DI acumulado em 12 meses do mês do aniversário.
+              </div>
+            </details>
+          </div>
 
-            <div className="table-wrap launch-table-wrap">
-              <table className="data-table launch-table launch-table-wide">
+          <section className="launch-card">
+            <div className="launch-card-bar">
+              <span className="launch-card-title">Lançamentos</span>
+              <span className="launch-card-meta">
+                {resumoLancamentos.totalLinhas} linhas · {resumoLancamentos.linhasComData} com data
+                · {resumoLancamentos.linhasComPagamento} com valor pago
+              </span>
+            </div>
+
+            {linhas.length === 0 ? (
+              <p className="launch-empty">
+                Nenhum lançamento ainda. Importe o extrato ou adicione uma linha.
+              </p>
+            ) : (
+              <table className="launch-table" role="table">
                 <thead>
-                  <tr>
-                    <th>Data pagamento</th>
-                    <th>Valor contratual</th>
-                    <th>Renegociação</th>
-                    <th>Multa</th>
-                    <th>Juros de mora</th>
-                    <th>Descontos</th>
-                    <th>Taxas adicionais</th>
-                    <th>Valor pago</th>
-                    <th></th>
+                  <tr className="launch-groups" role="row">
+                    <th role="columnheader" />
+                    <th role="columnheader" />
+                    <th scope="colgroup" role="columnheader">
+                      Contrato
+                    </th>
+                    <th colSpan={5} scope="colgroup" role="columnheader">
+                      Ajustes
+                    </th>
+                    <th scope="colgroup" role="columnheader">
+                      Pago
+                    </th>
+                    <th role="columnheader" />
+                  </tr>
+                  <tr className="launch-cols" role="row">
+                    <th scope="col" role="columnheader" />
+                    <th scope="col" role="columnheader">
+                      Data
+                      <br />
+                      pagamento
+                    </th>
+                    <th scope="col" role="columnheader">
+                      Valor
+                      <br />
+                      contratual
+                    </th>
+                    <th scope="col" role="columnheader">
+                      Renegociação
+                    </th>
+                    <th scope="col" role="columnheader">
+                      Multa
+                    </th>
+                    <th scope="col" role="columnheader">
+                      Juros
+                      <br />
+                      de mora
+                    </th>
+                    <th scope="col" role="columnheader">
+                      Descontos
+                    </th>
+                    <th scope="col" role="columnheader">
+                      Taxas
+                      <br />
+                      adicionais
+                    </th>
+                    <th scope="col" role="columnheader">
+                      Valor
+                      <br />
+                      pago
+                    </th>
+                    <th scope="col" role="columnheader" />
                   </tr>
                 </thead>
                 <tbody>
-                  {linhas.map((linha) => (
-                    <tr key={linha.id}>
-                      <td>
+                  {linhas.map((linha, index) => (
+                    <tr key={linha.id} role="row">
+                      <td role="cell">{index + 1}</td>
+                      <td
+                        role="cell"
+                        className={!parseDate(linha.dataPagamento) ? 'is-date-invalid' : undefined}
+                      >
                         <input
                           className="table-input"
                           type="date"
+                          aria-label={`Data pagamento, linha ${index + 1}`}
                           value={linha.dataPagamento}
                           onChange={(e) => {
                             const v = e.target.value
@@ -644,20 +904,25 @@ function App() {
                       </td>
                       {(
                         [
-                          ['valorContratual', 'ex: 2.500,00'],
-                          ['renegociacao', '0,00'],
-                          ['multa', '0,00'],
-                          ['jurosMora', '0,00'],
-                          ['descontos', '0,00'],
-                          ['taxasAdicionais', '0,00'],
-                          ['valorPago', 'ex: 2.650,00'],
+                          ['valorContratual', 'ex: 2.500,00', 'Valor contratual'],
+                          ['renegociacao', '0,00', 'Renegociação'],
+                          ['multa', '0,00', 'Multa'],
+                          ['jurosMora', '0,00', 'Juros de mora'],
+                          ['descontos', '0,00', 'Descontos'],
+                          ['taxasAdicionais', '0,00', 'Taxas adicionais'],
+                          ['valorPago', 'ex: 2.650,00', 'Valor pago'],
                         ] as const
-                      ).map(([campo, placeholder]) => (
-                        <td key={campo}>
+                      ).map(([campo, placeholder, rotulo]) => (
+                        <td
+                          key={campo}
+                          role="cell"
+                          className={parseMoney(linha[campo]) === 0 ? 'is-zero' : undefined}
+                        >
                           <input
                             className="table-input"
                             inputMode="decimal"
                             placeholder={placeholder}
+                            aria-label={`${rotulo}, linha ${index + 1}`}
                             value={linha[campo]}
                             onChange={(e) => {
                               const v = e.target.value
@@ -668,191 +933,219 @@ function App() {
                           />
                         </td>
                       ))}
-                      <td className="table-actions">
+                      <td role="cell">
                         <button
                           type="button"
-                          className="ghost-button"
+                          className="row-delete"
+                          aria-label={`Excluir linha ${index + 1}`}
                           onClick={() =>
                             setLinhas((prev) => prev.filter((p) => p.id !== linha.id))
                           }
                           disabled={linhas.length === 1}
                         >
-                          Remover
+                          <svg width="13" height="13" viewBox="0 0 13 13" aria-hidden="true">
+                            <path
+                              d="M3 3l7 7M10 3l-7 7"
+                              stroke="currentColor"
+                              strokeWidth="1.3"
+                              fill="none"
+                              strokeLinecap="round"
+                            />
+                          </svg>
                         </button>
                       </td>
                     </tr>
                   ))}
                 </tbody>
+                <tfoot>
+                  <tr className="launch-totals" role="row">
+                    <td role="cell" />
+                    <td role="cell">TOTAIS</td>
+                    <td
+                      role="cell"
+                      className={totalContratualEntrada === 0 ? 'is-zero' : undefined}
+                    >
+                      {numberFormatter.format(totalContratualEntrada)}
+                    </td>
+                    <td
+                      role="cell"
+                      className={totalRenegociacaoEntrada === 0 ? 'is-zero' : undefined}
+                    >
+                      {numberFormatter.format(totalRenegociacaoEntrada)}
+                    </td>
+                    <td role="cell" className={totalMultaEntrada === 0 ? 'is-zero' : undefined}>
+                      {numberFormatter.format(totalMultaEntrada)}
+                    </td>
+                    <td role="cell" className={totalJurosEntrada === 0 ? 'is-zero' : undefined}>
+                      {numberFormatter.format(totalJurosEntrada)}
+                    </td>
+                    <td role="cell" className={totalDescontosEntrada === 0 ? 'is-zero' : undefined}>
+                      {numberFormatter.format(totalDescontosEntrada)}
+                    </td>
+                    <td role="cell" className={totalTaxasEntrada === 0 ? 'is-zero' : undefined}>
+                      {numberFormatter.format(totalTaxasEntrada)}
+                    </td>
+                    <td role="cell" className={totalPagoEntrada === 0 ? 'is-zero' : undefined}>
+                      {numberFormatter.format(totalPagoEntrada)}
+                    </td>
+                    <td role="cell" />
+                  </tr>
+                </tfoot>
               </table>
-            </div>
-
-            <div className="actions-row launch-actions-row">
-              <input
-                ref={pdfInputRef}
-                type="file"
-                accept="application/pdf,.pdf"
-                className="hidden-file-input"
-                onChange={(e) => {
-                  const file = e.target.files?.[0]
-                  if (file) void handleImportarPdf(file)
-                }}
-              />
-              <button
-                type="button"
-                className="secondary-button"
-                disabled={importandoPdf}
-                onClick={() => pdfInputRef.current?.click()}
-              >
-                {importandoPdf ? 'Lendo PDF...' : 'Importar PDF do extrato'}
-              </button>
-              <button
-                type="button"
-                className="secondary-button"
-                onClick={() => {
-                  setLinhas(mockLinhas)
-                  setDataAniversarioManual(mockLinhas[0]?.dataPagamento ?? '')
-                }}
-              >
-                Carregar exemplo da planilha
-              </button>
-              <button
-                type="button"
-                className="secondary-button"
-                onClick={() => setLinhas((prev) => [...prev, criarLinhaVazia()])}
-              >
-                Adicionar linha
-              </button>
-              <button type="button" className="primary-button" onClick={() => setTela('resultado')}>
-                Ver relatório
-              </button>
-            </div>
-            {mensagemImportacao ? (
-              <p className="import-feedback">{mensagemImportacao}</p>
-            ) : null}
+            )}
           </section>
-        ) : (
-          <section className="card card-wide report-card">
-            <div className="results-header">
-              <h2>2) Relatório (planilha)</h2>
-              <div className="results-actions">
-                <button
-                  type="button"
-                  className="secondary-button"
-                  onClick={() => setPopupExportarAberto(true)}
-                  disabled={exportando}
-                >
-                  {exportando ? 'Exportando...' : 'Exportar'}
-                </button>
-                <button type="button" className="secondary-button" onClick={() => setTela('entrada')}>
-                  Voltar
-                </button>
+
+          <div className="totals-bar">
+            <div className="totals-left">
+              <div className="totals-block">
+                <span className="totals-label">TOTAL CONTRATUAL</span>
+                <span className="totals-value">
+                  {currencyFormatter.format(totalContratualEntrada)}
+                </span>
+              </div>
+              <div className="totals-block">
+                <span className="totals-label">TOTAL PAGO</span>
+                <span className="totals-value totals-value--paid">
+                  {currencyFormatter.format(totalPagoEntrada)}
+                </span>
+              </div>
+            </div>
+            <button type="button" className="primary-button" onClick={() => setTela('resultado')}>
+              Ver relatório
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <path
+                  d="M5 12h14M13 6l6 6-6 6"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+            </button>
+          </div>
+        </>
+      ) : (
+        <section className="card card-wide report-card">
+          <div className="results-header">
+            <h2>2) Relatório (planilha)</h2>
+            <div className="results-actions">
+              <button
+                type="button"
+                className="secondary-button"
+                onClick={() => setPopupExportarAberto(true)}
+                disabled={exportando}
+              >
+                {exportando ? 'Exportando...' : 'Exportar'}
+              </button>
+              <button type="button" className="secondary-button" onClick={() => setTela('entrada')}>
+                Voltar
+              </button>
+            </div>
+          </div>
+
+          <div className="export-scope">
+            <div className="kpi-grid" aria-label="Resumo do relatório">
+              <div className="kpi-card">
+                <span className="kpi-label">Valor pago</span>
+                <span className="kpi-value">{currencyFormatter.format(relatorio.totalPago)}</span>
+              </div>
+              <div className="kpi-card">
+                <span className="kpi-label">Valor devido</span>
+                <span className="kpi-value">{currencyFormatter.format(relatorio.totalDevido)}</span>
+              </div>
+              <div className="kpi-card">
+                <span className="kpi-label">Valor cobrado em excesso</span>
+                <span className="kpi-value kpi-accent">
+                  {currencyFormatter.format(relatorio.totalExcesso)}
+                </span>
+              </div>
+              <div className="kpi-card">
+                <span className="kpi-label">Dobro do cobrado em excesso</span>
+                <span className="kpi-value kpi-accent-strong">
+                  {currencyFormatter.format(relatorio.totalExcesso * 2)}
+                </span>
               </div>
             </div>
 
             <div className="export-scope">
-              <div className="kpi-grid" aria-label="Resumo do relatório">
-                <div className="kpi-card">
-                  <span className="kpi-label">Valor pago</span>
-                  <span className="kpi-value">{currencyFormatter.format(relatorio.totalPago)}</span>
-                </div>
-                <div className="kpi-card">
-                  <span className="kpi-label">Valor devido</span>
-                  <span className="kpi-value">{currencyFormatter.format(relatorio.totalDevido)}</span>
-                </div>
-                <div className="kpi-card">
-                  <span className="kpi-label">Valor cobrado em excesso</span>
-                  <span className="kpi-value kpi-accent">
-                    {currencyFormatter.format(relatorio.totalExcesso)}
-                  </span>
-                </div>
-                <div className="kpi-card">
-                  <span className="kpi-label">Dobro do cobrado em excesso</span>
-                  <span className="kpi-value kpi-accent-strong">
-                    {currencyFormatter.format(relatorio.totalExcesso * 2)}
-                  </span>
-                </div>
-              </div>
-
-              <div className="export-scope">
-                <div className="table-wrap">
-                  <table className="data-table report-table-wide">
-                    <thead>
-                      <tr>
-                        <th>Pagamento</th>
-                        <th>Valor contratual</th>
-                        <th>Renegociação</th>
-                        <th>Multa</th>
-                        <th>Juros mora</th>
-                        <th>Descontos</th>
-                        <th>Taxas adic.</th>
-                        <th>INCC acum.</th>
-                        <th>Valor devido</th>
-                        <th>Valor pago</th>
-                        <th className="no-export">Ação</th>
-                        <th>Excesso</th>
+              <div className="table-wrap">
+                <table className="data-table report-table-wide">
+                  <thead>
+                    <tr>
+                      <th>Pagamento</th>
+                      <th>Valor contratual</th>
+                      <th>Renegociação</th>
+                      <th>Multa</th>
+                      <th>Juros mora</th>
+                      <th>Descontos</th>
+                      <th>Taxas adic.</th>
+                      <th>INCC acum.</th>
+                      <th>Valor devido</th>
+                      <th>Valor pago</th>
+                      <th className="no-export">Ação</th>
+                      <th>Excesso</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {relatorio.rows.map((r) => (
+                      <tr key={r.id}>
+                        <td>{r.pagamento || '-'}</td>
+                        <td>{currencyFormatter.format(r.vc)}</td>
+                        <td>{currencyFormatter.format(r.renegociacao)}</td>
+                        <td>{currencyFormatter.format(r.multa)}</td>
+                        <td>{currencyFormatter.format(r.jurosMora)}</td>
+                        <td>{currencyFormatter.format(r.descontos)}</td>
+                        <td>{currencyFormatter.format(r.taxasAdicionais)}</td>
+                        <td>{r.incc == null ? '-' : `${r.incc.toFixed(2)}%`}</td>
+                        <td>{currencyFormatter.format(r.devido)}</td>
+                        <td>{currencyFormatter.format(r.vp)}</td>
+                        <td className="table-actions no-export">
+                          <button
+                            type="button"
+                            className="link-button"
+                            onClick={() => {
+                              const linha = linhas.find((l) => l.id === r.id)
+                              setEdicaoValorPago({
+                                linhaId: r.id,
+                                valorPago: linha?.valorPago ?? '',
+                              })
+                            }}
+                          >
+                            Editar
+                          </button>
+                        </td>
+                        <td className={r.excesso >= 0 ? 'excesso-pos' : 'excesso-neg'}>
+                          {currencyFormatter.format(r.excesso)}
+                        </td>
                       </tr>
-                    </thead>
-                    <tbody>
-                      {relatorio.rows.map((r) => (
-                        <tr key={r.id}>
-                          <td>{r.pagamento || '-'}</td>
-                          <td>{currencyFormatter.format(r.vc)}</td>
-                          <td>{currencyFormatter.format(r.renegociacao)}</td>
-                          <td>{currencyFormatter.format(r.multa)}</td>
-                          <td>{currencyFormatter.format(r.jurosMora)}</td>
-                          <td>{currencyFormatter.format(r.descontos)}</td>
-                          <td>{currencyFormatter.format(r.taxasAdicionais)}</td>
-                          <td>{r.incc == null ? '-' : `${r.incc.toFixed(2)}%`}</td>
-                          <td>{currencyFormatter.format(r.devido)}</td>
-                          <td>{currencyFormatter.format(r.vp)}</td>
-                          <td className="table-actions no-export">
-                            <button
-                              type="button"
-                              className="link-button"
-                              onClick={() => {
-                                const linha = linhas.find((l) => l.id === r.id)
-                                setEdicaoValorPago({
-                                  linhaId: r.id,
-                                  valorPago: linha?.valorPago ?? '',
-                                })
-                              }}
-                            >
-                              Editar
-                            </button>
-                          </td>
-                          <td className={r.excesso >= 0 ? 'excesso-pos' : 'excesso-neg'}>
-                            {currencyFormatter.format(r.excesso)}
-                          </td>
-                        </tr>
-                      ))}
-                      <tr className="table-total">
-                        <td>Total</td>
-                        <td></td>
-                        <td>{currencyFormatter.format(relatorio.totalRenegociacao)}</td>
-                        <td>{currencyFormatter.format(relatorio.totalMulta)}</td>
-                        <td>{currencyFormatter.format(relatorio.totalJurosMora)}</td>
-                        <td>{currencyFormatter.format(relatorio.totalDescontos)}</td>
-                        <td>{currencyFormatter.format(relatorio.totalTaxasAdicionais)}</td>
-                        <td></td>
-                        <td>{currencyFormatter.format(relatorio.totalDevido)}</td>
-                        <td>{currencyFormatter.format(relatorio.totalPago)}</td>
-                        <td className="no-export"></td>
-                        <td>{currencyFormatter.format(relatorio.totalExcesso)}</td>
-                      </tr>
-                    </tbody>
-                  </table>
-                </div>
+                    ))}
+                    <tr className="table-total">
+                      <td>Total</td>
+                      <td></td>
+                      <td>{currencyFormatter.format(relatorio.totalRenegociacao)}</td>
+                      <td>{currencyFormatter.format(relatorio.totalMulta)}</td>
+                      <td>{currencyFormatter.format(relatorio.totalJurosMora)}</td>
+                      <td>{currencyFormatter.format(relatorio.totalDescontos)}</td>
+                      <td>{currencyFormatter.format(relatorio.totalTaxasAdicionais)}</td>
+                      <td></td>
+                      <td>{currencyFormatter.format(relatorio.totalDevido)}</td>
+                      <td>{currencyFormatter.format(relatorio.totalPago)}</td>
+                      <td className="no-export"></td>
+                      <td>{currencyFormatter.format(relatorio.totalExcesso)}</td>
+                    </tr>
+                  </tbody>
+                </table>
               </div>
             </div>
+          </div>
 
-            <p className="result-highlight">
-              Observação: Valor devido = (Valor contratual × fator INCC) + Renegociação + Multa +
-              Juros de mora + Taxas adicionais − Descontos. A correção INCC só começa após o 1º
-              aniversário.
-            </p>
-          </section>
-        )}
-      </main>
+          <p className="result-highlight">
+            Observação: Valor devido = (Valor contratual × fator INCC) + Renegociação + Multa +
+            Juros de mora + Taxas adicionais − Descontos. A correção INCC só começa após o 1º
+            aniversário.
+          </p>
+        </section>
+      )}
 
       {popupExportarAberto ? (
         <div
@@ -1001,10 +1294,6 @@ function App() {
           </div>
         </div>
       ) : null}
-
-      <footer className="app-footer">
-        <small>Simulador ilustrativo. Confirme sempre os índices oficiais.</small>
-      </footer>
     </div>
   )
 }

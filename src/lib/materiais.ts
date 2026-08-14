@@ -208,3 +208,15 @@ export async function criarMaterial(input: NovoMaterial): Promise<Material> {
   acervo.unshift(criado)
   return { ...criado } // TODO: conectar ao backend
 }
+
+export async function excluirMaterial(id: string): Promise<void> {
+  const indice = acervo.findIndex((item) => item.id === id)
+  if (indice === -1) {
+    throw new Error('Material não encontrado')
+  }
+  const [removido] = acervo.splice(indice, 1)
+  if (removido?.url.startsWith('blob:')) {
+    URL.revokeObjectURL(removido.url)
+  }
+  return // TODO: conectar ao backend
+}
