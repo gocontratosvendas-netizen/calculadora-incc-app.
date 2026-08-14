@@ -11,6 +11,7 @@ import {
 } from 'react'
 import {
   calcularResumoCarteira,
+  calcularResumoFinanceiro,
   excluirCaso,
   listarCasos,
   type Caso,
@@ -47,6 +48,11 @@ const EMPTY_RESUMO = {
   valorTotalCausa: 0,
   excessoTotalCarteira: 0,
   recuperado: 0,
+}
+
+const EMPTY_FINANCEIRO = {
+  proLaboreRecebido: 0,
+  honorariosExitoEsperados: 0,
 }
 
 const moneyCell = new Intl.NumberFormat('pt-BR', {
@@ -360,6 +366,7 @@ export default function Casos() {
   }, [casos, statusFiltro, anoFiltro, buscaDebounced])
 
   const resumo = useMemo(() => calcularResumoCarteira(filtrados), [filtrados])
+  const financeiro = useMemo(() => calcularResumoFinanceiro(casos), [casos])
 
   const ordenados = useMemo(() => {
     return [...filtrados].sort((a, b) => compareNullable(a[sortKey], b[sortKey], sortDir))
@@ -447,6 +454,7 @@ export default function Casos() {
   }
 
   const resumoExibido = carteiraVazia ? EMPTY_RESUMO : resumo
+  const financeiroExibido = carteiraVazia ? EMPTY_FINANCEIRO : financeiro
 
   const kpis = [
     {
@@ -478,6 +486,21 @@ export default function Casos() {
       value: formatMoneyCard(resumoExibido.recuperado),
       className: 'casos-kpi-value--verde',
       destaque: false,
+    },
+  ]
+
+  const kpisFinanceiros = [
+    {
+      label: 'PRÓ-LABORE RECEBIDO',
+      value: formatMoneyCard(financeiroExibido.proLaboreRecebido),
+      className: 'casos-kpi-value--verde',
+      destaque: false,
+    },
+    {
+      label: 'HONORÁRIOS DE ÊXITO ESPERADOS',
+      value: formatMoneyCard(financeiroExibido.honorariosExitoEsperados),
+      className: 'casos-kpi-value--azul',
+      destaque: true,
     },
   ]
 
@@ -523,6 +546,25 @@ export default function Casos() {
               </div>
             ))
           : kpis.map((kpi) => (
+              <div
+                key={kpi.label}
+                className={`casos-kpi${kpi.destaque ? ' casos-kpi--destaque' : ''}`}
+              >
+                <span className="casos-kpi-label">{kpi.label}</span>
+                <span className={`casos-kpi-value ${kpi.className}`.trim()}>{kpi.value}</span>
+              </div>
+            ))}
+      </section>
+
+      <section className="casos-kpis casos-kpis--financeiro" aria-label="Indicadores financeiros">
+        {loading
+          ? Array.from({ length: 2 }, (_, i) => (
+              <div key={i} className={`casos-kpi${i === 1 ? ' casos-kpi--destaque' : ''}`}>
+                <div className="casos-skeleton" />
+                <div className="casos-skeleton casos-skeleton--value" />
+              </div>
+            ))
+          : kpisFinanceiros.map((kpi) => (
               <div
                 key={kpi.label}
                 className={`casos-kpi${kpi.destaque ? ' casos-kpi--destaque' : ''}`}

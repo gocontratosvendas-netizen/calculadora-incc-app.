@@ -24,6 +24,16 @@ export interface CarteiraResumo {
   recuperado: number
 }
 
+export interface CarteiraFinanceiro {
+  /** R$ 2.500 por caso que já saiu de processo de venda (ajuizado ou encerrado). */
+  proLaboreRecebido: number
+  /** 30% do valor total de causa da base. */
+  honorariosExitoEsperados: number
+}
+
+export const PRO_LABORE_POR_AJUIZAMENTO = 2_500
+export const HONORARIOS_EXITO_PERCENTUAL = 0.3
+
 export function calcularResumoCarteira(casos: Caso[]): CarteiraResumo {
   let emAndamento = 0
   let valorTotalCausa = 0
@@ -51,6 +61,25 @@ export function calcularResumoCarteira(casos: Caso[]): CarteiraResumo {
     valorTotalCausa,
     excessoTotalCarteira,
     recuperado,
+  }
+}
+
+export function calcularResumoFinanceiro(casos: Caso[]): CarteiraFinanceiro {
+  let clientesComProLabore = 0
+  let valorTotalCausa = 0
+
+  for (const caso of casos) {
+    if (caso.status === 'ajuizado' || caso.status === 'encerrado') {
+      clientesComProLabore += 1
+    }
+    if (caso.valorCausa != null) {
+      valorTotalCausa += caso.valorCausa
+    }
+  }
+
+  return {
+    proLaboreRecebido: clientesComProLabore * PRO_LABORE_POR_AJUIZAMENTO,
+    honorariosExitoEsperados: valorTotalCausa * HONORARIOS_EXITO_PERCENTUAL,
   }
 }
 
