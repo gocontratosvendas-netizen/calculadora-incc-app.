@@ -131,9 +131,70 @@ const RESUMO: CarteiraResumo = {
 }
 
 export async function listarCasos(): Promise<Caso[]> {
-  return CASOS // TODO: conectar ao backend
+  return CASOS.map((caso) => ({ ...caso, responsavel: { ...caso.responsavel } })) // TODO: conectar ao backend
 }
 
 export async function obterResumoCarteira(): Promise<CarteiraResumo> {
-  return RESUMO // TODO: conectar ao backend
+  return { ...RESUMO } // TODO: conectar ao backend
+}
+
+export type NovoCasoInput = {
+  cliente: string
+  empreendimento?: string
+  incorporadora?: string
+  valorContrato: number
+  excessoApurado: number | null
+  valorCausa: number | null
+}
+
+export async function cadastrarCaso(input: NovoCasoInput): Promise<Caso> {
+  const cliente = input.cliente.trim()
+  if (!cliente) {
+    throw new Error('Informe o nome do cliente')
+  }
+
+  const caso: Caso = {
+    id: `caso-${Date.now()}`,
+    cliente,
+    empreendimento: input.empreendimento?.trim() || 'A definir',
+    incorporadora: input.incorporadora?.trim() || 'A definir',
+    valorContrato: input.valorContrato,
+    excessoApurado: input.excessoApurado,
+    valorCausa: input.valorCausa,
+    anoAjuizamento: null,
+    status: 'processo_de_venda',
+    responsavel: RESPONSAVEIS.VP,
+    atualizadoEm: new Date().toISOString(),
+  }
+
+  CASOS.unshift(caso)
+  RESUMO.casosCadastrados += 1
+  RESUMO.emAndamento += 1
+  if (caso.excessoApurado != null && caso.excessoApurado > 0) {
+    RESUMO.excessoTotalCarteira += caso.excessoApurado
+  }
+  if (caso.valorCausa != null) {
+    RESUMO.valorTotalCausa += caso.valorCausa
+  }
+
+  return { ...caso, responsavel: { ...caso.responsavel } } // TODO: conectar ao backend
+}
+
+export async function excluirCaso(id: string): Promise<void> {
+  const indice = CASOS.findIndex((caso) => caso.id === id)
+  if (indice === -1) {
+    throw new Error('Caso não encontrado')
+  }
+  const [removido] = CASOS.splice(indice, 1)
+  RESUMO.casosCadastrados = Math.max(0, RESUMO.casosCadastrados - 1)
+  if (removido.status === 'ajuizado' || removido.status === 'processo_de_venda') {
+    RESUMO.emAndamento = Math.max(0, RESUMO.emAndamento - 1)
+  }
+  if (removido.valorCausa != null) {
+    RESUMO.valorTotalCausa = Math.max(0, RESUMO.valorTotalCausa - removido.valorCausa)
+  }
+  if (removido.excessoApurado != null) {
+    RESUMO.excessoTotalCarteira = Math.max(0, RESUMO.excessoTotalCarteira - removido.excessoApurado)
+  }
+  return // TODO: conectar ao backend
 }

@@ -1,6 +1,8 @@
 import { useMemo, useRef, useState } from 'react'
 import './App.css'
 import { calcularFatorCorrecaoPorAniversarios } from './inccTable'
+import { cadastrarCaso } from './lib/casos'
+import { useRouter } from './lib/router-context'
 import { parseExtratoFinanceiroPdf } from './parseExtratoPdf'
 import { jsPDF } from 'jspdf'
 import * as XLSX from 'xlsx'
@@ -43,6 +45,8 @@ function formatCelulaNumero(value: number) {
 }
 
 function App() {
+  const { navigate } = useRouter()
+
   type Linha = {
     id: string
     dataPagamento: string // yyyy-mm-dd
@@ -135,6 +139,12 @@ function App() {
   const [importandoPdf, setImportandoPdf] = useState(false)
   const [mensagemImportacao, setMensagemImportacao] = useState<string | null>(null)
   const [detalharAjustes, setDetalharAjustes] = useState(false)
+  const [popupCadastrarClienteAberto, setPopupCadastrarClienteAberto] = useState(false)
+  const [nomeClienteCaso, setNomeClienteCaso] = useState('')
+  const [empreendimentoCaso, setEmpreendimentoCaso] = useState('')
+  const [incorporadoraCaso, setIncorporadoraCaso] = useState('')
+  const [cadastrandoCliente, setCadastrandoCliente] = useState(false)
+  const [erroCadastroCliente, setErroCadastroCliente] = useState<string | null>(null)
 
   const pdfInputRef = useRef<HTMLInputElement | null>(null)
 
@@ -613,6 +623,51 @@ function App() {
   const totalJurosEntrada = linhas.reduce((acc, l) => acc + parseMoney(l.jurosMora), 0)
   const totalDescontosEntrada = linhas.reduce((acc, l) => acc + parseMoney(l.descontos), 0)
   const totalTaxasEntrada = linhas.reduce((acc, l) => acc + parseMoney(l.taxasAdicionais), 0)
+
+  function abrirPopupCadastrarCliente() {
+    setNomeClienteCaso('')
+    setEmpreendimentoCaso('')
+    setIncorporadoraCaso('')
+    setErroCadastroCliente(null)
+    setPopupCadastrarClienteAberto(true)
+  }
+
+  async function confirmarCadastroCliente() {
+    const nome = nomeClienteCaso.trim()
+    if (!nome) {
+      setErroCadastroCliente('Informe o nome do cliente.')
+      return
+    }
+
+    const valorContrato = relatorio.rows.reduce((acc, r) => acc + r.vc, 0)
+    const excessoApurado = relatorio.totalExcesso > 0 ? relatorio.totalExcesso : null
+    const valorCausa = relatorio.totalExcesso > 0 ? relatorio.totalExcesso * 2 : null
+
+    setCadastrandoCliente(true)
+    setErroCadastroCliente(null)
+    try {
+      await cadastrarCaso({
+        cliente: nome,
+        empreendimento: empreendimentoCaso,
+        incorporadora: incorporadoraCaso,
+        valorContrato,
+        excessoApurado,
+        valorCausa,
+      })
+      setPopupCadastrarClienteAberto(false)
+      navigate('/casos')
+    } catch (err) {
+      const msg =
+        err instanceof Error
+          ? err.message
+          : typeof err === 'string'
+            ? err
+            : 'Não foi possível cadastrar o cliente.'
+      setErroCadastroCliente(msg)
+    } finally {
+      setCadastrandoCliente(false)
+    }
+  }
 
   return (
     <div className="app-root">
@@ -1508,8 +1563,142 @@ function App() {
               {relatorio.rows.length} lançamentos apurados.
             </p>
           </div>
+
+          <div className="report-footer-actions no-print">
+            <button
+              type="button"
+              className="report-btn-primary"
+              onClick={abrirPopupCadastrarCliente}
+              disabled={relatorio.rows.length === 0}
+            >
+              Cadastrar cliente
+            </button>
+          </div>
         </div>
       )}
+
+      {popupCadastrarClienteAberto ? (
+        <div
+          className="modal-overlay"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Cadastrar cliente"
+          onMouseDown={(e) => {
+            if (e.target === e.currentTarget && !cadastrandoCliente) {
+              setPopupCadastrarClienteAberto(false)
+            }
+          }}
+        >
+          <div className="modal">
+            <div className="modal-header">
+              <h3>Cadastrar cliente</h3>
+              <button
+                type="button"
+                className="ghost-button"
+                disabled={cadastrandoCliente}
+                onClick={() => setPopupCadastrarClienteAberto(false)}
+              >
+                Fechar
+              </button>
+            </div>
+
+            <div className="modal-body">
+              <p className="result-highlight">
+                Os valores do relatório serão usados automaticamente no caso. Informe o cliente e,
+                se quiser, o empreendimento e a incorporadora.
+              </p>
+              <div className="field">
+                <label htmlFor="nomeClienteCaso">Nome do cliente</label>
+                <input
+                  id="nomeClienteCaso"
+                  className="table-input"
+                  value={nomeClienteCaso}
+                  onChange={(e) => setNomeClienteCaso(e.target.value)}
+                  placeholder="ex: Maria Silva"
+                  autoFocus
+                  disabled={cadastrandoCliente}
+                />
+              </div>
+              <div className="field">
+                <label htmlFor="empreendimentoCaso">Empreendimento (opcional)</label>
+                <input
+                  id="empreendimentoCaso"
+                  className="table-input"
+                  value={empreendimentoCaso}
+                  onChange={(e) => setEmpreendimentoCaso(e.target.value)}
+                  placeholder="ex: Henry Boulevard"
+                  disabled={cadastrandoCliente}
+                />
+              </div>
+              <div className="field">
+                <label htmlFor="incorporadoraCaso">Incorporadora (opcional)</label>
+                <input
+                  id="incorporadoraCaso"
+                  className="table-input"
+                  value={incorporadoraCaso}
+                  onChange={(e) => setIncorporadoraCaso(e.target.value)}
+                  placeholder="ex: Kallas"
+                  disabled={cadastrandoCliente}
+                />
+              </div>
+              <div className="cadastro-resumo" aria-label="Dados puxados do relatório">
+                <p>
+                  <span>Valor do contrato</span>
+                  <span>
+                    {currencyFormatter.format(
+                      relatorio.rows.reduce((acc, r) => acc + r.vc, 0),
+                    )}
+                  </span>
+                </p>
+                <p>
+                  <span>Excesso apurado</span>
+                  <span>
+                    {relatorio.totalExcesso > 0
+                      ? currencyFormatter.format(relatorio.totalExcesso)
+                      : '—'}
+                  </span>
+                </p>
+                <p>
+                  <span>Valor da causa (dobro)</span>
+                  <span>
+                    {relatorio.totalExcesso > 0
+                      ? currencyFormatter.format(relatorio.totalExcesso * 2)
+                      : '—'}
+                  </span>
+                </p>
+                <p>
+                  <span>Status inicial</span>
+                  <span>Processo de venda</span>
+                </p>
+              </div>
+              {erroCadastroCliente ? (
+                <p className="cadastro-erro" role="alert">
+                  {erroCadastroCliente}
+                </p>
+              ) : null}
+            </div>
+
+            <div className="modal-footer">
+              <button
+                type="button"
+                className="secondary-button"
+                disabled={cadastrandoCliente}
+                onClick={() => setPopupCadastrarClienteAberto(false)}
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                className="primary-button"
+                disabled={cadastrandoCliente}
+                onClick={() => void confirmarCadastroCliente()}
+              >
+                {cadastrandoCliente ? 'Cadastrando...' : 'Cadastrar e ir para Casos'}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       {popupExportarAberto ? (
         <div

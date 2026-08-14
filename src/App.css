@@ -1306,6 +1306,43 @@
   color: #6b7686;
 }
 
+.report-footer-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 14px;
+}
+
+.cadastro-resumo {
+  border: 1px solid #e6e9ef;
+  border-radius: 10px;
+  background: #f8f9fb;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.cadastro-resumo p {
+  margin: 0;
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 12px;
+  color: #5b6474;
+}
+
+.cadastro-resumo p span:last-child {
+  color: #101828;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.cadastro-erro {
+  margin: 0;
+  font-size: 12.5px;
+  color: #a32d2d;
+}
+
 .visually-hidden {
   position: absolute;
   width: 1px;
