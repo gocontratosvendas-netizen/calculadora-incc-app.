@@ -17,6 +17,31 @@ const numberFormatter = new Intl.NumberFormat('pt-BR', {
 
 let ultimoNomePdfImportado = ''
 
+function formatDataCurta(iso: string) {
+  const [y, m, d] = iso.split('-')
+  if (!y || !m || !d) return '—'
+  return `${d}/${m}/${y.slice(2)}`
+}
+
+function formatDataBase(iso: string) {
+  const [y, m, d] = iso.split('-')
+  if (!y || !m || !d) return '—'
+  return `${d}/${m}/${y}`
+}
+
+function formatMesAnoExtenso(iso: string) {
+  const [y, m, d] = iso.split('-').map(Number)
+  if (!y || !m || !d) return ''
+  return new Intl.DateTimeFormat('pt-BR', { month: 'long', year: 'numeric' }).format(
+    new Date(y, m - 1, d),
+  )
+}
+
+function formatCelulaNumero(value: number) {
+  if (value === 0) return '—'
+  return numberFormatter.format(value)
+}
+
 function App() {
   type Linha = {
     id: string
@@ -109,6 +134,7 @@ function App() {
   const [exportando, setExportando] = useState(false)
   const [importandoPdf, setImportandoPdf] = useState(false)
   const [mensagemImportacao, setMensagemImportacao] = useState<string | null>(null)
+  const [detalharAjustes, setDetalharAjustes] = useState(false)
 
   const pdfInputRef = useRef<HTMLInputElement | null>(null)
 
@@ -1025,126 +1051,464 @@ function App() {
           </div>
         </>
       ) : (
-        <section className="card card-wide report-card">
-          <div className="results-header">
-            <h2>2) Relatório (planilha)</h2>
-            <div className="results-actions">
+        <div className="report-view">
+          <header className="report-header">
+            <div className="report-header-left">
+              <p className="report-eyebrow">Relatório de apuração</p>
+              <h1 className="report-title">Correção monetária pelo INCC</h1>
+              <div className="report-gold-rule" aria-hidden="true" />
+              <p className="report-id">
+                {dataAniversarioManual
+                  ? `Contrato de ${formatDataBase(dataAniversarioManual)}`
+                  : 'Contrato'}
+              </p>
+            </div>
+            <div className="report-header-actions no-print">
               <button
                 type="button"
-                className="secondary-button"
+                className="report-btn-secondary"
+                onClick={() => setTela('entrada')}
+              >
+                Voltar
+              </button>
+              <button
+                type="button"
+                className="report-btn-primary"
                 onClick={() => setPopupExportarAberto(true)}
                 disabled={exportando}
               >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                  <path
+                    d="M12 3v12m0 0l4-4m-4 4l-4-4M5 21h14"
+                    stroke="currentColor"
+                    strokeWidth="1.8"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </svg>
                 {exportando ? 'Exportando...' : 'Exportar'}
               </button>
-              <button type="button" className="secondary-button" onClick={() => setTela('entrada')}>
-                Voltar
+            </div>
+          </header>
+
+          <section
+            className={
+              relatorio.totalExcesso > 0
+                ? 'report-result-panel'
+                : 'report-result-panel report-result-panel--neutral'
+            }
+            aria-label="Resultado da análise"
+          >
+            <p className="report-result-label">Resultado da análise</p>
+            <p className="report-result-lead">
+              {relatorio.totalExcesso > 0 ? (
+                <>
+                  Foram identificados{' '}
+                  <span className="report-em">
+                    {currencyFormatter.format(relatorio.totalExcesso)}
+                  </span>{' '}
+                  cobrados a maior em {relatorio.rows.length} pagamentos realizados entre{' '}
+                  {formatMesAnoExtenso(relatorio.rows[0]?.pagamento ?? '')} e{' '}
+                  {formatMesAnoExtenso(
+                    relatorio.rows[relatorio.rows.length - 1]?.pagamento ?? '',
+                  )}
+                  .
+                </>
+              ) : (
+                <>
+                  Não foi identificada cobrança a maior nos {relatorio.rows.length} pagamentos
+                  apurados.
+                </>
+              )}
+            </p>
+            <div className="report-result-findings">
+              <div className="report-finding">
+                <svg
+                  className="report-finding-icon"
+                  width="15"
+                  height="15"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  aria-hidden="true"
+                >
+                  <path
+                    d="M19 5L5 19M7.5 8.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5zm9 12a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5z"
+                    stroke="currentColor"
+                    strokeWidth="1.7"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </svg>
+                <p>
+                  O excesso representa{' '}
+                  <span className="report-em">
+                    {relatorio.totalPago > 0
+                      ? ((relatorio.totalExcesso / relatorio.totalPago) * 100).toFixed(1)
+                      : '0.0'}
+                    %
+                  </span>{' '}
+                  de tudo que foi pago no contrato.
+                </p>
+              </div>
+              <div className="report-finding">
+                <svg
+                  className="report-finding-icon"
+                  width="15"
+                  height="15"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  aria-hidden="true"
+                >
+                  <rect
+                    x="3"
+                    y="5"
+                    width="18"
+                    height="16"
+                    rx="2"
+                    stroke="currentColor"
+                    strokeWidth="1.7"
+                  />
+                  <path
+                    d="M3 10h18M8 3v4M16 3v4"
+                    stroke="currentColor"
+                    strokeWidth="1.7"
+                    strokeLinecap="round"
+                  />
+                </svg>
+                <p>
+                  A correção passou a incidir após o 1º aniversário, com INCC-DI de{' '}
+                  <span className="report-em">
+                    {(() => {
+                      let fator: number | null = null
+                      for (let i = relatorio.rows.length - 1; i >= 0; i -= 1) {
+                        const taxa = relatorio.rows[i]?.incc
+                        if (taxa != null) {
+                          fator = taxa
+                          break
+                        }
+                      }
+                      return fator == null ? '—' : `${fator.toFixed(2)}%`
+                    })()}
+                  </span>
+                  .
+                </p>
+              </div>
+              <div className="report-finding">
+                <svg
+                  className="report-finding-icon"
+                  width="15"
+                  height="15"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  aria-hidden="true"
+                >
+                  <path
+                    d="M12 3v18M5 8l7 3 7-3M5 16l7-3 7 3"
+                    stroke="currentColor"
+                    strokeWidth="1.7"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </svg>
+                <p>
+                  Com devolução em dobro do CDC, o montante alcança{' '}
+                  <span className="report-em">
+                    {currencyFormatter.format(relatorio.totalExcesso * 2)}
+                  </span>
+                  .
+                </p>
+              </div>
+            </div>
+          </section>
+
+          <div className="report-kpi-grid" aria-label="Indicadores do relatório">
+            <div className="report-kpi-card">
+              <span className="report-kpi-label">Valor pago</span>
+              <span className="report-kpi-value">
+                {currencyFormatter.format(relatorio.totalPago)}
+              </span>
+            </div>
+            <div className="report-kpi-card">
+              <span className="report-kpi-label">Valor devido</span>
+              <span className="report-kpi-value">
+                {currencyFormatter.format(relatorio.totalDevido)}
+              </span>
+            </div>
+            <div className="report-kpi-card report-kpi-card--excess">
+              <span className="report-kpi-label">Cobrado em excesso</span>
+              <span className="report-kpi-value report-kpi-value--primary">
+                {currencyFormatter.format(relatorio.totalExcesso)}
+              </span>
+            </div>
+            <div className="report-kpi-card">
+              <span className="report-kpi-label">Dobro do excesso</span>
+              <span className="report-kpi-value report-kpi-value--green">
+                {currencyFormatter.format(relatorio.totalExcesso * 2)}
+              </span>
+            </div>
+          </div>
+
+          {relatorio.totalExcesso > 0 ? (
+            <div className="report-compare">
+              <h2 className="report-compare-title">Comparação</h2>
+              <div
+                className="report-compare-rows"
+                role="img"
+                aria-label={`Valor devido ${numberFormatter.format(relatorio.totalDevido)}, valor pago ${numberFormatter.format(relatorio.totalPago)}, diferença ${numberFormatter.format(relatorio.totalExcesso)}`}
+              >
+                <div className="report-compare-row">
+                  <span className="report-compare-label">Valor devido</span>
+                  <div className="report-compare-track">
+                    <div
+                      className="report-compare-fill report-compare-fill--due"
+                      style={{
+                        width: `${
+                          relatorio.totalPago > 0
+                            ? (relatorio.totalDevido / relatorio.totalPago) * 100
+                            : 0
+                        }%`,
+                      }}
+                    />
+                  </div>
+                  <span className="report-compare-value">
+                    {numberFormatter.format(relatorio.totalDevido)}
+                  </span>
+                </div>
+                <div className="report-compare-row">
+                  <span className="report-compare-label">Valor pago</span>
+                  <div className="report-compare-track report-compare-track--split">
+                    <div
+                      className="report-compare-fill report-compare-fill--paid"
+                      style={{
+                        width: `${
+                          relatorio.totalPago > 0
+                            ? (relatorio.totalDevido / relatorio.totalPago) * 100
+                            : 0
+                        }%`,
+                      }}
+                    />
+                    <div className="report-compare-fill report-compare-fill--gold" />
+                  </div>
+                  <span className="report-compare-value">
+                    {numberFormatter.format(relatorio.totalPago)}
+                  </span>
+                </div>
+              </div>
+              <div className="report-compare-legend">
+                <span className="report-compare-swatch" aria-hidden="true" />
+                <p>
+                  Faixa em dourado: {currencyFormatter.format(relatorio.totalExcesso)} cobrados além
+                  do devido.
+                </p>
+              </div>
+            </div>
+          ) : null}
+
+          <div className="memoria-card export-scope">
+            <div className="memoria-toolbar">
+              <h2 className="memoria-title">Memória de cálculo</h2>
+              <button
+                type="button"
+                className="memoria-toggle no-print"
+                aria-pressed={detalharAjustes}
+                onClick={() => setDetalharAjustes((prev) => !prev)}
+              >
+                <span>Detalhar ajustes</span>
+                <span className="memoria-switch" aria-hidden="true">
+                  <span className="memoria-switch-knob" />
+                </span>
               </button>
             </div>
-          </div>
 
-          <div className="export-scope">
-            <div className="kpi-grid" aria-label="Resumo do relatório">
-              <div className="kpi-card">
-                <span className="kpi-label">Valor pago</span>
-                <span className="kpi-value">{currencyFormatter.format(relatorio.totalPago)}</span>
-              </div>
-              <div className="kpi-card">
-                <span className="kpi-label">Valor devido</span>
-                <span className="kpi-value">{currencyFormatter.format(relatorio.totalDevido)}</span>
-              </div>
-              <div className="kpi-card">
-                <span className="kpi-label">Valor cobrado em excesso</span>
-                <span className="kpi-value kpi-accent">
-                  {currencyFormatter.format(relatorio.totalExcesso)}
-                </span>
-              </div>
-              <div className="kpi-card">
-                <span className="kpi-label">Dobro do cobrado em excesso</span>
-                <span className="kpi-value kpi-accent-strong">
-                  {currencyFormatter.format(relatorio.totalExcesso * 2)}
-                </span>
-              </div>
-            </div>
-
-            <div className="export-scope">
-              <div className="table-wrap">
-                <table className="data-table report-table-wide">
-                  <thead>
-                    <tr>
-                      <th>Pagamento</th>
-                      <th>Valor contratual</th>
-                      <th>Renegociação</th>
-                      <th>Multa</th>
-                      <th>Juros mora</th>
-                      <th>Descontos</th>
-                      <th>Taxas adic.</th>
-                      <th>INCC acum.</th>
-                      <th>Valor devido</th>
-                      <th>Valor pago</th>
-                      <th className="no-export">Ação</th>
-                      <th>Excesso</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {relatorio.rows.map((r) => (
-                      <tr key={r.id}>
-                        <td>{r.pagamento || '-'}</td>
-                        <td>{currencyFormatter.format(r.vc)}</td>
-                        <td>{currencyFormatter.format(r.renegociacao)}</td>
-                        <td>{currencyFormatter.format(r.multa)}</td>
-                        <td>{currencyFormatter.format(r.jurosMora)}</td>
-                        <td>{currencyFormatter.format(r.descontos)}</td>
-                        <td>{currencyFormatter.format(r.taxasAdicionais)}</td>
-                        <td>{r.incc == null ? '-' : `${r.incc.toFixed(2)}%`}</td>
-                        <td>{currencyFormatter.format(r.devido)}</td>
-                        <td>{currencyFormatter.format(r.vp)}</td>
-                        <td className="table-actions no-export">
-                          <button
-                            type="button"
-                            className="link-button"
-                            onClick={() => {
-                              const linha = linhas.find((l) => l.id === r.id)
-                              setEdicaoValorPago({
-                                linhaId: r.id,
-                                valorPago: linha?.valorPago ?? '',
-                              })
-                            }}
+            <table
+              className={
+                detalharAjustes
+                  ? 'memoria-table memoria-table--expanded'
+                  : 'memoria-table memoria-table--collapsed'
+              }
+            >
+              <thead>
+                <tr>
+                  <th scope="col" className="col-data">
+                    Data
+                  </th>
+                  <th scope="col" className="col-vc col-divider">
+                    Valor
+                    <br />
+                    contratual
+                  </th>
+                  <th scope="col" className="col-ajustes col-divider">
+                    Ajustes
+                  </th>
+                  <th scope="col" className="col-detail col-divider">
+                    Renegociação
+                  </th>
+                  <th scope="col" className="col-detail">
+                    Multa
+                  </th>
+                  <th scope="col" className="col-detail">
+                    Juros de mora
+                  </th>
+                  <th scope="col" className="col-detail">
+                    Descontos
+                  </th>
+                  <th scope="col" className="col-detail">
+                    Taxas adicionais
+                  </th>
+                  <th scope="col" className="col-incc">
+                    INCC
+                  </th>
+                  <th scope="col" className="col-devido col-divider">
+                    Valor
+                    <br />
+                    devido
+                  </th>
+                  <th scope="col" className="col-pago">
+                    Valor
+                    <br />
+                    pago
+                  </th>
+                  <th scope="col" className="col-excesso col-divider">
+                    Excesso
+                  </th>
+                  <th scope="col" className="col-acao no-export">
+                    <span className="visually-hidden">Ação</span>
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {relatorio.rows.map((r) => {
+                  const ajustes =
+                    r.renegociacao + r.multa + r.jurosMora + r.taxasAdicionais - r.descontos
+                  return (
+                    <tr key={r.id}>
+                      <td className="col-data">{formatDataCurta(r.pagamento)}</td>
+                      <td className="col-vc col-divider col-num">
+                        {formatCelulaNumero(r.vc)}
+                      </td>
+                      <td className="col-ajustes col-divider col-num">
+                        {formatCelulaNumero(ajustes)}
+                      </td>
+                      <td className="col-detail col-divider col-num">
+                        {formatCelulaNumero(r.renegociacao)}
+                      </td>
+                      <td className="col-detail col-num">{formatCelulaNumero(r.multa)}</td>
+                      <td className="col-detail col-num">{formatCelulaNumero(r.jurosMora)}</td>
+                      <td className="col-detail col-num">{formatCelulaNumero(r.descontos)}</td>
+                      <td className="col-detail col-num">
+                        {formatCelulaNumero(r.taxasAdicionais)}
+                      </td>
+                      <td className="col-incc col-num col-incc-value">
+                        {r.incc == null ? '—' : `${r.incc.toFixed(2)}%`}
+                      </td>
+                      <td className="col-devido col-divider col-num">
+                        {formatCelulaNumero(r.devido)}
+                      </td>
+                      <td className="col-pago col-num">{formatCelulaNumero(r.vp)}</td>
+                      <td
+                        className={
+                          r.excesso > 0
+                            ? 'col-excesso col-divider col-num excesso-pos'
+                            : r.excesso < 0
+                              ? 'col-excesso col-divider col-num excesso-neg'
+                              : 'col-excesso col-divider col-num'
+                        }
+                      >
+                        {formatCelulaNumero(r.excesso)}
+                      </td>
+                      <td className="col-acao no-export">
+                        <button
+                          type="button"
+                          className="memoria-edit"
+                          aria-label={`Editar lançamento de ${formatDataCurta(r.pagamento)}`}
+                          onClick={() => {
+                            const linha = linhas.find((l) => l.id === r.id)
+                            setEdicaoValorPago({
+                              linhaId: r.id,
+                              valorPago: linha?.valorPago ?? '',
+                            })
+                          }}
+                        >
+                          <svg
+                            width="12"
+                            height="12"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            aria-hidden="true"
                           >
-                            Editar
-                          </button>
-                        </td>
-                        <td className={r.excesso >= 0 ? 'excesso-pos' : 'excesso-neg'}>
-                          {currencyFormatter.format(r.excesso)}
-                        </td>
-                      </tr>
-                    ))}
-                    <tr className="table-total">
-                      <td>Total</td>
-                      <td></td>
-                      <td>{currencyFormatter.format(relatorio.totalRenegociacao)}</td>
-                      <td>{currencyFormatter.format(relatorio.totalMulta)}</td>
-                      <td>{currencyFormatter.format(relatorio.totalJurosMora)}</td>
-                      <td>{currencyFormatter.format(relatorio.totalDescontos)}</td>
-                      <td>{currencyFormatter.format(relatorio.totalTaxasAdicionais)}</td>
-                      <td></td>
-                      <td>{currencyFormatter.format(relatorio.totalDevido)}</td>
-                      <td>{currencyFormatter.format(relatorio.totalPago)}</td>
-                      <td className="no-export"></td>
-                      <td>{currencyFormatter.format(relatorio.totalExcesso)}</td>
+                            <path
+                              d="M4 20h4l10.5-10.5a2.12 2.12 0 0 0-3-3L5 17v3zM13.5 6.5l3 3"
+                              stroke="currentColor"
+                              strokeWidth="1.7"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                            />
+                          </svg>
+                        </button>
+                      </td>
                     </tr>
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </div>
+                  )
+                })}
+              </tbody>
+              <tfoot>
+                <tr className="memoria-total">
+                  <td className="col-data">Total</td>
+                  <td className="col-vc col-divider" />
+                  <td className="col-ajustes col-divider col-num">
+                    {formatCelulaNumero(
+                      relatorio.totalRenegociacao +
+                        relatorio.totalMulta +
+                        relatorio.totalJurosMora +
+                        relatorio.totalTaxasAdicionais -
+                        relatorio.totalDescontos,
+                    )}
+                  </td>
+                  <td className="col-detail col-divider col-num">
+                    {formatCelulaNumero(relatorio.totalRenegociacao)}
+                  </td>
+                  <td className="col-detail col-num">
+                    {formatCelulaNumero(relatorio.totalMulta)}
+                  </td>
+                  <td className="col-detail col-num">
+                    {formatCelulaNumero(relatorio.totalJurosMora)}
+                  </td>
+                  <td className="col-detail col-num">
+                    {formatCelulaNumero(relatorio.totalDescontos)}
+                  </td>
+                  <td className="col-detail col-num">
+                    {formatCelulaNumero(relatorio.totalTaxasAdicionais)}
+                  </td>
+                  <td className="col-incc" />
+                  <td className="col-devido col-divider col-num">
+                    {formatCelulaNumero(relatorio.totalDevido)}
+                  </td>
+                  <td className="col-pago col-num">
+                    {formatCelulaNumero(relatorio.totalPago)}
+                  </td>
+                  <td
+                    className={
+                      relatorio.totalExcesso > 0
+                        ? 'col-excesso col-divider col-num excesso-pos'
+                        : relatorio.totalExcesso < 0
+                          ? 'col-excesso col-divider col-num excesso-neg'
+                          : 'col-excesso col-divider col-num'
+                    }
+                  >
+                    {formatCelulaNumero(relatorio.totalExcesso)}
+                  </td>
+                  <td className="col-acao no-export" />
+                </tr>
+              </tfoot>
+            </table>
 
-          <p className="result-highlight">
-            Observação: Valor devido = (Valor contratual × fator INCC) + Renegociação + Multa +
-            Juros de mora + Taxas adicionais − Descontos. A correção INCC só começa após o 1º
-            aniversário.
-          </p>
-        </section>
+            <p className="memoria-note">
+              <span className="memoria-note-label">Metodologia.</span> Valor devido = (Valor
+              contratual × fator INCC) + Renegociação + Multa + Juros de mora + Taxas adicionais −
+              Descontos. A correção INCC só começa após o 1º aniversário. Valores em reais.{' '}
+              {relatorio.rows.length} lançamentos apurados.
+            </p>
+          </div>
+        </div>
       )}
 
       {popupExportarAberto ? (
