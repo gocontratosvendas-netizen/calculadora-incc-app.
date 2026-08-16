@@ -1,3 +1,5 @@
+import { getSessionUserId, listProfiles, supabase, uploadFile, type Profile } from './supabase'
+
 export type PostTipo = 'usuario' | 'atualizacao'
 export type PapelUsuario = 'socio' | 'advogado'
 
@@ -60,6 +62,9 @@ export interface PublicarPostInput {
   casoVinculado: CasoVinculado | null
   anexo: AnexoPost | null
   restritoASocios: boolean
+  /** Quando omitido, assume post de usuário. Use 'atualizacao' para posts do sistema. */
+  tipo?: PostTipo
+  anexoFile?: File | null
 }
 
 export interface ListarPostsResultado {
@@ -82,157 +87,42 @@ export type ItemAtencao =
 
 const PAGE_SIZE = 20
 
-export const usuarioAtual: Usuario = {
-  id: 'usr-vitor',
-  nome: 'Vitor P.',
-  iniciais: 'VP',
-  papel: 'socio',
+function profileToUsuario(p: Profile): Usuario {
+  return { id: p.id, nome: p.nome, iniciais: p.iniciais, papel: p.papel }
 }
 
-export const equipe: Usuario[] = [
-  usuarioAtual,
-  { id: 'usr-rafaela', nome: 'Rafaela Moura', iniciais: 'RM', papel: 'socio' },
-  { id: 'usr-lucas', nome: 'Lucas Ferreira', iniciais: 'LF', papel: 'advogado' },
-  { id: 'usr-helena', nome: 'Helena Duarte', iniciais: 'HD', papel: 'socio' },
-  { id: 'usr-camila', nome: 'Camila Barros', iniciais: 'CB', papel: 'advogado' },
-  { id: 'usr-paulo', nome: 'Paulo Mendes', iniciais: 'PM', papel: 'advogado' },
-]
-
-const rafaela = equipe.find((item) => item.id === 'usr-rafaela') ?? usuarioAtual
-const lucas = equipe.find((item) => item.id === 'usr-lucas') ?? usuarioAtual
-
-const agora = Date.now()
-const hora = 60 * 60 * 1000
-const ontem = new Date(agora)
-ontem.setDate(ontem.getDate() - 1)
-ontem.setHours(16, 20, 0, 0)
-
-const TEXTO_1 =
-  '@Vitor a Kallas contestou alegando que os 37 meses foram livremente pactuados. Alguém já enfrentou essa defesa? Subo a contestação na base hoje.'
-const TEXTO_3 =
-  'Subi a nova versão da carta ao comprador em Materiais. O memorial virou documento obrigatório, não mais opcional. @todos usem essa daqui pra frente.'
-
-const anexoCartaUrl = URL.createObjectURL(
-  new Blob(['Carta ao comprador'], {
-    type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-  }),
-)
-
-const postsIniciais: Post[] = [
-  {
-    id: 'post-1',
-    tipo: 'usuario',
-    autor: rafaela,
-    texto: TEXTO_1,
-    mencoes: [{ usuarioId: usuarioAtual.id, offset: 0, length: 6 }],
-    casoVinculado: {
-      id: 'caso-002',
-      cliente: 'Erika Tanaka',
-      empreendimento: 'Vila Nova 1200',
-      status: 'Ajuizado',
-      excesso: 34_820,
-    },
-    anexo: null,
-    restritoASocios: false,
-    curtidas: 3,
-    curtidoPorMim: false,
-    comentarios: [
-      {
-        id: 'c-1-1',
-        autor: usuarioAtual,
-        texto: 'Mesma tese no caso Costa. O juiz não acolheu — mando a sentença ainda hoje.',
-        criadoEm: new Date(agora - 1.2 * hora).toISOString(),
-      },
-    ],
-    totalComentarios: 2,
-    criadoEm: new Date(agora - 2 * hora).toISOString(),
-  },
-  {
-    id: 'post-2',
-    tipo: 'atualizacao',
-    autor: null,
-    texto: 'Sentença favorável em Helena Costa · Reserva Ipê. Devolução em dobro deferida: R$ 54.300.',
-    mencoes: [],
-    casoVinculado: {
-      id: 'caso-005',
-      cliente: 'Helena Costa',
-      empreendimento: 'Reserva Ipê',
-      status: 'Ajuizado',
-      excesso: 27_150,
-    },
-    anexo: null,
-    restritoASocios: false,
-    curtidas: 4,
-    curtidoPorMim: false,
-    comentarios: [],
-    totalComentarios: 0,
-    criadoEm: new Date(agora - 5 * hora).toISOString(),
-  },
-  {
-    id: 'post-3',
-    tipo: 'usuario',
-    autor: lucas,
-    texto: TEXTO_3,
-    mencoes: [{ usuarioId: 'todos', offset: TEXTO_3.indexOf('@todos'), length: 6 }],
-    casoVinculado: null,
-    anexo: {
-      id: 'anexo-1',
-      nome: 'Carta ao comprador',
-      formato: 'DOCX',
-      tamanhoBytes: 48 * 1024,
-      versao: 'v2',
-      url: anexoCartaUrl,
-    },
-    restritoASocios: false,
-    curtidas: 5,
-    curtidoPorMim: false,
-    comentarios: [],
-    totalComentarios: 0,
-    criadoEm: ontem.toISOString(),
-  },
-]
-
-const marcacoesIniciais: Marcacao[] = [
-  {
-    id: 'marc-1',
-    postId: 'post-1',
-    autor: rafaela,
-    resumo: 'sobre a defesa da Kallas',
-    lida: false,
-  },
-  {
-    id: 'marc-2',
-    postId: 'post-3',
-    autor: lucas,
-    resumo: 'sobre a revisão do ICP',
-    lida: false,
-  },
-]
-
-const itensAtencao: ItemAtencao[] = [
-  { id: 'at-revisao', tipo: 'revisao', quantidade: 3, href: '/casos?atencao=revisao' },
-  { id: 'at-prescricao', tipo: 'prescricao', cliente: 'Ribeiro', meses: 4, href: '/casos/caso-003' },
-  { id: 'at-memorial', tipo: 'memorial', quantidade: 2, href: '/casos?atencao=memorial' },
-]
-
-const store = {
-  posts: postsIniciais.map((post) => ({ ...post, comentarios: [...post.comentarios] })),
-  marcacoes: marcacoesIniciais.map((item) => ({ ...item })),
+function one<T>(value: T | T[] | null | undefined): T | null {
+  if (!value) return null
+  return Array.isArray(value) ? value[0] ?? null : value
 }
 
-function visiveisPara(usuario: Usuario) {
-  return store.posts.filter((post) => !post.restritoASocios || usuario.papel === 'socio')
+let equipeCache: Usuario[] | null = null
+
+export async function carregarEquipe(): Promise<Usuario[]> {
+  const profiles = await listProfiles()
+  equipeCache = profiles.map(profileToUsuario)
+  equipe = equipeCache
+  return equipeCache
 }
 
-function clonarPost(post: Post): Post {
-  return {
-    ...post,
-    mencoes: [...post.mencoes],
-    casoVinculado: post.casoVinculado ? { ...post.casoVinculado } : null,
-    anexo: post.anexo ? { ...post.anexo } : null,
-    comentarios: post.comentarios.map((comentario) => ({ ...comentario })),
-  }
+export async function carregarUsuarioAtual(): Promise<Usuario> {
+  const id = await getSessionUserId()
+  const lista = equipeCache ?? (await carregarEquipe())
+  const found = lista.find((u) => u.id === id)
+  if (!found) throw new Error('Perfil não encontrado')
+  usuarioAtual = found
+  return found
 }
+
+/** Compat: arrays sincronizados após carregarEquipe / carregarUsuarioAtual */
+export let usuarioAtual: Usuario = {
+  id: '',
+  nome: '…',
+  iniciais: '…',
+  papel: 'advogado',
+}
+
+export let equipe: Usuario[] = []
 
 export function rotuloMencao(usuario: { id: string | 'todos'; nome: string }): string {
   if (usuario.id === 'todos') return 'todos'
@@ -240,9 +130,10 @@ export function rotuloMencao(usuario: { id: string | 'todos'; nome: string }): s
 }
 
 export function rotuloPapel(usuario: Usuario): string {
-  const feminino = new Set(['usr-rafaela', 'usr-helena', 'usr-camila'])
-  if (usuario.papel === 'socio') return feminino.has(usuario.id) ? 'sócia' : 'sócio'
-  return feminino.has(usuario.id) ? 'advogada' : 'advogado'
+  const feminino = /a$/i.test(usuario.nome.split(/\s+/)[0] ?? '') ||
+    ['Rafaela', 'Helena', 'Camila'].some((n) => usuario.nome.startsWith(n))
+  if (usuario.papel === 'socio') return feminino ? 'sócia' : 'sócio'
+  return feminino ? 'advogada' : 'advogado'
 }
 
 export function primeiroNome(usuario: Usuario): string {
@@ -254,87 +145,346 @@ export function usuarioPorId(id: string | 'todos'): Usuario | null {
   return equipe.find((item) => item.id === id) ?? null
 }
 
+type PostRow = {
+  id: string
+  tipo: PostTipo
+  autor_id: string | null
+  texto: string
+  caso_snapshot: CasoVinculado | null
+  anexo_id: string | null
+  anexo_nome: string | null
+  anexo_formato: string | null
+  anexo_tamanho_bytes: number | null
+  anexo_versao: string | null
+  anexo_url: string | null
+  restrito_a_socios: boolean
+  criado_em: string
+  autor?: Profile | Profile[] | null
+}
+
+async function hydratePosts(rows: PostRow[], userId: string): Promise<Post[]> {
+  if (rows.length === 0) return []
+  const ids = rows.map((r) => r.id)
+
+  const [{ data: mencoes }, { data: comentarios }, { data: curtidas }] = await Promise.all([
+    supabase.from('post_mencoes').select('*').in('post_id', ids),
+    supabase
+      .from('comentarios')
+      .select('*, autor:profiles!comentarios_autor_id_fkey(id, nome, iniciais, papel)')
+      .in('post_id', ids)
+      .order('criado_em', { ascending: false }),
+    supabase.from('post_curtidas').select('post_id, usuario_id').in('post_id', ids),
+  ])
+
+  const mencoesByPost = new Map<string, Mencao[]>()
+  for (const m of mencoes ?? []) {
+    const list = mencoesByPost.get(m.post_id) ?? []
+    list.push({
+      usuarioId: m.usuario_id as string | 'todos',
+      offset: m.offset_start,
+      length: m.length,
+    })
+    mencoesByPost.set(m.post_id, list)
+  }
+
+  const comentariosByPost = new Map<string, Comentario[]>()
+  for (const c of comentarios ?? []) {
+    const autor = one(c.autor as Profile | Profile[] | null)
+    const list = comentariosByPost.get(c.post_id) ?? []
+    list.push({
+      id: c.id,
+      autor: autor
+        ? profileToUsuario(autor)
+        : { id: c.autor_id, nome: '—', iniciais: '—', papel: 'advogado' },
+      texto: c.texto,
+      criadoEm: c.criado_em,
+    })
+    comentariosByPost.set(c.post_id, list)
+  }
+
+  const curtidasCount = new Map<string, number>()
+  const curtidoPorMim = new Set<string>()
+  for (const c of curtidas ?? []) {
+    curtidasCount.set(c.post_id, (curtidasCount.get(c.post_id) ?? 0) + 1)
+    if (c.usuario_id === userId) curtidoPorMim.add(c.post_id)
+  }
+
+  return rows.map((row) => {
+    const autorProfile = one(row.autor)
+    const comentariosPost = comentariosByPost.get(row.id) ?? []
+    return {
+      id: row.id,
+      tipo: row.tipo,
+      autor: autorProfile ? profileToUsuario(autorProfile) : null,
+      texto: row.texto,
+      mencoes: mencoesByPost.get(row.id) ?? [],
+      casoVinculado: row.caso_snapshot,
+      anexo:
+        row.anexo_id && row.anexo_nome && row.anexo_url
+          ? {
+              id: row.anexo_id,
+              nome: row.anexo_nome,
+              formato: row.anexo_formato ?? '',
+              tamanhoBytes: Number(row.anexo_tamanho_bytes ?? 0),
+              versao: row.anexo_versao ?? undefined,
+              url: row.anexo_url,
+            }
+          : null,
+      restritoASocios: row.restrito_a_socios,
+      curtidas: curtidasCount.get(row.id) ?? 0,
+      curtidoPorMim: curtidoPorMim.has(row.id),
+      comentarios: comentariosPost.slice(0, 5),
+      totalComentarios: comentariosPost.length,
+      criadoEm: row.criado_em,
+    }
+  })
+}
+
 export function obterMarcacoesNaoLidas(): Marcacao[] {
-  return store.marcacoes.filter((item) => !item.lida).map((item) => ({ ...item }))
+  return []
+}
+
+export async function listarMarcacoesNaoLidas(): Promise<Marcacao[]> {
+  const userId = await getSessionUserId()
+  const { data, error } = await supabase
+    .from('marcacoes')
+    .select('*, autor:profiles!marcacoes_autor_id_fkey(id, nome, iniciais, papel)')
+    .eq('destinatario_id', userId)
+    .eq('lida', false)
+    .order('criado_em', { ascending: false })
+  if (error) throw error
+  return (data ?? []).map((row) => {
+    const autor = one(row.autor as Profile | Profile[] | null)
+    return {
+      id: row.id,
+      postId: row.post_id,
+      autor: autor
+        ? profileToUsuario(autor)
+        : { id: row.autor_id, nome: '—', iniciais: '—', papel: 'advogado' as const },
+      resumo: row.resumo,
+      lida: row.lida,
+    }
+  })
 }
 
 export function obterItensAtencao(): ItemAtencao[] {
-  return [...itensAtencao]
+  return []
+}
+
+export async function listarItensAtencao(): Promise<ItemAtencao[]> {
+  const { data, error } = await supabase.from('itens_atencao').select('*')
+  if (error) throw error
+  return (data ?? []).map((row) => {
+    if (row.tipo === 'prescricao') {
+      return {
+        id: row.id,
+        tipo: 'prescricao' as const,
+        cliente: row.cliente ?? '',
+        meses: row.meses ?? 0,
+        href: row.href,
+      }
+    }
+    return {
+      id: row.id,
+      tipo: row.tipo as 'revisao' | 'memorial',
+      quantidade: row.quantidade ?? 0,
+      href: row.href,
+    }
+  })
 }
 
 export async function listarPosts(cursor?: string): Promise<ListarPostsResultado> {
-  const lista = visiveisPara(usuarioAtual)
-  const inicio = cursor ? lista.findIndex((post) => post.id === cursor) + 1 : 0
-  const pagina = lista.slice(Math.max(0, inicio), Math.max(0, inicio) + PAGE_SIZE)
-  const ultimo = pagina[pagina.length - 1]
-  const nextCursor =
-    ultimo && inicio + PAGE_SIZE < lista.length ? ultimo.id : null
-  return { posts: pagina.map(clonarPost), nextCursor } // TODO: conectar ao backend
+  const userId = await getSessionUserId()
+  let query = supabase
+    .from('posts')
+    .select('*, autor:profiles!posts_autor_id_fkey(id, nome, iniciais, papel)')
+    .order('criado_em', { ascending: false })
+    .limit(PAGE_SIZE + 1)
+
+  if (cursor) {
+    const { data: cursorRow } = await supabase
+      .from('posts')
+      .select('criado_em')
+      .eq('id', cursor)
+      .single()
+    if (cursorRow) {
+      query = query.lt('criado_em', cursorRow.criado_em)
+    }
+  }
+
+  const { data, error } = await query
+  if (error) throw error
+
+  const rows = (data ?? []) as PostRow[]
+  const hasMore = rows.length > PAGE_SIZE
+  const page = hasMore ? rows.slice(0, PAGE_SIZE) : rows
+  const posts = await hydratePosts(page, userId)
+  return {
+    posts,
+    nextCursor: hasMore ? page[page.length - 1]?.id ?? null : null,
+  }
 }
 
 export async function publicarPost(input: PublicarPostInput): Promise<Post> {
-  const post: Post = {
-    id: `post-${crypto.randomUUID()}`,
-    tipo: 'usuario',
-    autor: usuarioAtual,
-    texto: input.texto,
-    mencoes: input.mencoes.map((item) => ({ ...item })),
-    casoVinculado: input.casoVinculado ? { ...input.casoVinculado } : null,
-    anexo: input.anexo ? { ...input.anexo } : null,
-    restritoASocios: input.restritoASocios,
-    curtidas: 0,
-    curtidoPorMim: false,
-    comentarios: [],
-    totalComentarios: 0,
-    criadoEm: new Date().toISOString(),
+  const userId = await getSessionUserId()
+  const tipo = input.tipo ?? 'usuario'
+  const id = `post-${crypto.randomUUID()}`
+
+  let anexo = input.anexo
+  if (input.anexoFile) {
+    const file = input.anexoFile
+    const anexoId = crypto.randomUUID()
+    const path = `${id}/${anexoId}-${file.name}`
+    const uploaded = await uploadFile('mural-anexos', path, file)
+    const ext = file.name.split('.').pop()?.toUpperCase() ?? 'FILE'
+    anexo = {
+      id: anexoId,
+      nome: file.name,
+      formato: ext,
+      tamanhoBytes: file.size,
+      url: uploaded.url,
+    }
   }
-  store.posts.unshift(post)
-  return clonarPost(post) // TODO: conectar ao backend
+
+  const { error } = await supabase.from('posts').insert({
+    id,
+    tipo,
+    autor_id: tipo === 'atualizacao' ? null : userId,
+    texto: input.texto,
+    caso_id: input.casoVinculado?.id ?? null,
+    caso_snapshot: input.casoVinculado,
+    anexo_id: anexo?.id ?? null,
+    anexo_nome: anexo?.nome ?? null,
+    anexo_formato: anexo?.formato ?? null,
+    anexo_tamanho_bytes: anexo?.tamanhoBytes ?? null,
+    anexo_versao: anexo?.versao ?? null,
+    anexo_url: anexo?.url ?? null,
+    restrito_a_socios: input.restritoASocios,
+  })
+  if (error) throw error
+
+  if (input.mencoes.length > 0) {
+    await supabase.from('post_mencoes').insert(
+      input.mencoes.map((m) => ({
+        post_id: id,
+        usuario_id: m.usuarioId,
+        offset_start: m.offset,
+        length: m.length,
+      })),
+    )
+
+    const autor = await carregarUsuarioAtual()
+    const destinatarios = new Set(
+      input.mencoes
+        .map((m) => m.usuarioId)
+        .filter((uid): uid is string => uid !== 'todos' && uid !== userId),
+    )
+    if (destinatarios.size > 0) {
+      await supabase.from('marcacoes').insert(
+        [...destinatarios].map((dest) => ({
+          id: `marc-${crypto.randomUUID()}`,
+          post_id: id,
+          destinatario_id: dest,
+          autor_id: autor.id,
+          resumo: `mencionou você`,
+          lida: false,
+        })),
+      )
+    }
+  }
+
+  const { posts } = await listarPosts()
+  const created = posts.find((p) => p.id === id)
+  if (!created) {
+    return {
+      id,
+      tipo,
+      autor: tipo === 'atualizacao' ? null : await carregarUsuarioAtual(),
+      texto: input.texto,
+      mencoes: input.mencoes,
+      casoVinculado: input.casoVinculado,
+      anexo,
+      restritoASocios: input.restritoASocios,
+      curtidas: 0,
+      curtidoPorMim: false,
+      comentarios: [],
+      totalComentarios: 0,
+      criadoEm: new Date().toISOString(),
+    }
+  }
+  return created
 }
 
 export async function curtirPost(id: string): Promise<void> {
-  const post = store.posts.find((item) => item.id === id)
-  if (!post) throw new Error('Post não encontrado')
-  post.curtidoPorMim = !post.curtidoPorMim
-  post.curtidas += post.curtidoPorMim ? 1 : -1
-  return // TODO: conectar ao backend
+  const userId = await getSessionUserId()
+  const { data: existing } = await supabase
+    .from('post_curtidas')
+    .select('post_id')
+    .eq('post_id', id)
+    .eq('usuario_id', userId)
+    .maybeSingle()
+
+  if (existing) {
+    const { error } = await supabase
+      .from('post_curtidas')
+      .delete()
+      .eq('post_id', id)
+      .eq('usuario_id', userId)
+    if (error) throw error
+  } else {
+    const { error } = await supabase.from('post_curtidas').insert({
+      post_id: id,
+      usuario_id: userId,
+    })
+    if (error) throw error
+  }
 }
 
 export async function comentar(postId: string, texto: string): Promise<Comentario> {
-  const post = store.posts.find((item) => item.id === postId)
-  if (!post) throw new Error('Post não encontrado')
-  const comentario: Comentario = {
-    id: `c-${crypto.randomUUID()}`,
-    autor: usuarioAtual,
-    texto,
-    criadoEm: new Date().toISOString(),
+  const user = await carregarUsuarioAtual()
+  const id = `c-${crypto.randomUUID()}`
+  const { data, error } = await supabase
+    .from('comentarios')
+    .insert({
+      id,
+      post_id: postId,
+      autor_id: user.id,
+      texto,
+    })
+    .select('*, autor:profiles!comentarios_autor_id_fkey(id, nome, iniciais, papel)')
+    .single()
+  if (error) throw error
+  const autor = one(data.autor as Profile | Profile[] | null)
+  return {
+    id: data.id,
+    autor: autor ? profileToUsuario(autor) : user,
+    texto: data.texto,
+    criadoEm: data.criado_em,
   }
-  post.comentarios = [comentario, ...post.comentarios]
-  post.totalComentarios += 1
-  return { ...comentario } // TODO: conectar ao backend
 }
 
 export async function marcarMencoesComoLidas(postId?: string): Promise<void> {
-  for (const item of store.marcacoes) {
-    if (!postId || item.postId === postId) item.lida = true
-  }
-  return // TODO: conectar ao backend
+  const userId = await getSessionUserId()
+  let query = supabase
+    .from('marcacoes')
+    .update({ lida: true })
+    .eq('destinatario_id', userId)
+    .eq('lida', false)
+  if (postId) query = query.eq('post_id', postId)
+  const { error } = await query
+  if (error) throw error
 }
 
 export async function excluirPost(id: string): Promise<void> {
-  const indice = store.posts.findIndex((item) => item.id === id)
-  if (indice < 0) throw new Error('Post não encontrado')
-  store.posts.splice(indice, 1)
-  store.marcacoes = store.marcacoes.filter((item) => item.postId !== id)
-  return // TODO: conectar ao backend
+  const { error } = await supabase.from('posts').delete().eq('id', id)
+  if (error) throw error
 }
 
 export async function excluirComentario(postId: string, comentarioId: string): Promise<void> {
-  const post = store.posts.find((item) => item.id === postId)
-  if (!post) throw new Error('Post não encontrado')
-  const antes = post.comentarios.length
-  post.comentarios = post.comentarios.filter((item) => item.id !== comentarioId)
-  if (post.comentarios.length === antes) throw new Error('Comentário não encontrado')
-  post.totalComentarios = Math.max(0, post.totalComentarios - 1)
-  return // TODO: conectar ao backend
+  const { error } = await supabase
+    .from('comentarios')
+    .delete()
+    .eq('id', comentarioId)
+    .eq('post_id', postId)
+  if (error) throw error
 }

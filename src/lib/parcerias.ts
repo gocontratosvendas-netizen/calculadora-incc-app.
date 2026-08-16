@@ -1,3 +1,5 @@
+import { getSessionUserId, listProfiles, supabase, type Profile } from './supabase'
+
 export type EstagioParceria =
   | 'prospeccao'
   | 'em_negociacao'
@@ -110,14 +112,24 @@ export const MODELO_COMISSAO_ROTULO: Record<ModeloComissao, string> = {
   a_definir: 'A definir',
 }
 
-export const socios: SocioParceria[] = [
-  { id: 'usr-helena', nome: 'Helena Duarte', iniciais: 'HD' },
-  { id: 'usr-vitor', nome: 'Vitor P.', iniciais: 'VP' },
-  { id: 'usr-rafaela', nome: 'Rafaela Moura', iniciais: 'RM' },
-  { id: 'usr-lucas', nome: 'Lucas Ferreira', iniciais: 'LF' },
-]
+export let socios: SocioParceria[] = []
+export let usuarioAtualId = ''
 
-export const usuarioAtualId = 'usr-helena'
+export async function carregarSociosParceria(): Promise<SocioParceria[]> {
+  const profiles = await listProfiles()
+  socios = profiles
+    .filter((p) => p.papel === 'socio')
+    .map((p) => ({ id: p.id, nome: p.nome, iniciais: p.iniciais }))
+  if (socios.length === 0) {
+    socios = profiles.map((p) => ({ id: p.id, nome: p.nome, iniciais: p.iniciais }))
+  }
+  try {
+    usuarioAtualId = await getSessionUserId()
+  } catch {
+    usuarioAtualId = socios[0]?.id ?? ''
+  }
+  return socios
+}
 
 const moneyFmt = new Intl.NumberFormat('pt-BR', {
   style: 'currency',
@@ -131,13 +143,6 @@ const mesAnoFmt = new Intl.DateTimeFormat('pt-BR', {
   year: 'numeric',
 })
 
-function diasAtras(dias: number): string {
-  const d = new Date()
-  d.setHours(12, 0, 0, 0)
-  d.setDate(d.getDate() - dias)
-  return d.toISOString()
-}
-
 function iniciaisDe(nome: string): string {
   const partes = nome.trim().split(/\s+/).filter(Boolean)
   if (partes.length === 0) return '?'
@@ -145,159 +150,72 @@ function iniciaisDe(nome: string): string {
   return (partes[0][0] + partes[partes.length - 1][0]).toUpperCase()
 }
 
-function socioPorId(id: string): SocioParceria {
-  return socios.find((s) => s.id === id) ?? socios[0]
+function one<T>(value: T | T[] | null | undefined): T | null {
+  if (!value) return null
+  return Array.isArray(value) ? value[0] ?? null : value
 }
 
-let store: Parceiro[] = [
-  {
-    id: 'par-001',
-    nome: 'Imobiliária Vega',
-    iniciais: 'IV',
-    tipo: 'imobiliaria',
-    detalhe: 'Pinheiros, SP',
-    documento: null,
-    contato: {
-      pessoa: 'Ana Vega',
-      cargo: 'Diretora comercial',
-      email: 'ana@vegaimob.com.br',
-      telefone: '(11) 98888-1001',
-    },
-    estagio: 'ativa',
-    responsavel: socioPorId('usr-rafaela'),
-    proximoPasso: null,
-    ultimoContatoEm: diasAtras(3),
-    encerradaEm: null,
-    observacoes: null,
-    comissionamento: { modelo: 'percentual_exito', percentual: 10, valorPorCaso: null },
-    casosIndicados: 12,
-    excessoOriginado: 284_500,
-    criadoEm: diasAtras(120),
-  },
-  {
-    id: 'par-002',
-    nome: 'Grupo Zenit',
-    iniciais: 'GZ',
-    tipo: 'administradora',
-    detalhe: '42 condomínios',
-    documento: null,
-    contato: {
-      pessoa: 'Marcos Zenit',
-      cargo: 'Sócio',
-      email: 'marcos@grupozenit.com.br',
-      telefone: '(11) 97777-2002',
-    },
-    estagio: 'ativa',
-    responsavel: socioPorId('usr-vitor'),
-    proximoPasso: null,
-    ultimoContatoEm: diasAtras(8),
-    encerradaEm: null,
-    observacoes: null,
-    comissionamento: { modelo: 'misto', percentual: 8, valorPorCaso: 2500 },
-    casosIndicados: 8,
-    excessoOriginado: 196_200,
-    criadoEm: diasAtras(90),
-  },
-  {
-    id: 'par-003',
-    nome: 'Assessoria Prime',
-    iniciais: 'AP',
-    tipo: 'assessoria_credito',
-    detalhe: 'SP',
-    documento: null,
-    contato: {
-      pessoa: 'Paula Prime',
-      cargo: 'Sócia',
-      email: 'paula@assessoriprime.com.br',
-      telefone: null,
-    },
-    estagio: 'ativa',
-    responsavel: socioPorId('usr-rafaela'),
-    proximoPasso: null,
-    ultimoContatoEm: diasAtras(1),
-    encerradaEm: null,
-    observacoes: null,
-    comissionamento: { modelo: 'valor_fixo', percentual: null, valorPorCaso: 3000 },
-    casosIndicados: 5,
-    excessoOriginado: 112_800,
-    criadoEm: diasAtras(60),
-  },
-  {
-    id: 'par-004',
-    nome: 'Costa & Lima',
-    iniciais: 'CL',
-    tipo: 'contabilidade',
-    detalhe: 'carteira de investidores',
-    documento: null,
-    contato: {
-      pessoa: 'Fernanda Costa',
-      cargo: 'Sócia',
-      email: 'fernanda@costalima.cont.br',
-      telefone: '(11) 96666-4004',
-    },
-    estagio: 'em_negociacao',
-    responsavel: socioPorId('usr-lucas'),
-    proximoPasso: 'Proposta de comissionamento enviada. Retorno previsto para 20/08.',
-    ultimoContatoEm: diasAtras(2),
-    encerradaEm: null,
-    observacoes: null,
-    comissionamento: { modelo: 'a_definir', percentual: null, valorPorCaso: null },
-    casosIndicados: 0,
-    excessoOriginado: 0,
-    criadoEm: diasAtras(20),
-  },
-  {
-    id: 'par-005',
-    nome: 'Ricardo Alves',
-    iniciais: 'RA',
-    tipo: 'sindico',
-    detalhe: '9 prédios',
-    documento: null,
-    contato: {
-      pessoa: 'Ricardo Alves',
-      cargo: null,
-      email: null,
-      telefone: '(11) 95555-5005',
-    },
-    estagio: 'prospeccao',
-    responsavel: socioPorId('usr-vitor'),
-    proximoPasso: 'Carta de parceria enviada. Aguardando primeira reunião.',
-    ultimoContatoEm: diasAtras(5),
-    encerradaEm: null,
-    observacoes: null,
-    comissionamento: { modelo: 'a_definir', percentual: null, valorPorCaso: null },
-    casosIndicados: 0,
-    excessoOriginado: 0,
-    criadoEm: diasAtras(12),
-  },
-  {
-    id: 'par-006',
-    nome: 'Imobiliária Horizonte',
-    iniciais: 'IH',
-    tipo: 'imobiliaria',
-    detalhe: 'Santo Amaro, SP',
-    documento: null,
-    contato: {
-      pessoa: 'João Horizonte',
-      cargo: 'Gerente',
-      email: 'joao@horizonteimob.com.br',
-      telefone: '(11) 94444-6006',
-    },
-    estagio: 'encerrada',
-    responsavel: socioPorId('usr-lucas'),
-    proximoPasso: null,
-    ultimoContatoEm: '2026-04-15T12:00:00.000Z',
-    encerradaEm: '2026-04-15T12:00:00.000Z',
-    observacoes: null,
-    comissionamento: { modelo: 'percentual_exito', percentual: 10, valorPorCaso: null },
-    casosIndicados: 3,
-    excessoOriginado: 64_300,
-    criadoEm: diasAtras(400),
-  },
-]
+type ParceiroRow = {
+  id: string
+  nome: string
+  iniciais: string
+  tipo: TipoParceiro
+  detalhe: string | null
+  documento: string | null
+  contato_pessoa: string
+  contato_cargo: string | null
+  contato_email: string | null
+  contato_telefone: string | null
+  estagio: EstagioParceria
+  responsavel_id: string
+  proximo_passo: string | null
+  ultimo_contato_em: string | null
+  encerrada_em: string | null
+  observacoes: string | null
+  comissao_modelo: ModeloComissao
+  comissao_percentual: number | null
+  comissao_valor_por_caso: number | null
+  casos_indicados: number
+  excesso_originado: number
+  criado_em: string
+  responsavel?: Profile | Profile[] | null
+}
 
-function delay(ms = 180) {
-  return new Promise((resolve) => setTimeout(resolve, ms))
+function mapParceiro(row: ParceiroRow): Parceiro {
+  const responsavel = one(row.responsavel)
+  return {
+    id: row.id,
+    nome: row.nome,
+    iniciais: row.iniciais,
+    tipo: row.tipo,
+    detalhe: row.detalhe,
+    documento: row.documento,
+    contato: {
+      pessoa: row.contato_pessoa,
+      cargo: row.contato_cargo,
+      email: row.contato_email,
+      telefone: row.contato_telefone,
+    },
+    estagio: row.estagio,
+    responsavel: {
+      id: responsavel?.id ?? row.responsavel_id,
+      nome: responsavel?.nome ?? '—',
+      iniciais: responsavel?.iniciais ?? '—',
+    },
+    proximoPasso: row.proximo_passo,
+    ultimoContatoEm: row.ultimo_contato_em,
+    encerradaEm: row.encerrada_em,
+    observacoes: row.observacoes,
+    comissionamento: {
+      modelo: row.comissao_modelo,
+      percentual: row.comissao_percentual != null ? Number(row.comissao_percentual) : null,
+      valorPorCaso:
+        row.comissao_valor_por_caso != null ? Number(row.comissao_valor_por_caso) : null,
+    },
+    casosIndicados: row.casos_indicados,
+    excessoOriginado: Number(row.excesso_originado),
+    criadoEm: row.criado_em,
+  }
 }
 
 function calcularResumo(lista: Parceiro[]): ParceriasResumo {
@@ -309,8 +227,7 @@ function calcularResumo(lista: Parceiro[]): ParceriasResumo {
   }
 }
 
-function montarParceiro(id: string, input: ParceiroInput, existente?: Parceiro): Parceiro {
-  const responsavel = socioPorId(input.responsavelId)
+function rowFromInput(id: string, input: ParceiroInput) {
   return {
     id,
     nome: input.nome.trim(),
@@ -318,34 +235,26 @@ function montarParceiro(id: string, input: ParceiroInput, existente?: Parceiro):
     tipo: input.tipo,
     detalhe: input.detalhe?.trim() || null,
     documento: input.documento?.trim() || null,
-    contato: {
-      pessoa: input.contato.pessoa.trim(),
-      cargo: input.contato.cargo?.trim() || null,
-      email: input.contato.email?.trim() || null,
-      telefone: input.contato.telefone?.trim() || null,
-    },
+    contato_pessoa: input.contato.pessoa.trim(),
+    contato_cargo: input.contato.cargo?.trim() || null,
+    contato_email: input.contato.email?.trim() || null,
+    contato_telefone: input.contato.telefone?.trim() || null,
     estagio: input.estagio,
-    responsavel,
-    proximoPasso: input.proximoPasso?.trim() || null,
-    ultimoContatoEm: input.ultimoContatoEm,
-    encerradaEm: input.estagio === 'encerrada' ? input.encerradaEm : null,
+    responsavel_id: input.responsavelId,
+    proximo_passo: input.proximoPasso?.trim() || null,
+    ultimo_contato_em: input.ultimoContatoEm,
+    encerrada_em: input.estagio === 'encerrada' ? input.encerradaEm : null,
     observacoes: input.observacoes?.trim() || null,
-    comissionamento: {
-      modelo: input.comissionamento.modelo,
-      percentual:
-        input.comissionamento.modelo === 'percentual_exito' ||
-        input.comissionamento.modelo === 'misto'
-          ? input.comissionamento.percentual
-          : null,
-      valorPorCaso:
-        input.comissionamento.modelo === 'valor_fixo' ||
-        input.comissionamento.modelo === 'misto'
-          ? input.comissionamento.valorPorCaso
-          : null,
-    },
-    casosIndicados: existente?.casosIndicados ?? 0,
-    excessoOriginado: existente?.excessoOriginado ?? 0,
-    criadoEm: existente?.criadoEm ?? new Date().toISOString(),
+    comissao_modelo: input.comissionamento.modelo,
+    comissao_percentual:
+      input.comissionamento.modelo === 'percentual_exito' ||
+      input.comissionamento.modelo === 'misto'
+        ? input.comissionamento.percentual
+        : null,
+    comissao_valor_por_caso:
+      input.comissionamento.modelo === 'valor_fixo' || input.comissionamento.modelo === 'misto'
+        ? input.comissionamento.valorPorCaso
+        : null,
   }
 }
 
@@ -458,39 +367,50 @@ export function validarEmail(email: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
 }
 
+const SELECT =
+  '*, responsavel:profiles!parceiros_responsavel_id_fkey(id, nome, iniciais)'
+
 export async function listarParceiros(): Promise<Parceiro[]> {
-  await delay()
-  return store.map((p) => ({ ...p, contato: { ...p.contato }, responsavel: { ...p.responsavel }, comissionamento: { ...p.comissionamento } })) // TODO: conectar ao backend
+  await carregarSociosParceria()
+  const { data, error } = await supabase
+    .from('parceiros')
+    .select(SELECT)
+    .order('criado_em', { ascending: false })
+  if (error) throw error
+  return ((data ?? []) as ParceiroRow[]).map(mapParceiro)
 }
 
 export async function obterResumoParcerias(): Promise<ParceriasResumo> {
-  await delay()
-  return calcularResumo(store) // TODO: conectar ao backend
+  const lista = await listarParceiros()
+  return calcularResumo(lista)
 }
 
 export async function criarParceiro(input: ParceiroInput): Promise<Parceiro> {
-  await delay(320)
-  const criado = montarParceiro(`par-${Date.now()}`, input)
-  store = [criado, ...store]
-  return { ...criado, contato: { ...criado.contato }, responsavel: { ...criado.responsavel }, comissionamento: { ...criado.comissionamento } } // TODO: conectar ao backend
+  const id = `par-${crypto.randomUUID()}`
+  const { data, error } = await supabase
+    .from('parceiros')
+    .insert({ ...rowFromInput(id, input), casos_indicados: 0, excesso_originado: 0 })
+    .select(SELECT)
+    .single()
+  if (error) throw error
+  return mapParceiro(data as ParceiroRow)
 }
 
 export async function atualizarParceiro(
   id: string,
   input: ParceiroInput,
 ): Promise<Parceiro> {
-  await delay(320)
-  const idx = store.findIndex((p) => p.id === id)
-  if (idx < 0) throw new Error('Parceiro não encontrado')
-  const atualizado = montarParceiro(id, input, store[idx])
-  store = store.map((p) => (p.id === id ? atualizado : p))
-  return { ...atualizado, contato: { ...atualizado.contato }, responsavel: { ...atualizado.responsavel }, comissionamento: { ...atualizado.comissionamento } } // TODO: conectar ao backend
+  const { data, error } = await supabase
+    .from('parceiros')
+    .update(rowFromInput(id, input))
+    .eq('id', id)
+    .select(SELECT)
+    .single()
+  if (error) throw error
+  return mapParceiro(data as ParceiroRow)
 }
 
 export async function excluirParceiro(id: string): Promise<void> {
-  await delay(220)
-  const idx = store.findIndex((p) => p.id === id)
-  if (idx < 0) throw new Error('Parceiro não encontrado')
-  store = store.filter((p) => p.id !== id)
-  return // TODO: conectar ao backend
+  const { error } = await supabase.from('parceiros').delete().eq('id', id)
+  if (error) throw error
 }

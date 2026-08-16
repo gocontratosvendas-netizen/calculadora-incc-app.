@@ -1,4 +1,5 @@
 import { publicarPost } from './mural'
+import { getSessionUserId, supabase, uploadFile, type Profile } from './supabase'
 
 export type CasoStatus = 'processo_de_venda' | 'ajuizado' | 'encerrado'
 
@@ -83,112 +84,66 @@ export function calcularResumoFinanceiro(casos: Caso[]): CarteiraFinanceiro {
   }
 }
 
-const RESPONSAVEIS = {
-  VP: { nome: 'Vitor Paludetto', iniciais: 'VP' },
-  RM: { nome: 'Renata Martins', iniciais: 'RM' },
-  LF: { nome: 'Lucas Ferreira', iniciais: 'LF' },
-} as const
-
-const CASOS: Caso[] = [
-  {
-    id: 'caso-001',
-    cliente: 'Marcos Almeida',
-    empreendimento: 'Henry Boulevard',
-    incorporadora: 'Kallas',
-    valorContrato: 780_000,
-    excessoApurado: 23_410,
-    valorCausa: null,
-    anoAjuizamento: null,
-    status: 'processo_de_venda',
-    responsavel: RESPONSAVEIS.VP,
-    atualizadoEm: '2026-08-10T09:00:00-03:00',
-  },
-  {
-    id: 'caso-002',
-    cliente: 'Erika Tanaka',
-    empreendimento: 'Vila Nova 1200',
-    incorporadora: 'Cyrela',
-    valorContrato: 1_150_000,
-    excessoApurado: 34_820,
-    valorCausa: 69_640,
-    anoAjuizamento: 2023,
-    status: 'ajuizado',
-    responsavel: RESPONSAVEIS.RM,
-    atualizadoEm: '2026-08-11T11:20:00-03:00',
-  },
-  {
-    id: 'caso-003',
-    cliente: 'Paula Ribeiro',
-    empreendimento: 'Parque Cidade',
-    incorporadora: 'MRV',
-    valorContrato: 520_000,
-    excessoApurado: null,
-    valorCausa: null,
-    anoAjuizamento: null,
-    status: 'processo_de_venda',
-    responsavel: RESPONSAVEIS.VP,
-    atualizadoEm: '2026-08-09T15:40:00-03:00',
-  },
-  {
-    id: 'caso-004',
-    cliente: 'Luís Moreira',
-    empreendimento: 'Alto da Lapa',
-    incorporadora: 'Even',
-    valorContrato: 640_000,
-    excessoApurado: 19_070,
-    valorCausa: null,
-    anoAjuizamento: null,
-    status: 'processo_de_venda',
-    responsavel: RESPONSAVEIS.LF,
-    atualizadoEm: '2026-08-12T08:30:00-03:00',
-  },
-  {
-    id: 'caso-005',
-    cliente: 'Helena Costa',
-    empreendimento: 'Reserva Ipê',
-    incorporadora: 'Kallas',
-    valorContrato: 890_000,
-    excessoApurado: 27_150,
-    valorCausa: 54_300,
-    anoAjuizamento: 2022,
-    status: 'ajuizado',
-    responsavel: RESPONSAVEIS.RM,
-    atualizadoEm: '2026-08-13T14:10:00-03:00',
-  },
-  {
-    id: 'caso-006',
-    cliente: 'Sérgio Nakamura',
-    empreendimento: 'Jardins 900',
-    incorporadora: 'Tegra',
-    valorContrato: 1_420_000,
-    excessoApurado: 42_600,
-    valorCausa: 85_200,
-    anoAjuizamento: 2022,
-    status: 'encerrado',
-    responsavel: RESPONSAVEIS.LF,
-    atualizadoEm: '2026-08-08T17:00:00-03:00',
-  },
-  {
-    id: 'caso-007',
-    cliente: 'Camila Barros',
-    empreendimento: 'Vista Sul',
-    incorporadora: 'MRV',
-    valorContrato: 470_000,
-    excessoApurado: 14_280,
-    valorCausa: 28_560,
-    anoAjuizamento: 2023,
-    status: 'ajuizado',
-    responsavel: RESPONSAVEIS.VP,
-    atualizadoEm: '2026-08-14T10:05:00-03:00',
-  },
-]
-
-export async function listarCasos(): Promise<Caso[]> {
-  return CASOS.map((caso) => ({ ...caso, responsavel: { ...caso.responsavel } })) // TODO: conectar ao backend
+type CasoRow = {
+  id: string
+  cliente_nome: string
+  cliente_email: string | null
+  cliente_telefone: string | null
+  empreendimento: string
+  incorporadora: string
+  data_assinatura: string | null
+  valor_contrato: number
+  parcelas_reais: number
+  parcelas_contrato: number
+  parcela_residual: number | null
+  situacao_obra: 'em_andamento' | 'entregue'
+  data_chaves: string | null
+  excesso_apurado: number | null
+  valor_causa: number | null
+  prescricao_em: string | null
+  status: CasoStatus
+  numero_processo: string | null
+  data_protocolo: string | null
+  vara_comarca: string | null
+  desfecho: Desfecho | null
+  valor_recuperado: number | null
+  parceiro_id: string | null
+  canal_origem: string
+  responsavel_id: string
+  criterios: { rotulo: string; atendido: boolean }[] | null
+  atualizado_em: string
+  responsavel?: Profile | Profile[] | null
+  parceiro?: { id: string; nome: string; iniciais: string } | { id: string; nome: string; iniciais: string }[] | null
 }
 
-export async function obterResumoCarteira(): Promise<CarteiraResumo> {
-  return calcularResumoCarteira(CASOS) // TODO: conectar ao backend
+function one<T>(value: T | T[] | null | undefined): T | null {
+  if (!value) return null
+  return Array.isArray(value) ? value[0] ?? null : value
+}
+
+function num(value: number | string | null | undefined): number | null {
+  if (value == null) return null
+  return typeof value === 'number' ? value : Number(value)
+}
+
+function mapCasoLista(row: CasoRow): Caso {
+  const responsavel = one(row.responsavel)
+  return {
+    id: row.id,
+    cliente: row.cliente_nome,
+    empreendimento: row.empreendimento,
+    incorporadora: row.incorporadora,
+    valorContrato: Number(row.valor_contrato),
+    excessoApurado: num(row.excesso_apurado),
+    valorCausa: num(row.valor_causa),
+    anoAjuizamento: row.data_protocolo ? Number(row.data_protocolo.slice(0, 4)) : null,
+    status: row.status,
+    responsavel: {
+      nome: responsavel?.nome ?? '—',
+      iniciais: responsavel?.iniciais ?? '—',
+    },
+    atualizadoEm: row.atualizado_em,
+  }
 }
 
 export type NovoCasoInput = {
@@ -200,38 +155,95 @@ export type NovoCasoInput = {
   valorCausa: number | null
 }
 
+const DOCUMENTOS_PADRAO: { chave: DocumentoChave; rotulo: string; obrigatorio: boolean }[] = [
+  { chave: 'memorial', rotulo: 'Memorial de cálculo da incorporadora', obrigatorio: true },
+  { chave: 'contrato', rotulo: 'Contrato de compra e venda', obrigatorio: false },
+  { chave: 'chaves', rotulo: 'Termo de entrega de chaves', obrigatorio: false },
+  { chave: 'comprovantes', rotulo: 'Comprovantes de pagamento', obrigatorio: false },
+]
+
+function criteriosPadrao(excesso: number | null, status: CasoStatus) {
+  return [
+    { rotulo: 'Parcelas reais inferiores às do contrato', atendido: excesso != null },
+    { rotulo: 'Obra entregue', atendido: status !== 'processo_de_venda' || excesso != null },
+    { rotulo: 'Dentro do prazo prescricional', atendido: true },
+    { rotulo: 'Memorial de cálculo disponível', atendido: excesso != null },
+    { rotulo: 'Excesso apurado', atendido: excesso != null },
+  ]
+}
+
+export async function listarCasos(): Promise<Caso[]> {
+  const { data, error } = await supabase
+    .from('casos')
+    .select(
+      'id, cliente_nome, empreendimento, incorporadora, valor_contrato, excesso_apurado, valor_causa, data_protocolo, status, atualizado_em, responsavel:profiles!casos_responsavel_id_fkey(id, nome, iniciais)',
+    )
+    .order('atualizado_em', { ascending: false })
+  if (error) throw error
+  return (data as CasoRow[]).map(mapCasoLista)
+}
+
+export async function obterResumoCarteira(): Promise<CarteiraResumo> {
+  const casos = await listarCasos()
+  return calcularResumoCarteira(casos)
+}
+
 export async function cadastrarCaso(input: NovoCasoInput): Promise<Caso> {
   const cliente = input.cliente.trim()
-  if (!cliente) {
-    throw new Error('Informe o nome do cliente')
-  }
+  if (!cliente) throw new Error('Informe o nome do cliente')
 
-  const caso: Caso = {
-    id: `caso-${Date.now()}`,
-    cliente,
-    empreendimento: input.empreendimento?.trim() || 'A definir',
-    incorporadora: input.incorporadora?.trim() || 'A definir',
-    valorContrato: input.valorContrato,
-    excessoApurado: input.excessoApurado,
-    valorCausa: input.valorCausa,
-    anoAjuizamento: null,
-    status: 'processo_de_venda',
-    responsavel: RESPONSAVEIS.VP,
-    atualizadoEm: new Date().toISOString(),
-  }
+  const userId = await getSessionUserId()
+  const id = `caso-${crypto.randomUUID()}`
+  const criterios = criteriosPadrao(input.excessoApurado, 'processo_de_venda')
 
-  CASOS.unshift(caso)
+  const { data, error } = await supabase
+    .from('casos')
+    .insert({
+      id,
+      cliente_nome: cliente,
+      empreendimento: input.empreendimento?.trim() || 'A definir',
+      incorporadora: input.incorporadora?.trim() || 'A definir',
+      valor_contrato: input.valorContrato,
+      excesso_apurado: input.excessoApurado,
+      valor_causa: input.valorCausa,
+      status: 'processo_de_venda',
+      responsavel_id: userId,
+      criterios,
+      atualizado_em: new Date().toISOString(),
+    })
+    .select(
+      'id, cliente_nome, empreendimento, incorporadora, valor_contrato, excesso_apurado, valor_causa, data_protocolo, status, atualizado_em, responsavel:profiles!casos_responsavel_id_fkey(id, nome, iniciais)',
+    )
+    .single()
+  if (error) throw error
 
-  return { ...caso, responsavel: { ...caso.responsavel } } // TODO: conectar ao backend
+  await supabase.from('documentos_caso').insert(
+    DOCUMENTOS_PADRAO.map((doc) => ({
+      id: `doc-${id}-${doc.chave}`,
+      caso_id: id,
+      chave: doc.chave,
+      rotulo: doc.rotulo,
+      obrigatorio: doc.obrigatorio,
+    })),
+  )
+
+  await supabase.from('andamentos').insert({
+    id: `and-${crypto.randomUUID()}`,
+    caso_id: id,
+    tipo: 'sistema',
+    titulo: 'Caso cadastrado',
+    descricao: null,
+    data: new Date().toISOString().slice(0, 10),
+    autor_id: userId,
+    automatico: true,
+  })
+
+  return mapCasoLista(data as CasoRow)
 }
 
 export async function excluirCaso(id: string): Promise<void> {
-  const indice = CASOS.findIndex((caso) => caso.id === id)
-  if (indice === -1) {
-    throw new Error('Caso não encontrado')
-  }
-  CASOS.splice(indice, 1)
-  return // TODO: conectar ao backend
+  const { error } = await supabase.from('casos').delete().eq('id', id)
+  if (error) throw error
 }
 
 export type TipoAndamento =
@@ -398,372 +410,307 @@ export const TIPO_ANDAMENTO_ROTULO: Record<TipoAndamento, string> = {
   sistema: 'Sistema',
 }
 
-const AUTOR_VITOR: AndamentoAutor = { id: 'usr-vitor', nome: 'Vitor P.', iniciais: 'VP' }
-const AUTOR_RAFAELA: AndamentoAutor = { id: 'usr-rafaela', nome: 'Rafaela M.', iniciais: 'RM' }
-
-const DOCUMENTOS_PADRAO: { chave: DocumentoChave; rotulo: string; obrigatorio: boolean }[] = [
-  { chave: 'memorial', rotulo: 'Memorial de cálculo da incorporadora', obrigatorio: true },
-  { chave: 'contrato', rotulo: 'Contrato de compra e venda', obrigatorio: false },
-  { chave: 'chaves', rotulo: 'Termo de entrega de chaves', obrigatorio: false },
-  { chave: 'comprovantes', rotulo: 'Comprovantes de pagamento', obrigatorio: false },
-]
-
-function arquivoMock(nome: string, tamanhoBytes: number): AndamentoAnexo {
-  return {
-    id: `arq-${nome}`,
-    nome,
-    tamanhoBytes,
-    url: URL.createObjectURL(
-      new Blob(['arquivo'], { type: 'application/pdf' }),
-    ),
-  }
+type AndamentoRow = {
+  id: string
+  tipo: TipoAndamento
+  titulo: string
+  descricao: string | null
+  data: string
+  autor_id: string
+  anexo_id: string | null
+  anexo_nome: string | null
+  anexo_tamanho_bytes: number | null
+  anexo_url: string | null
+  acao_rotulo: string | null
+  acao_destino: string | null
+  automatico: boolean
+  criado_em: string
+  autor?: Profile | Profile[] | null
 }
 
-function isoEm(diasAtras: number, hora = 12): string {
-  const d = new Date()
-  d.setDate(d.getDate() - diasAtras)
-  d.setHours(hora, 0, 0, 0)
-  return d.toISOString()
+type PrazoRow = {
+  id: string
+  titulo: string
+  descricao: string | null
+  vence_em: string
+  concluido: boolean
+  concluido_em: string | null
 }
 
-function clonarAndamento(item: Andamento): Andamento {
-  return {
-    ...item,
-    autor: { ...item.autor },
-    anexo: item.anexo ? { ...item.anexo } : null,
-    acao: item.acao ? { ...item.acao } : null,
-  }
+type DocRow = {
+  chave: DocumentoChave
+  rotulo: string
+  obrigatorio: boolean
+  arquivo_id: string | null
+  arquivo_nome: string | null
+  arquivo_tamanho_bytes: number | null
+  arquivo_url: string | null
 }
 
-function clonarCaso(caso: CasoDetalhe): CasoDetalhe {
+function mapAndamento(row: AndamentoRow): Andamento {
+  const autor = one(row.autor)
   return {
-    ...caso,
-    cliente: { ...caso.cliente },
-    parceiro: caso.parceiro ? { ...caso.parceiro } : null,
-    responsavel: { ...caso.responsavel },
-    enquadramento: {
-      criteriosAtendidos: caso.enquadramento.criteriosAtendidos,
-      criterios: caso.enquadramento.criterios.map((criterio) => ({ ...criterio })),
+    id: row.id,
+    tipo: row.tipo,
+    titulo: row.titulo,
+    descricao: row.descricao,
+    data: row.data,
+    autor: {
+      id: autor?.id ?? row.autor_id,
+      nome: autor?.nome ?? '—',
+      iniciais: autor?.iniciais ?? '—',
     },
-    andamentos: caso.andamentos.map(clonarAndamento),
-    prazos: caso.prazos.map((prazo) => ({ ...prazo })),
-    documentos: caso.documentos.map((doc) => ({
-      ...doc,
-      arquivo: doc.arquivo ? { ...doc.arquivo } : null,
-    })),
+    anexo:
+      row.anexo_id && row.anexo_nome && row.anexo_url
+        ? {
+            id: row.anexo_id,
+            nome: row.anexo_nome,
+            tamanhoBytes: Number(row.anexo_tamanho_bytes ?? 0),
+            url: row.anexo_url,
+          }
+        : null,
+    acao:
+      row.acao_rotulo && row.acao_destino
+        ? { rotulo: row.acao_rotulo, destino: row.acao_destino }
+        : null,
+    automatico: row.automatico,
+    criadoEm: row.criado_em,
   }
 }
 
-function arquivoDeFile(arquivo: File): AndamentoAnexo {
+function mapPrazo(row: PrazoRow): Prazo {
   return {
-    id: `arq-${crypto.randomUUID()}`,
+    id: row.id,
+    titulo: row.titulo,
+    descricao: row.descricao,
+    venceEm: row.vence_em,
+    concluido: row.concluido,
+    concluidoEm: row.concluido_em,
+  }
+}
+
+function mapDocumento(row: DocRow): DocumentoCaso {
+  return {
+    chave: row.chave,
+    rotulo: row.rotulo,
+    obrigatorio: row.obrigatorio,
+    arquivo:
+      row.arquivo_id && row.arquivo_nome && row.arquivo_url
+        ? {
+            id: row.arquivo_id,
+            nome: row.arquivo_nome,
+            tamanhoBytes: Number(row.arquivo_tamanho_bytes ?? 0),
+            url: row.arquivo_url,
+          }
+        : null,
+  }
+}
+
+async function uploadAnexoCaso(casoId: string, arquivo: File) {
+  const id = crypto.randomUUID()
+  const path = `${casoId}/${id}-${arquivo.name}`
+  const uploaded = await uploadFile('casos-arquivos', path, arquivo)
+  return {
+    id,
     nome: arquivo.name,
     tamanhoBytes: arquivo.size,
-    url: URL.createObjectURL(arquivo),
-  }
-}
-
-function criteriosDe(caso: Caso): { rotulo: string; atendido: boolean }[] {
-  return [
-    { rotulo: 'Parcelas reais inferiores às do contrato', atendido: caso.excessoApurado != null },
-    { rotulo: 'Obra entregue', atendido: caso.status !== 'processo_de_venda' || caso.excessoApurado != null },
-    { rotulo: 'Dentro do prazo prescricional', atendido: true },
-    { rotulo: 'Memorial de cálculo disponível', atendido: caso.excessoApurado != null },
-    { rotulo: 'Excesso apurado', atendido: caso.excessoApurado != null },
-  ]
-}
-
-function responsavelDeLista(responsavel: Caso['responsavel']): CasoDetalhe['responsavel'] {
-  if (responsavel.iniciais === 'VP') return { id: 'usr-vitor', nome: 'Vitor P.', iniciais: 'VP' }
-  if (responsavel.iniciais === 'RM') {
-    return { id: 'usr-rafaela', nome: responsavel.nome, iniciais: 'RM' }
-  }
-  return { id: 'usr-lucas', nome: responsavel.nome, iniciais: responsavel.iniciais }
-}
-
-function sintetizarDeLista(caso: Caso): CasoDetalhe {
-  const criterios = criteriosDe(caso)
-  return {
-    id: caso.id,
-    cliente: { nome: caso.cliente, email: null, telefone: null },
-    empreendimento: caso.empreendimento,
-    incorporadora: caso.incorporadora,
-    dataAssinatura: caso.atualizadoEm.slice(0, 10),
-    valorContrato: caso.valorContrato,
-    parcelasReais: 0,
-    parcelasContrato: 0,
-    parcelaResidual: null,
-    situacaoObra: 'em_andamento',
-    dataChaves: null,
-    excessoApurado: caso.excessoApurado,
-    valorCausa: caso.valorCausa,
-    prescricaoEm: null,
-    status: caso.status,
-    numeroProcesso: null,
-    dataProtocolo: caso.anoAjuizamento != null ? `${caso.anoAjuizamento}-01-01` : null,
-    varaComarca: null,
-    desfecho: null,
-    valorRecuperado: null,
-    parceiro: null,
-    canalOrigem: 'Direto',
-    responsavel: responsavelDeLista(caso.responsavel),
-    enquadramento: {
-      criteriosAtendidos: criterios.filter((item) => item.atendido).length,
-      criterios,
-    },
-    andamentos: [],
-    prazos: [],
-    documentos: DOCUMENTOS_PADRAO.map((item) => ({ ...item, arquivo: null })),
-  }
-}
-
-function casoExemplo(): CasoDetalhe {
-  const criterios = [
-    { rotulo: 'Parcelas reais inferiores às do contrato', atendido: true },
-    { rotulo: 'Obra entregue', atendido: true },
-    { rotulo: 'Dentro do prazo prescricional', atendido: true },
-    { rotulo: 'Memorial de cálculo disponível', atendido: true },
-    { rotulo: 'Excesso apurado', atendido: true },
-  ]
-  return {
-    id: 'caso-001',
-    cliente: {
-      nome: 'Marcos Almeida',
-      email: 'marcos@email.com',
-      telefone: '(11) 98812-4400',
-    },
-    empreendimento: 'Henry Boulevard',
-    incorporadora: 'Kallas',
-    dataAssinatura: '2021-03-10',
-    valorContrato: 780_000,
-    parcelasReais: 28,
-    parcelasContrato: 37,
-    parcelaResidual: 100,
-    situacaoObra: 'entregue',
-    dataChaves: '2024-08-22',
-    excessoApurado: 23_410,
-    valorCausa: null,
-    prescricaoEm: '2027-08-22',
-    status: 'processo_de_venda',
-    numeroProcesso: null,
-    dataProtocolo: null,
-    varaComarca: null,
-    desfecho: null,
-    valorRecuperado: null,
-    parceiro: { id: 'par-001', nome: 'Imobiliária Vega', iniciais: 'IV' },
-    canalOrigem: 'Indicação',
-    responsavel: AUTOR_VITOR,
-    enquadramento: { criteriosAtendidos: 5, criterios },
-    andamentos: [
-      {
-        id: 'and-001',
-        tipo: 'documento',
-        titulo: 'Memorial de cálculo recebido',
-        descricao: 'Cliente enviou o memorial pelo portal da Kallas. Apuração já rodada na calculadora.',
-        data: '2026-08-14',
-        autor: AUTOR_VITOR,
-        anexo: arquivoMock('memorial-kallas.pdf', Math.round(1.2 * 1024 * 1024)),
-        acao: null,
-        automatico: false,
-        criadoEm: isoEm(0, 10),
-      },
-      {
-        id: 'and-002',
-        tipo: 'calculo',
-        titulo: 'Apuração concluída',
-        descricao: 'Excesso de R$ 23.410 em 18 pagamentos. Relatório gerado.',
-        data: '2026-08-14',
-        autor: AUTOR_VITOR,
-        anexo: null,
-        acao: { rotulo: 'Abrir relatório', destino: '/calculadora' },
-        automatico: false,
-        criadoEm: isoEm(0, 9),
-      },
-      {
-        id: 'and-003',
-        tipo: 'contato',
-        titulo: 'Reunião de apresentação',
-        descricao: 'Cliente entendeu a tese e concordou em seguir. Pediu prazo para conversar com a esposa.',
-        data: '2026-08-11',
-        autor: AUTOR_RAFAELA,
-        anexo: null,
-        acao: null,
-        automatico: false,
-        criadoEm: isoEm(3, 16),
-      },
-      {
-        id: 'and-004',
-        tipo: 'sistema',
-        titulo: 'Caso cadastrado',
-        descricao: 'Indicação da Imobiliária Vega.',
-        data: '2026-08-09',
-        autor: AUTOR_RAFAELA,
-        anexo: null,
-        acao: null,
-        automatico: true,
-        criadoEm: isoEm(5, 11),
-      },
-    ],
-    prazos: [
-      {
-        id: 'prz-001',
-        titulo: 'Comprovantes de pagamento',
-        descricao: 'Reunir comprovantes de pagamento faltantes antes do protocolo.',
-        venceEm: '2026-08-28',
-        concluido: false,
-        concluidoEm: null,
-      },
-    ],
-    documentos: [
-      {
-        chave: 'memorial',
-        rotulo: 'Memorial de cálculo da incorporadora',
-        obrigatorio: true,
-        arquivo: arquivoMock('memorial-kallas.pdf', Math.round(1.2 * 1024 * 1024)),
-      },
-      {
-        chave: 'contrato',
-        rotulo: 'Contrato de compra e venda',
-        obrigatorio: false,
-        arquivo: arquivoMock('contrato-compra-venda.pdf', Math.round(3.4 * 1024 * 1024)),
-      },
-      {
-        chave: 'chaves',
-        rotulo: 'Termo de entrega de chaves',
-        obrigatorio: false,
-        arquivo: arquivoMock('termo-chaves.pdf', 420 * 1024),
-      },
-      {
-        chave: 'comprovantes',
-        rotulo: 'Comprovantes de pagamento',
-        obrigatorio: false,
-        arquivo: null,
-      },
-    ],
-  }
-}
-
-const detalhes: Record<string, CasoDetalhe> = {
-  'caso-001': casoExemplo(),
-}
-
-function garantirDetalhe(id: string): CasoDetalhe | null {
-  const existente = detalhes[id]
-  if (existente) return existente
-  const caso = CASOS.find((item) => item.id === id)
-  if (!caso) return null
-  const criado = sintetizarDeLista(caso)
-  detalhes[id] = criado
-  return criado
-}
-
-function sincronizarLista(detalhe: CasoDetalhe) {
-  const item = CASOS.find((caso) => caso.id === detalhe.id)
-  if (!item) return
-  item.status = detalhe.status
-  item.valorCausa = detalhe.valorCausa
-  item.excessoApurado = detalhe.excessoApurado
-  item.atualizadoEm = new Date().toISOString()
-  if (detalhe.dataProtocolo) {
-    item.anoAjuizamento = Number(detalhe.dataProtocolo.slice(0, 4))
-  }
-}
-
-function autorAtual(): AndamentoAutor {
-  return { ...AUTOR_VITOR }
-}
-
-function novoAndamento(partial: Omit<Andamento, 'id' | 'criadoEm' | 'autor'> & { autor?: AndamentoAutor }): Andamento {
-  return {
-    id: `and-${crypto.randomUUID()}`,
-    criadoEm: new Date().toISOString(),
-    autor: partial.autor ?? autorAtual(),
-    ...partial,
+    url: uploaded.url,
   }
 }
 
 export async function obterCaso(id: string): Promise<CasoDetalhe> {
-  const detalhe = garantirDetalhe(id)
-  if (!detalhe) throw new Error('Caso não encontrado')
-  return clonarCaso(detalhe) // TODO: conectar ao backend
+  const { data: row, error } = await supabase
+    .from('casos')
+    .select(
+      `*,
+      responsavel:profiles!casos_responsavel_id_fkey(id, nome, iniciais),
+      parceiro:parceiros(id, nome, iniciais)`,
+    )
+    .eq('id', id)
+    .single()
+  if (error) throw error
+
+  const caso = row as CasoRow
+  const responsavel = one(caso.responsavel)
+  const parceiro = one(caso.parceiro)
+  const criterios = caso.criterios?.length
+    ? caso.criterios
+    : criteriosPadrao(num(caso.excesso_apurado), caso.status)
+
+  const [{ data: andamentos }, { data: prazos }, { data: documentos }] = await Promise.all([
+    supabase
+      .from('andamentos')
+      .select('*, autor:profiles!andamentos_autor_id_fkey(id, nome, iniciais)')
+      .eq('caso_id', id)
+      .order('criado_em', { ascending: false }),
+    supabase.from('prazos').select('*').eq('caso_id', id).order('vence_em'),
+    supabase.from('documentos_caso').select('*').eq('caso_id', id),
+  ])
+
+  return {
+    id: caso.id,
+    cliente: {
+      nome: caso.cliente_nome,
+      email: caso.cliente_email,
+      telefone: caso.cliente_telefone,
+    },
+    empreendimento: caso.empreendimento,
+    incorporadora: caso.incorporadora,
+    dataAssinatura: caso.data_assinatura ?? caso.atualizado_em.slice(0, 10),
+    valorContrato: Number(caso.valor_contrato),
+    parcelasReais: caso.parcelas_reais,
+    parcelasContrato: caso.parcelas_contrato,
+    parcelaResidual: num(caso.parcela_residual),
+    situacaoObra: caso.situacao_obra,
+    dataChaves: caso.data_chaves,
+    excessoApurado: num(caso.excesso_apurado),
+    valorCausa: num(caso.valor_causa),
+    prescricaoEm: caso.prescricao_em,
+    status: caso.status,
+    numeroProcesso: caso.numero_processo,
+    dataProtocolo: caso.data_protocolo,
+    varaComarca: caso.vara_comarca,
+    desfecho: caso.desfecho,
+    valorRecuperado: num(caso.valor_recuperado),
+    parceiro: parceiro ? { id: parceiro.id, nome: parceiro.nome, iniciais: parceiro.iniciais } : null,
+    canalOrigem: caso.canal_origem,
+    responsavel: {
+      id: responsavel?.id ?? caso.responsavel_id,
+      nome: responsavel?.nome ?? '—',
+      iniciais: responsavel?.iniciais ?? '—',
+    },
+    enquadramento: {
+      criteriosAtendidos: criterios.filter((c) => c.atendido).length,
+      criterios,
+    },
+    andamentos: ((andamentos ?? []) as AndamentoRow[]).map(mapAndamento),
+    prazos: ((prazos ?? []) as PrazoRow[]).map(mapPrazo),
+    documentos: ((documentos ?? []) as DocRow[]).map(mapDocumento),
+  }
 }
 
 export async function registrarAndamento(
   casoId: string,
   input: RegistrarAndamentoInput,
 ): Promise<Andamento> {
-  const detalhe = garantirDetalhe(casoId)
-  if (!detalhe) throw new Error('Caso não encontrado')
-  const andamento = novoAndamento({
-    tipo: input.tipo,
-    titulo: input.titulo.trim(),
-    descricao: input.descricao?.trim() || null,
-    data: input.data,
-    anexo: input.anexo ? arquivoDeFile(input.anexo) : null,
-    acao: null,
-    automatico: false,
-  })
-  detalhe.andamentos.unshift(andamento)
-  if (input.criarPrazo && input.dataPrazo) {
-    detalhe.prazos.unshift({
-      id: `prz-${crypto.randomUUID()}`,
+  const userId = await getSessionUserId()
+  const anexo = input.anexo ? await uploadAnexoCaso(casoId, input.anexo) : null
+  const id = `and-${crypto.randomUUID()}`
+
+  const { data, error } = await supabase
+    .from('andamentos')
+    .insert({
+      id,
+      caso_id: casoId,
+      tipo: input.tipo,
       titulo: input.titulo.trim(),
       descricao: input.descricao?.trim() || null,
-      venceEm: input.dataPrazo,
+      data: input.data,
+      autor_id: userId,
+      anexo_id: anexo?.id ?? null,
+      anexo_nome: anexo?.nome ?? null,
+      anexo_tamanho_bytes: anexo?.tamanhoBytes ?? null,
+      anexo_url: anexo?.url ?? null,
+      automatico: false,
+    })
+    .select('*, autor:profiles!andamentos_autor_id_fkey(id, nome, iniciais)')
+    .single()
+  if (error) throw error
+
+  if (input.criarPrazo && input.dataPrazo) {
+    await supabase.from('prazos').insert({
+      id: `prz-${crypto.randomUUID()}`,
+      caso_id: casoId,
+      titulo: input.titulo.trim(),
+      descricao: input.descricao?.trim() || null,
+      vence_em: input.dataPrazo,
       concluido: false,
-      concluidoEm: null,
     })
   }
-  sincronizarLista(detalhe)
-  return clonarAndamento(andamento) // TODO: conectar ao backend
+
+  await supabase
+    .from('casos')
+    .update({ atualizado_em: new Date().toISOString() })
+    .eq('id', casoId)
+
+  return mapAndamento(data as AndamentoRow)
 }
 
 export async function editarAndamento(
   andamentoId: string,
   input: EditarAndamentoInput,
 ): Promise<Andamento> {
-  for (const detalhe of Object.values(detalhes)) {
-    const andamento = detalhe.andamentos.find((item) => item.id === andamentoId)
-    if (!andamento) continue
-    andamento.tipo = input.tipo
-    andamento.titulo = input.titulo.trim()
-    andamento.descricao = input.descricao?.trim() || null
-    andamento.data = input.data
-    if (input.anexo) andamento.anexo = arquivoDeFile(input.anexo)
-    sincronizarLista(detalhe)
-    return clonarAndamento(andamento) // TODO: conectar ao backend
+  const { data: existing, error: findError } = await supabase
+    .from('andamentos')
+    .select('caso_id')
+    .eq('id', andamentoId)
+    .single()
+  if (findError) throw findError
+
+  const patch: Record<string, unknown> = {
+    tipo: input.tipo,
+    titulo: input.titulo.trim(),
+    descricao: input.descricao?.trim() || null,
+    data: input.data,
   }
-  throw new Error('Andamento não encontrado')
+
+  if (input.anexo) {
+    const anexo = await uploadAnexoCaso(existing.caso_id, input.anexo)
+    patch.anexo_id = anexo.id
+    patch.anexo_nome = anexo.nome
+    patch.anexo_tamanho_bytes = anexo.tamanhoBytes
+    patch.anexo_url = anexo.url
+  }
+
+  const { data, error } = await supabase
+    .from('andamentos')
+    .update(patch)
+    .eq('id', andamentoId)
+    .select('*, autor:profiles!andamentos_autor_id_fkey(id, nome, iniciais)')
+    .single()
+  if (error) throw error
+
+  await supabase
+    .from('casos')
+    .update({ atualizado_em: new Date().toISOString() })
+    .eq('id', existing.caso_id)
+
+  return mapAndamento(data as AndamentoRow)
 }
 
 export async function mudarStatus(casoId: string, input: MudarStatusInput): Promise<CasoDetalhe> {
-  const detalhe = garantirDetalhe(casoId)
-  if (!detalhe) throw new Error('Caso não encontrado')
+  const userId = await getSessionUserId()
+  const patch: Record<string, unknown> = {
+    status: input.status,
+    atualizado_em: new Date().toISOString(),
+  }
 
-  detalhe.status = input.status
   if (input.status === 'ajuizado') {
-    detalhe.numeroProcesso = input.numeroProcesso?.trim() || detalhe.numeroProcesso
-    detalhe.dataProtocolo = input.dataProtocolo || detalhe.dataProtocolo
-    detalhe.valorCausa = input.valorCausa ?? detalhe.valorCausa
-    detalhe.varaComarca = input.varaComarca?.trim() || detalhe.varaComarca
+    if (input.numeroProcesso !== undefined) patch.numero_processo = input.numeroProcesso?.trim() || null
+    if (input.dataProtocolo !== undefined) patch.data_protocolo = input.dataProtocolo
+    if (input.valorCausa !== undefined) patch.valor_causa = input.valorCausa
+    if (input.varaComarca !== undefined) patch.vara_comarca = input.varaComarca?.trim() || null
   }
   if (input.status === 'encerrado') {
-    detalhe.desfecho = input.desfecho ?? detalhe.desfecho
-    detalhe.valorRecuperado = input.valorRecuperado ?? detalhe.valorRecuperado
+    if (input.desfecho !== undefined) patch.desfecho = input.desfecho
+    if (input.valorRecuperado !== undefined) patch.valor_recuperado = input.valorRecuperado
   }
 
-  const observacao = input.observacao?.trim() || null
-  const andamento = novoAndamento({
+  const { error } = await supabase.from('casos').update(patch).eq('id', casoId)
+  if (error) throw error
+
+  await supabase.from('andamentos').insert({
+    id: `and-${crypto.randomUUID()}`,
+    caso_id: casoId,
     tipo: 'status',
     titulo: `Status alterado para ${STATUS_CASO_ROTULO[input.status]}`,
-    descricao: observacao,
+    descricao: input.observacao?.trim() || null,
     data: input.dataMudanca,
-    anexo: null,
-    acao: null,
+    autor_id: userId,
     automatico: true,
   })
-  detalhe.andamentos.unshift(andamento)
-  sincronizarLista(detalhe)
+
+  const detalhe = await obterCaso(casoId)
 
   if (input.status === 'ajuizado' || input.status === 'encerrado') {
     const statusRotulo = STATUS_CASO_ROTULO[input.status]
@@ -785,33 +732,48 @@ export async function mudarStatus(casoId: string, input: MudarStatusInput): Prom
       },
       anexo: null,
       restritoASocios: false,
+      tipo: 'atualizacao',
     })
   }
 
-  return clonarCaso(detalhe) // TODO: conectar ao backend
+  return detalhe
 }
 
 export async function concluirPrazo(prazoId: string): Promise<Prazo> {
-  for (const detalhe of Object.values(detalhes)) {
-    const prazo = detalhe.prazos.find((item) => item.id === prazoId)
-    if (!prazo) continue
-    prazo.concluido = true
-    prazo.concluidoEm = new Date().toISOString()
-    detalhe.andamentos.unshift(
-      novoAndamento({
-        tipo: 'prazo',
-        titulo: `Prazo cumprido: ${prazo.titulo}`,
-        descricao: prazo.descricao,
-        data: new Date().toISOString().slice(0, 10),
-        anexo: null,
-        acao: null,
-        automatico: true,
-      }),
-    )
-    sincronizarLista(detalhe)
-    return { ...prazo } // TODO: conectar ao backend
-  }
-  throw new Error('Prazo não encontrado')
+  const userId = await getSessionUserId()
+  const { data: prazo, error: findError } = await supabase
+    .from('prazos')
+    .select('*')
+    .eq('id', prazoId)
+    .single()
+  if (findError) throw findError
+
+  const concluidoEm = new Date().toISOString()
+  const { data, error } = await supabase
+    .from('prazos')
+    .update({ concluido: true, concluido_em: concluidoEm })
+    .eq('id', prazoId)
+    .select('*')
+    .single()
+  if (error) throw error
+
+  await supabase.from('andamentos').insert({
+    id: `and-${crypto.randomUUID()}`,
+    caso_id: prazo.caso_id,
+    tipo: 'prazo',
+    titulo: `Prazo cumprido: ${prazo.titulo}`,
+    descricao: prazo.descricao,
+    data: new Date().toISOString().slice(0, 10),
+    autor_id: userId,
+    automatico: true,
+  })
+
+  await supabase
+    .from('casos')
+    .update({ atualizado_em: new Date().toISOString() })
+    .eq('id', prazo.caso_id)
+
+  return mapPrazo(data as PrazoRow)
 }
 
 export async function anexarDocumento(
@@ -819,11 +781,25 @@ export async function anexarDocumento(
   chave: DocumentoChave,
   arquivo: File,
 ): Promise<DocumentoCaso> {
-  const detalhe = garantirDetalhe(casoId)
-  if (!detalhe) throw new Error('Caso não encontrado')
-  const doc = detalhe.documentos.find((item) => item.chave === chave)
-  if (!doc) throw new Error('Documento não encontrado')
-  doc.arquivo = arquivoDeFile(arquivo)
-  sincronizarLista(detalhe)
-  return { ...doc, arquivo: doc.arquivo ? { ...doc.arquivo } : null } // TODO: conectar ao backend
+  const anexo = await uploadAnexoCaso(casoId, arquivo)
+  const { data, error } = await supabase
+    .from('documentos_caso')
+    .update({
+      arquivo_id: anexo.id,
+      arquivo_nome: anexo.nome,
+      arquivo_tamanho_bytes: anexo.tamanhoBytes,
+      arquivo_url: anexo.url,
+    })
+    .eq('caso_id', casoId)
+    .eq('chave', chave)
+    .select('*')
+    .single()
+  if (error) throw error
+
+  await supabase
+    .from('casos')
+    .update({ atualizado_em: new Date().toISOString() })
+    .eq('id', casoId)
+
+  return mapDocumento(data as DocRow)
 }

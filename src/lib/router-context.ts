@@ -2,7 +2,8 @@ import { createContext, useContext } from 'react'
 
 export type RouterContextValue = {
   pathname: string
-  navigate: (to: string) => void
+  search: string
+  navigate: (to: string, options?: { replace?: boolean }) => void
 }
 
 export const RouterContext = createContext<RouterContextValue | null>(null)

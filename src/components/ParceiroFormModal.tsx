@@ -11,6 +11,7 @@ import {
 } from 'react'
 import {
   atualizarParceiro,
+  carregarSociosParceria,
   criarParceiro,
   dataInputParaIso,
   formatarDataInput,
@@ -20,7 +21,6 @@ import {
   mascararTelefone,
   MODELO_COMISSAO_ROTULO,
   soDigitos,
-  socios,
   TIPO_ROTULO,
   usuarioAtualId,
   validarCnpj,
@@ -30,6 +30,7 @@ import {
   type ModeloComissao,
   type Parceiro,
   type ParceiroInput,
+  type SocioParceria,
   type TipoParceiro,
 } from '../lib/parcerias'
 
@@ -250,6 +251,18 @@ export function ParceiroFormModal({
   )
   const [salvando, setSalvando] = useState(false)
   const [erroSalvar, setErroSalvar] = useState(false)
+  const [socios, setSocios] = useState<SocioParceria[]>([])
+
+  useEffect(() => {
+    void carregarSociosParceria().then((lista) => {
+      setSocios(lista)
+      setForm((atual) =>
+        atual.responsavelId
+          ? atual
+          : { ...atual, responsavelId: usuarioAtualId || lista[0]?.id || '' },
+      )
+    })
+  }, [])
   const salvandoRef = useRef(false)
 
   const dirty = serializeForm(form) !== baseline

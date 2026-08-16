@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from 'react'
-import { persistSession } from '../lib/auth'
+import { signIn as signInWithSupabase } from '../lib/auth'
+import { loadCurrentUser } from '../lib/session'
+import { carregarEquipe, carregarUsuarioAtual } from '../lib/mural'
 
 const COLORS = {
   panelBg: '#132339',
@@ -38,9 +40,6 @@ const BRAND_NAME = 'VERUM'
 const BRAND_INITIAL = 'V'
 const AUTH_ERROR_MESSAGE = 'E-mail ou senha incorretos.'
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-const PROVISIONAL_EMAIL = 'admin@admin.com'
-const PROVISIONAL_PASSWORD = '1234'
-
 type SignInInput = {
   email: string
   password: string
@@ -64,13 +63,13 @@ type LoginFormState = {
   passwordInvalidated: boolean
 }
 
-function signIn(credentials: SignInInput): Promise<void> {
-  const accepted =
-    credentials.email.trim().toLowerCase() === PROVISIONAL_EMAIL &&
-    credentials.password === PROVISIONAL_PASSWORD
-  if (!accepted) return Promise.reject(new Error(AUTH_ERROR_MESSAGE))
-  persistSession(credentials.rememberMe)
-  return Promise.resolve() // TODO: conectar ao backend
+async function signIn(credentials: SignInInput): Promise<void> {
+  try {
+    await signInWithSupabase(credentials.email, credentials.password)
+    await Promise.all([loadCurrentUser(), carregarEquipe(), carregarUsuarioAtual()])
+  } catch {
+    throw new Error(AUTH_ERROR_MESSAGE)
+  }
 }
 
 function validateEmail(value: string): string {

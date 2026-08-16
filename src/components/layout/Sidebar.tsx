@@ -1,7 +1,7 @@
 import { useEffect, useId, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import { Link } from '../../lib/router'
 import { useRouter } from '../../lib/router-context'
-import { currentUser } from '../../lib/session'
+import { currentUser, loadCurrentUser, type SessionUser } from '../../lib/session'
 import { theme } from '../../theme'
 
 const NAV_ITEMS = [
@@ -115,15 +115,29 @@ const ICONS: Record<(typeof NAV_ITEMS)[number]['icon'], () => ReactNode> = {
   folders: IconFolders,
 }
 
-type SidebarProps = {
-  onSignOut: () => void
+export type SidebarNavItem = {
+  to: string
+  label: string
+  icon: () => ReactNode
 }
 
-export function Sidebar({ onSignOut }: SidebarProps) {
+type SidebarProps = {
+  onSignOut: () => void
+  extraItems?: SidebarNavItem[]
+}
+
+export function Sidebar({ onSignOut, extraItems = [] }: SidebarProps) {
   const { pathname } = useRouter()
   const [menuOpen, setMenuOpen] = useState(false)
+  const [user, setUser] = useState<SessionUser>(() => ({ ...currentUser }))
   const footerRef = useRef<HTMLDivElement>(null)
   const menuId = useId()
+
+  useEffect(() => {
+    void loadCurrentUser()
+      .then(setUser)
+      .catch(() => setUser({ ...currentUser }))
+  }, [])
 
   useEffect(() => {
     if (!menuOpen) return
@@ -189,6 +203,23 @@ export function Sidebar({ onSignOut }: SidebarProps) {
               </Link>
             )
           })}
+          {extraItems.map((item) => {
+            const Icon = item.icon
+            const active = isActivePath(pathname, item.to)
+            return (
+              <Link
+                key={item.to}
+                to={item.to}
+                className={active ? 'sidebar-link is-active' : 'sidebar-link'}
+                aria-current={active ? 'page' : undefined}
+                aria-label={item.label}
+                title={item.label}
+              >
+                <Icon />
+                <span className="sidebar-link-label">{item.label}</span>
+              </Link>
+            )
+          })}
         </nav>
       </div>
 
@@ -202,10 +233,10 @@ export function Sidebar({ onSignOut }: SidebarProps) {
           aria-controls={menuId}
           onClick={() => setMenuOpen((open) => !open)}
         >
-          <span className="sidebar-avatar">{currentUser.initials}</span>
+          <span className="sidebar-avatar">{user.initials}</span>
           <span className="sidebar-user-copy">
-            <span className="sidebar-user-name">{currentUser.fullName}</span>
-            <span className="sidebar-user-role">{currentUser.role}</span>
+            <span className="sidebar-user-name">{user.fullName}</span>
+            <span className="sidebar-user-role">{user.role}</span>
           </span>
         </button>
         {menuOpen ? (

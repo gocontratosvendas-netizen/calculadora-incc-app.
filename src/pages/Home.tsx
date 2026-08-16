@@ -17,10 +17,10 @@ import {
   equipe,
   excluirComentario,
   excluirPost,
+  listarItensAtencao,
+  listarMarcacoesNaoLidas,
   listarPosts,
   marcarMencoesComoLidas,
-  obterItensAtencao,
-  obterMarcacoesNaoLidas,
   primeiroNome,
   publicarPost,
   rotuloMencao,
@@ -606,8 +606,12 @@ export default function Home() {
     getDashboardSummary()
       .then(setSummary)
       .catch(() => setSummary(EMPTY_SUMMARY))
-    setMarcacoes(obterMarcacoesNaoLidas())
-    setAtencao(obterItensAtencao())
+    listarMarcacoesNaoLidas()
+      .then(setMarcacoes)
+      .catch(() => setMarcacoes([]))
+    listarItensAtencao()
+      .then(setAtencao)
+      .catch(() => setAtencao([]))
     listarCasos()
       .then(setCasos)
       .catch(() => setCasos([]))
@@ -903,7 +907,9 @@ export default function Home() {
       setConfirmando(null)
       try {
         await excluirPost(alvo.postId)
-        setMarcacoes(obterMarcacoesNaoLidas())
+        listarMarcacoesNaoLidas()
+          .then(setMarcacoes)
+          .catch(() => setMarcacoes([]))
       } catch {
         setPosts((atual) => {
           if (atual.some((item) => item.id === removido.id)) return atual
@@ -952,7 +958,8 @@ export default function Home() {
     setFiltro('tudo')
     setScrollAlvo(marcacao.postId)
     await marcarMencoesComoLidas(marcacao.postId)
-    setMarcacoes(obterMarcacoesNaoLidas())
+    const restantes = await listarMarcacoesNaoLidas()
+    setMarcacoes(restantes)
   }
 
   useEffect(() => {

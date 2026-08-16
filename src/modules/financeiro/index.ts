@@ -1,0 +1,5 @@
+export { FinanceiroApp } from './ui/FinanceiroApp'
+export { financeiroNavItem } from './nav'
+export { podeAcessarFinanceiro, verificarAcessoFinanceiro } from './acesso'
+export type { ExtraNavItem } from './nav'
+export type { FinanceiroMountProps, FinanceiroSessao } from './types'

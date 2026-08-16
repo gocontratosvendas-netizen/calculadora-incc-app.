@@ -1,3 +1,5 @@
+import { supabase, uploadFile } from './supabase'
+
 export type Categoria = 'comercial' | 'juridico' | 'operacional'
 export type Formato = 'pdf' | 'docx' | 'xlsx'
 export type ThumbVariant =
@@ -51,88 +53,6 @@ const MIME: Record<Formato, string> = {
 
 const LIMITE_BYTES = 20 * 1024 * 1024
 
-function kb(valor: number) {
-  return valor * 1024
-}
-
-function urlPlaceholder(nome: string, formato: Formato) {
-  return URL.createObjectURL(new Blob([nome], { type: MIME[formato] }))
-}
-
-const acervo: Material[] = [
-  {
-    id: 'mat-001',
-    nome: 'Carta ao comprador',
-    descricao:
-      'Primeiro contato com o comprador de imóvel na planta. Explica a regra dos 36 meses e oferece a análise gratuita.',
-    categoria: 'comercial',
-    formato: 'docx',
-    thumb: 'carta',
-    tamanhoBytes: kb(48),
-    atualizadoEm: '2026-08-10T09:00:00-03:00',
-    url: urlPlaceholder('Carta ao comprador', 'docx'),
-  },
-  {
-    id: 'mat-002',
-    nome: 'Carta ao canal de originação',
-    descricao:
-      'Proposta de parceria para corretores, síndicos e assessorias. Use na primeira abordagem de um canal novo.',
-    categoria: 'comercial',
-    formato: 'docx',
-    thumb: 'carta-bloco',
-    tamanhoBytes: kb(46),
-    atualizadoEm: '2026-08-09T11:20:00-03:00',
-    url: urlPlaceholder('Carta ao canal de originação', 'docx'),
-  },
-  {
-    id: 'mat-003',
-    nome: 'ICP — Perfil de cliente ideal',
-    descricao: 'Critérios de aceite e recusa de casos. Consulte antes de aprovar um contrato na triagem.',
-    categoria: 'operacional',
-    formato: 'docx',
-    thumb: 'tabela',
-    tamanhoBytes: kb(52),
-    atualizadoEm: '2026-08-08T14:40:00-03:00',
-    url: urlPlaceholder('ICP — Perfil de cliente ideal', 'docx'),
-  },
-  {
-    id: 'mat-004',
-    nome: 'Cartão de qualificação',
-    descricao:
-      'Cinco perguntas para o parceiro qualificar um caso sem entender a tese. Entregue impresso na reunião.',
-    categoria: 'comercial',
-    formato: 'pdf',
-    thumb: 'checklist',
-    tamanhoBytes: kb(120),
-    atualizadoEm: '2026-08-07T16:15:00-03:00',
-    url: urlPlaceholder('Cartão de qualificação', 'pdf'),
-  },
-  {
-    id: 'mat-005',
-    nome: 'Pedido de memorial à incorporadora',
-    descricao:
-      'Modelo para o cliente solicitar o memorial de cálculo. Envie quando ele não localizar o documento.',
-    categoria: 'operacional',
-    formato: 'docx',
-    thumb: 'memorando',
-    tamanhoBytes: kb(32),
-    atualizadoEm: '2026-08-06T10:05:00-03:00',
-    url: urlPlaceholder('Pedido de memorial à incorporadora', 'docx'),
-  },
-  {
-    id: 'mat-006',
-    nome: 'Tese jurídica — resumo',
-    descricao:
-      'Fundamentos dos arts. 46 e 47 e precedentes do TJSP. Base para a inicial e para reunião com escritório.',
-    categoria: 'juridico',
-    formato: 'pdf',
-    thumb: 'relatorio',
-    tamanhoBytes: kb(210),
-    atualizadoEm: '2026-08-05T08:30:00-03:00',
-    url: urlPlaceholder('Tese jurídica — resumo', 'pdf'),
-  },
-]
-
 export function resolverThumb(valor: string | undefined): ThumbVariant {
   if (
     valor === 'carta' ||
@@ -184,39 +104,81 @@ export function nomeArquivo(material: Material) {
   return `${material.nome}.${material.formato}`
 }
 
+type MaterialRow = {
+  id: string
+  nome: string
+  descricao: string
+  categoria: Categoria
+  formato: Formato
+  thumb: ThumbVariant
+  tamanho_bytes: number
+  atualizado_em: string
+  url: string
+  storage_path: string | null
+}
+
+function mapMaterial(row: MaterialRow): Material {
+  return {
+    id: row.id,
+    nome: row.nome,
+    descricao: row.descricao,
+    categoria: row.categoria,
+    formato: row.formato,
+    thumb: row.thumb,
+    tamanhoBytes: Number(row.tamanho_bytes),
+    atualizadoEm: row.atualizado_em,
+    url: row.url,
+  }
+}
+
 export async function listarMateriais(): Promise<Material[]> {
-  await new Promise((resolve) => setTimeout(resolve, 400))
-  return acervo.map((item) => ({ ...item })) // TODO: conectar ao backend
+  const { data, error } = await supabase
+    .from('materiais')
+    .select('*')
+    .order('atualizado_em', { ascending: false })
+  if (error) throw error
+  return ((data ?? []) as MaterialRow[]).map(mapMaterial)
 }
 
 export async function criarMaterial(input: NovoMaterial): Promise<Material> {
   const formato = formatoDeArquivo(input.arquivo)
-  if (!formato) {
-    throw new Error('Formato inválido')
-  }
-  const criado: Material = {
-    id: crypto.randomUUID(),
-    nome: input.nome.trim(),
-    descricao: input.descricao.trim(),
-    categoria: input.categoria,
-    formato,
-    thumb: resolverThumb(input.thumb),
-    tamanhoBytes: input.arquivo.size,
-    atualizadoEm: new Date().toISOString(),
-    url: URL.createObjectURL(input.arquivo),
-  }
-  acervo.unshift(criado)
-  return { ...criado } // TODO: conectar ao backend
+  if (!formato) throw new Error('Formato inválido')
+
+  const id = crypto.randomUUID()
+  const path = `${id}/${input.arquivo.name}`
+  const uploaded = await uploadFile('materiais', path, input.arquivo)
+
+  const { data, error } = await supabase
+    .from('materiais')
+    .insert({
+      id,
+      nome: input.nome.trim(),
+      descricao: input.descricao.trim(),
+      categoria: input.categoria,
+      formato,
+      thumb: resolverThumb(input.thumb),
+      tamanho_bytes: input.arquivo.size,
+      url: uploaded.url,
+      storage_path: uploaded.path,
+      atualizado_em: new Date().toISOString(),
+    })
+    .select('*')
+    .single()
+  if (error) throw error
+  return mapMaterial(data as MaterialRow)
 }
 
 export async function excluirMaterial(id: string): Promise<void> {
-  const indice = acervo.findIndex((item) => item.id === id)
-  if (indice === -1) {
-    throw new Error('Material não encontrado')
+  const { data: existing } = await supabase
+    .from('materiais')
+    .select('storage_path')
+    .eq('id', id)
+    .maybeSingle()
+
+  const { error } = await supabase.from('materiais').delete().eq('id', id)
+  if (error) throw error
+
+  if (existing?.storage_path) {
+    await supabase.storage.from('materiais').remove([existing.storage_path])
   }
-  const [removido] = acervo.splice(indice, 1)
-  if (removido?.url.startsWith('blob:')) {
-    URL.revokeObjectURL(removido.url)
-  }
-  return // TODO: conectar ao backend
 }
