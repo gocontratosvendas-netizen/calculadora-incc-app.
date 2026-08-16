@@ -6,10 +6,10 @@ import Home from '../../pages/Home'
 import Materiais from '../../pages/Materiais'
 import Parcerias from '../../pages/Parcerias'
 import { useRouter } from '../../lib/router-context'
-import { currentUser, loadCurrentUser } from '../../lib/session'
 import { theme } from '../../theme'
-import { Sidebar, type SidebarNavItem } from './Sidebar'
-import { FinanceiroApp, financeiroNavItem, verificarAcessoFinanceiro } from '../../modules/financeiro'
+import { Sidebar } from './Sidebar'
+import { FinanceiroApp } from '../../modules/financeiro'
+import { ConfiguracoesApp, podeVerConfiguracoes } from '../../modules/configuracoes'
 import './layout.css'
 
 function casoIdDe(pathname: string): string | null {
@@ -27,24 +27,15 @@ export function AppShell({ onSignOut }: AppShellProps) {
   const { pathname } = useRouter()
   const isCalculator = pathname === '/calculadora'
   const casoId = casoIdDe(pathname)
-  const [finOk, setFinOk] = useState(() => currentUser.papel === 'socio')
+  const [showSettings, setShowSettings] = useState(false)
 
   useEffect(() => {
-    void loadCurrentUser()
-      .then((user) => {
-        if (user.papel === 'socio') setFinOk(true)
-      })
-      .catch(() => {})
-    void verificarAcessoFinanceiro().then((ok) => {
-      if (ok) setFinOk(true)
-    })
-  }, [])
-
-  const extraItems: SidebarNavItem[] = finOk ? [financeiroNavItem] : []
+    void podeVerConfiguracoes().then(setShowSettings)
+  }, [pathname])
 
   return (
     <div className="app-shell">
-      <Sidebar onSignOut={onSignOut} extraItems={extraItems} />
+      <Sidebar onSignOut={onSignOut} showSettings={showSettings} />
       <main
         className={isCalculator ? 'shell-main shell-main--calculator' : 'shell-main'}
         style={{ background: theme.contentBg }}
@@ -56,6 +47,7 @@ export function AppShell({ onSignOut }: AppShellProps) {
         {pathname === '/parcerias' ? <Parcerias /> : null}
         {pathname === '/materiais' ? <Materiais /> : null}
         {pathname === '/financeiro' || pathname.startsWith('/financeiro/') ? <FinanceiroApp /> : null}
+        {pathname === '/configuracoes' || pathname.startsWith('/configuracoes/') ? <ConfiguracoesApp /> : null}
       </main>
     </div>
   )

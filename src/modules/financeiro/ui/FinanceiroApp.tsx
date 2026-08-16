@@ -11,6 +11,7 @@ import {
   liquidarLancamento,
 } from '../data/repositorio'
 import { formInicial, valuesFromLancamento, type FormLancamentoValues } from '../formState'
+import { planoContasSeed } from '../engine/planoContas'
 import { periodoDeAtalho, parseFiltros, pathFinanceiro, type FiltrosFinanceiro } from '../filtros'
 import type { Classificacao, Lancamento, LancamentoInput, Regime } from '../types'
 import { DrePage } from './DrePage'
@@ -30,7 +31,7 @@ function FinanceiroInner() {
   const { pathname, search, navigate } = useRouter()
   const [acesso, setAcesso] = useState<boolean | null>(null)
   const [lancamentos, setLancamentos] = useState<Lancamento[]>([])
-  const [classificacoes, setClassificacoes] = useState<Classificacao[]>([])
+  const [classificacoes, setClassificacoes] = useState<Classificacao[]>(() => planoContasSeed())
   const [highlightId, setHighlightId] = useState<string | null>(null)
   const [tmpIds, setTmpIds] = useState<Set<string>>(new Set())
   const [salvando, setSalvando] = useState(false)
@@ -55,14 +56,13 @@ function FinanceiroInner() {
       if (cancelled) return
       setAcesso(ok)
       if (!ok) return
-      try {
-        const [ls, cs] = await Promise.all([listarLancamentos(), listarClassificacoes()])
-        if (cancelled) return
-        setLancamentos(ls)
-        setClassificacoes(cs)
-      } catch {
-        /* migration pode ainda não ter rodado */
-      }
+      const [ls, cs] = await Promise.all([
+        listarLancamentos().catch(() => [] as Lancamento[]),
+        listarClassificacoes(),
+      ])
+      if (cancelled) return
+      setLancamentos(ls)
+      setClassificacoes(cs)
     })()
     return () => {
       cancelled = true

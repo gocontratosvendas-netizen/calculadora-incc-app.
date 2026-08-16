@@ -1,4 +1,5 @@
 import { supabase } from '../../../lib/supabase'
+import { mesclarPlanoContas, planoContasSeed } from '../engine/planoContas'
 import type { Classificacao, GrupoDRE, Lancamento, LancamentoInput, Movimentacao } from '../types'
 
 export type RpcResult<T> =
@@ -68,8 +69,8 @@ export async function listarClassificacoes(): Promise<Classificacao[]> {
     .from('fin_classificacoes')
     .select('id, codigo, nome, movimentacao, grupo_dre, ordem, ativa, sistema')
     .order('ordem')
-  if (error) throw error
-  return ((data ?? []) as ClassificacaoRow[]).map(mapClassificacao)
+  if (error) return planoContasSeed()
+  return mesclarPlanoContas(((data ?? []) as ClassificacaoRow[]).map(mapClassificacao))
 }
 
 export async function listarLancamentos(): Promise<Lancamento[]> {

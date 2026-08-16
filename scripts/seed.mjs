@@ -135,12 +135,86 @@ async function wipe() {
   await admin.from('itens_atencao').delete().neq('id', '__never__')
 }
 
+async function seedPapeisEBootstrap() {
+  const { error: seedErr } = await admin.rpc('cfg_seed_papeis')
+  if (seedErr) console.warn('cfg_seed_papeis:', seedErr.message)
+  const appUrl = process.env.APP_URL || 'http://localhost:5173'
+  await admin.rpc('cfg_definir_app_url', { p_url: appUrl })
+  if (process.env.BOOTSTRAP_ONLY !== '1') return
+
+  const email = process.env.BOOTSTRAP_ADMIN_EMAIL
+  const nome = process.env.BOOTSTRAP_ADMIN_NOME || 'Sócio'
+  if (!email) {
+    console.warn('BOOTSTRAP_ONLY exige BOOTSTRAP_ADMIN_EMAIL.')
+    return
+  }
+  const { data, error } = await admin.rpc('cfg_bootstrap_socio', { p_email: email, p_nome: nome })
+  if (error) {
+    console.warn('bootstrap:', error.message)
+    return
+  }
+  if (data?.skipped) return
+  const { data: fila } = await admin.rpc('cfg_filhos_fila')
+  const link = fila?.itens?.[0]?.payload?.link
+  console.log('\n>>> Primeiro sócio criado (situação: convidado).')
+  console.log('>>> Defina a senha neste link:')
+  console.log(`>>> ${link || '(veja os logs do Postgres: CFG_INVITE_URL)'}\n`)
+}
+
+async function seedSociosDemo(ids) {
+  const { count } = await admin.from('cfg_socios').select('*', { count: 'exact', head: true })
+  if ((count ?? 0) > 0) return
+  const socios = [
+    {
+      dataEntrada: '2020-01-15',
+      usuarioId: ids.helena,
+      nomeCompleto: 'Helena Duarte',
+      cpf: '39053344705',
+      email: 'admin@admin.com',
+      participacao: 40,
+      aporteComprometido: 600000,
+      aporteIntegralizado: 600000,
+    },
+    {
+      usuarioId: ids.vitor,
+      nomeCompleto: 'Vitor P.',
+      cpf: '52998224725',
+      email: 'vitor@verum.adv.br',
+      participacao: 35,
+      aporteComprometido: 600000,
+      aporteIntegralizado: 400000,
+    },
+    {
+      usuarioId: ids.rafaela,
+      nomeCompleto: 'Rafaela Moura',
+      cpf: '15350946056',
+      email: 'rafaela@verum.adv.br',
+      participacao: 25,
+      aporteComprometido: 600000,
+      aporteIntegralizado: 600000,
+    },
+  ]
+  for (const s of socios) {
+    const { error } = await admin.rpc('cfg_criar_socio_seed', { payload: s })
+    if (error) console.warn('cfg_criar_socio_seed', s.email, error.message)
+  }
+}
+
 async function seed() {
+  console.log('Preparando papéis e bootstrap…')
+  await seedPapeisEBootstrap()
+  if (process.env.BOOTSTRAP_ONLY === '1') return
+
   console.log('Criando usuários…')
+  const ids = { ...IDS }
   for (const user of USERS) {
     const id = await ensureUser(user)
+    if (user.nome.startsWith('Helena')) ids.helena = id
+    if (user.nome.startsWith('Vitor')) ids.vitor = id
+    if (user.nome.startsWith('Rafaela')) ids.rafaela = id
     console.log(`  ✓ ${user.email} (${id})`)
   }
+  await seedSociosDemo(ids)
 
   console.log('Limpando dados de domínio…')
   await wipe()

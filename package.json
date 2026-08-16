@@ -15,7 +15,7 @@
     "db:status": "supabase status",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:coverage": "vitest run --coverage --coverage.include=src/modules/financeiro/engine/**/*.ts --coverage.exclude=src/modules/financeiro/engine/**/*.test.ts"
+  "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.112.3",

@@ -8,7 +8,7 @@ import { addDias, hojeISO, isAnoCivil, isMesCivil, isTrimestreCivil, periodoDoAn
 import { derivarStatus } from './derivarStatus'
 import { filtrarPorRegime } from './filtrarPorRegime'
 import { margem, montarLinhasDRE } from './montarLinhasDRE'
-import { classificacaoPorCodigo, planoContasSeed } from './planoContas'
+import { classificacaoPorCodigo, mesclarPlanoContas, planoContasSeed } from './planoContas'
 
 const CLASSIFS = planoContasSeed()
 
@@ -453,6 +453,19 @@ describe('ramos restantes da engine', () => {
     expect(isAnoCivil({ inicio: '2026-01-01', fim: '2026-11-30' })).toBe(false)
     expect(classificacaoPorCodigo(CLASSIFS, '3.01.001')?.nome).toBe('Cessão de crédito')
     expect(classificacaoPorCodigo(CLASSIFS, '99')).toBeUndefined()
+    const extra: Classificacao = {
+      id: '9.99.001',
+      codigo: '9.99.001',
+      nome: 'Aluguel excepcional',
+      movimentacao: 'saida',
+      grupoDRE: 'despesa_operacional',
+      ordem: 999,
+      ativa: true,
+      sistema: false,
+    }
+    const merged = mesclarPlanoContas([extra])
+    expect(merged.find((c) => c.codigo === '3.01.001')?.sistema).toBe(true)
+    expect(merged.find((c) => c.id === '9.99.001')?.nome).toBe('Aluguel excepcional')
     expect(
       filtrarPorRegime(
         [lancamento({ classificacaoId: '3.01.001', valor: 1, dataEmissao: '2026-01-01' })],

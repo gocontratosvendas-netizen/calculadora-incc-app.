@@ -1,4 +1,5 @@
 import { verificarAcessoRpc } from './data/repositorio'
+import { podeAcessar, usuarioAtual } from '../configuracoes/acesso'
 import type { FinanceiroSessao, PapelFinanceiro } from './types'
 
 export function podeAcessarFinanceiro(sessao: FinanceiroSessao): boolean {
@@ -15,6 +16,14 @@ let cacheAcesso: boolean | null = null
 
 export async function verificarAcessoFinanceiro(): Promise<boolean> {
   if (cacheAcesso === true) return true
+  const sessao = await usuarioAtual().catch(() => null)
+  if (sessao) {
+    const ok = await podeAcessar(sessao.id, 'financeiro.lancamentos', 'ler')
+    if (ok) {
+      cacheAcesso = true
+      return true
+    }
+  }
   const ok = await verificarAcessoRpc()
   if (ok) cacheAcesso = true
   return ok

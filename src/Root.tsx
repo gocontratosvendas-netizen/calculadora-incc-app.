@@ -7,9 +7,10 @@ import { loadCurrentUser } from './lib/session'
 import { carregarEquipe, carregarUsuarioAtual } from './lib/mural'
 import Escritorio from './pages/escritorio/Escritorio'
 import Login from './pages/Login'
+import { ConvitePage, RecuperarSenhaPage, RedefinirSenhaPage } from './modules/configuracoes'
 
-function isEscritorioPath(pathname: string) {
-  return pathname === '/escritorio' || pathname.startsWith('/escritorio/')
+function isPublicAuthPath(pathname: string) {
+  return pathname.startsWith('/convite/') || pathname === '/recuperar-senha' || pathname.startsWith('/redefinir-senha/')
 }
 
 function AppGate() {
@@ -46,8 +47,18 @@ function AppGate() {
     })
   }, [])
 
-  if (isEscritorioPath(pathname)) {
+  if (pathname === '/escritorio' || pathname.startsWith('/escritorio/')) {
     return <Escritorio />
+  }
+
+  if (isPublicAuthPath(pathname)) {
+    if (pathname.startsWith('/convite/')) {
+      return <ConvitePage token={decodeURIComponent(pathname.slice('/convite/'.length))} />
+    }
+    if (pathname.startsWith('/redefinir-senha/')) {
+      return <RedefinirSenhaPage token={decodeURIComponent(pathname.slice('/redefinir-senha/'.length))} />
+    }
+    return <RecuperarSenhaPage />
   }
 
   if (!ready && hasCachedSession()) {

@@ -5,11 +5,17 @@ export default defineConfig({
   plugins: [react()],
   test: {
     environment: 'node',
-    include: ['src/modules/financeiro/**/*.test.ts'],
+    include: [
+      'src/modules/financeiro/**/*.test.ts',
+      'src/modules/configuracoes/**/*.test.ts',
+    ],
     coverage: {
       provider: 'v8',
-      include: ['src/modules/financeiro/engine/**/*.ts'],
-      exclude: ['src/modules/financeiro/engine/**/*.test.ts'],
+      include: [
+        'src/modules/financeiro/engine/**/*.ts',
+        'src/modules/configuracoes/autorizacao/**/*.ts',
+      ],
+      exclude: ['**/*.test.ts'],
       thresholds: {
         lines: 90,
         functions: 90,

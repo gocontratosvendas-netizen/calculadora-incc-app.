@@ -32,6 +32,13 @@ export function planoContasSeed(): Classificacao[] {
   return SEED.map((c) => ({ ...c, ativa: true, sistema: true }))
 }
 
+/** Contas de sistema sempre presentes; extras persistidas (não-sistema) entram por id. */
+export function mesclarPlanoContas(persistidas: Classificacao[]): Classificacao[] {
+  const byId = new Map(planoContasSeed().map((c) => [c.id, c]))
+  for (const c of persistidas) byId.set(c.id, c)
+  return [...byId.values()].sort((a, b) => a.ordem - b.ordem || a.codigo.localeCompare(b.codigo))
+}
+
 export function classificacaoPorCodigo(
   classificacoes: Classificacao[],
   codigo: string,

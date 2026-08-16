@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState, type CSSProperties, type ReactNode } from 'react'
+import { useEffect, useState, type CSSProperties, type ReactNode } from 'react'
 import { Link } from '../../lib/router'
 import { useRouter } from '../../lib/router-context'
 import { currentUser, loadCurrentUser, type SessionUser } from '../../lib/session'
@@ -10,6 +10,7 @@ const NAV_ITEMS = [
   { to: '/casos', label: 'Casos', icon: 'briefcase' },
   { to: '/parcerias', label: 'Parcerias', icon: 'handshake' },
   { to: '/materiais', label: 'Documentos', icon: 'folders' },
+  { to: '/financeiro', label: 'Financeiro', icon: 'chart' },
 ] as const
 
 function isActivePath(pathname: string, to: string) {
@@ -107,58 +108,61 @@ function IconFolders() {
   )
 }
 
+function IconChart() {
+  return (
+    <svg viewBox="0 0 16 16" fill="none" aria-hidden="true">
+      <path d="M2.5 12.5V6.5M6.25 12.5V3.5M10 12.5V8M13.5 12.5V5.25" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+      <path d="M2 13.25h12" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+    </svg>
+  )
+}
+
 const ICONS: Record<(typeof NAV_ITEMS)[number]['icon'], () => ReactNode> = {
   home: IconHome,
   calculator: IconCalculator,
   briefcase: IconBriefcase,
   handshake: IconHandshake,
   folders: IconFolders,
+  chart: IconChart,
 }
 
-export type SidebarNavItem = {
-  to: string
-  label: string
-  icon: () => ReactNode
+function IconSettings() {
+  return (
+    <svg viewBox="0 0 16 16" fill="none" aria-hidden="true">
+      <circle cx="8" cy="8" r="2.1" stroke="currentColor" strokeWidth="1.2" />
+      <path
+        d="M8 1.7v1.4M8 12.9v1.4M1.7 8h1.4M12.9 8h1.4M3.4 3.4l1 1M11.6 11.6l1 1M3.4 12.6l1-1M11.6 4.4l1-1"
+        stroke="currentColor"
+        strokeWidth="1.2"
+        strokeLinecap="round"
+      />
+    </svg>
+  )
+}
+
+function IconLogout() {
+  return (
+    <svg viewBox="0 0 16 16" fill="none" aria-hidden="true">
+      <path d="M6 3H3.6A1.1 1.1 0 0 0 2.5 4.1v7.8A1.1 1.1 0 0 0 3.6 13H6M7 8h6.2M10.7 5.5 13.5 8l-2.8 2.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+    </svg>
+  )
 }
 
 type SidebarProps = {
   onSignOut: () => void
-  extraItems?: SidebarNavItem[]
+  showSettings?: boolean
 }
 
-export function Sidebar({ onSignOut, extraItems = [] }: SidebarProps) {
+export function Sidebar({ onSignOut, showSettings = false }: SidebarProps) {
   const { pathname } = useRouter()
-  const [menuOpen, setMenuOpen] = useState(false)
   const [user, setUser] = useState<SessionUser>(() => ({ ...currentUser }))
-  const footerRef = useRef<HTMLDivElement>(null)
-  const menuId = useId()
+  const settingsActive = isActivePath(pathname, '/configuracoes')
 
   useEffect(() => {
     void loadCurrentUser()
       .then(setUser)
       .catch(() => setUser({ ...currentUser }))
   }, [])
-
-  useEffect(() => {
-    if (!menuOpen) return
-
-    function handlePointerDown(event: MouseEvent) {
-      if (!footerRef.current?.contains(event.target as Node)) {
-        setMenuOpen(false)
-      }
-    }
-
-    function handleKeyDown(event: KeyboardEvent) {
-      if (event.key === 'Escape') setMenuOpen(false)
-    }
-
-    document.addEventListener('mousedown', handlePointerDown)
-    document.addEventListener('keydown', handleKeyDown)
-    return () => {
-      document.removeEventListener('mousedown', handlePointerDown)
-      document.removeEventListener('keydown', handleKeyDown)
-    }
-  }, [menuOpen])
 
   const sidebarVars = {
     '--theme-gold': theme.gold,
@@ -203,63 +207,36 @@ export function Sidebar({ onSignOut, extraItems = [] }: SidebarProps) {
               </Link>
             )
           })}
-          {extraItems.map((item) => {
-            const Icon = item.icon
-            const active = isActivePath(pathname, item.to)
-            return (
-              <Link
-                key={item.to}
-                to={item.to}
-                className={active ? 'sidebar-link is-active' : 'sidebar-link'}
-                aria-current={active ? 'page' : undefined}
-                aria-label={item.label}
-                title={item.label}
-              >
-                <Icon />
-                <span className="sidebar-link-label">{item.label}</span>
-              </Link>
-            )
-          })}
         </nav>
       </div>
 
-      <div className="sidebar-footer" ref={footerRef}>
+      <div className="sidebar-footer">
         <hr className="sidebar-footer-rule" />
-        <button
-          type="button"
-          className="sidebar-user"
-          aria-expanded={menuOpen}
-          aria-haspopup="menu"
-          aria-controls={menuId}
-          onClick={() => setMenuOpen((open) => !open)}
-        >
+        <nav className="sidebar-nav" aria-label="Conta">
+          {showSettings ? (
+            <Link
+              to="/configuracoes"
+              className={settingsActive ? 'sidebar-link is-active' : 'sidebar-link'}
+              aria-current={settingsActive ? 'page' : undefined}
+              aria-label="Configurações"
+              title="Configurações"
+            >
+              <IconSettings />
+              <span className="sidebar-link-label">Configurações</span>
+            </Link>
+          ) : null}
+          <button type="button" className="sidebar-link" onClick={onSignOut} aria-label="Sair" title="Sair">
+            <IconLogout />
+            <span className="sidebar-link-label">Sair</span>
+          </button>
+        </nav>
+        <div className="sidebar-user" style={{ marginTop: 12, cursor: 'default' }}>
           <span className="sidebar-avatar">{user.initials}</span>
           <span className="sidebar-user-copy">
             <span className="sidebar-user-name">{user.fullName}</span>
             <span className="sidebar-user-role">{user.role}</span>
           </span>
-        </button>
-        {menuOpen ? (
-          <div className="sidebar-menu" id={menuId} role="menu">
-            <Link
-              to="/configuracoes"
-              role="menuitem"
-              onClick={() => setMenuOpen(false)}
-            >
-              Configurações
-            </Link>
-            <button
-              type="button"
-              role="menuitem"
-              onClick={() => {
-                setMenuOpen(false)
-                onSignOut()
-              }}
-            >
-              Sair
-            </button>
-          </div>
-        ) : null}
+        </div>
       </div>
     </aside>
   )

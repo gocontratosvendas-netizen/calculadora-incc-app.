@@ -4,6 +4,7 @@ import { validarLancamentoInput, type ErrosLancamento } from '../data/schemas'
 import { derivarStatus } from '../engine/derivarStatus'
 import { formatarDataTabela, formatarMoedaContabil } from '../format'
 import type { Classificacao, Lancamento, LancamentoInput, Movimentacao, SortCampo } from '../types'
+import { OpcoesClassificacao } from './OpcoesClassificacao'
 
 type Props = {
   lancamentos: Lancamento[]
@@ -202,13 +203,12 @@ export function TabelaLancamentos({
                             value={edicao.classificacaoId}
                             onChange={(e) => setEdicao({ ...edicao, classificacaoId: e.target.value })}
                           >
-                            {classificacoes
-                              .filter((c) => c.movimentacao === edicao.movimentacao && (c.ativa || c.id === edicao.classificacaoId))
-                              .map((c) => (
-                                <option key={c.id} value={c.id}>
-                                  {c.codigo} — {c.nome}
-                                </option>
-                              ))}
+                            <OpcoesClassificacao
+                              classificacoes={classificacoes}
+                              movimentacao={edicao.movimentacao}
+                              incluirId={edicao.classificacaoId}
+                              placeholder=""
+                            />
                           </select>
                         </td>
                         <td className="is-num">

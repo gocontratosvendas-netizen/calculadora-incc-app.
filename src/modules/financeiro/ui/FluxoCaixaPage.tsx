@@ -129,136 +129,190 @@ export function FluxoCaixaPage({
         onRetry={onRetry}
       />
 
-      <div className="fin-filters">
-        {(
-          [
-            ['mes', 'Este mês'],
-            ['mes_anterior', 'Mês anterior'],
-            ['trimestre', 'Trimestre'],
-            ['ano', 'Ano'],
-            ['personalizado', 'Personalizado'],
-          ] as const
-        ).map(([id, rotulo]) => (
-          <button
-            key={id}
-            type="button"
-            className={`fin-chip ${filtros.atalho === id ? 'is-active' : ''}`}
-            onClick={() => atalho(id)}
-          >
-            {rotulo}
-          </button>
-        ))}
-        {filtros.atalho === 'personalizado' ? (
-          <>
-            <input
-              type="date"
-              className="fin-input"
-              value={filtros.periodo.inicio}
-              onChange={(e) =>
-                onFiltros({ periodo: { ...filtros.periodo, inicio: e.target.value }, pagina: 1 })
-              }
-            />
-            <input
-              type="date"
-              className="fin-input"
-              value={filtros.periodo.fim}
-              onChange={(e) =>
-                onFiltros({ periodo: { ...filtros.periodo, fim: e.target.value }, pagina: 1 })
-              }
-            />
-          </>
-        ) : null}
-        <select
-          className="fin-select"
-          value={filtros.movimentacao}
-          onChange={(e) =>
-            onFiltros({
-              movimentacao: e.target.value as FiltrosFinanceiro['movimentacao'],
-              pagina: 1,
-            })
-          }
-        >
-          <option value="todas">Todas</option>
-          <option value="entrada">Entradas</option>
-          <option value="saida">Saídas</option>
-        </select>
-        <div className="fin-cls-menu">
-          <button type="button" className="fin-chip" onClick={() => setClsOpen((o) => !o)}>
-            Classificação
-            {filtros.classificacaoIds.length ? ` (${filtros.classificacaoIds.length})` : ''}
-          </button>
-          {clsOpen ? (
-            <div className="fin-cls-dropdown">
-              {classificacoes.map((c) => (
-                <label key={c.id}>
-                  <input
-                    type="checkbox"
-                    checked={filtros.classificacaoIds.includes(c.id)}
-                    onChange={() => {
-                      const set = new Set(filtros.classificacaoIds)
-                      if (set.has(c.id)) set.delete(c.id)
-                      else set.add(c.id)
-                      onFiltros({ classificacaoIds: [...set], pagina: 1 })
-                    }}
-                  />
-                  {c.codigo} {c.nome}
-                </label>
-              ))}
+      <section className="fin-ledger" aria-label="Lançamentos do período">
+        <header className="fin-ledger-head">
+          <div>
+            <h2>Lançamentos</h2>
+            <p>
+              {filtrados.length === 0
+                ? 'Nenhum no recorte atual'
+                : `${filtrados.length} ${filtrados.length === 1 ? 'lançamento' : 'lançamentos'} no período`}
+            </p>
+          </div>
+          <div className="fin-ledger-exports">
+            <button
+              type="button"
+              className="fin-btn fin-btn--secondary"
+              onClick={() => exportarLancamentosCsv(filtrados, classificacoes)}
+            >
+              CSV
+            </button>
+            <button
+              type="button"
+              className="fin-btn fin-btn--secondary"
+              onClick={() => exportarLancamentosXlsx(filtrados, classificacoes)}
+            >
+              XLSX
+            </button>
+            <button type="button" className="fin-btn fin-btn--secondary" onClick={() => setImportOpen(true)}>
+              Importar
+            </button>
+          </div>
+        </header>
+
+        <div className="fin-ledger-period">
+          <span className="fin-ledger-label">Período</span>
+          <div className="fin-period-toggle" role="group" aria-label="Atalho de período">
+            {(
+              [
+                ['mes', 'Este mês'],
+                ['mes_anterior', 'Mês anterior'],
+                ['trimestre', 'Trimestre'],
+                ['ano', 'Ano'],
+                ['personalizado', 'Personalizado'],
+              ] as const
+            ).map(([id, rotulo]) => (
+              <button
+                key={id}
+                type="button"
+                className={filtros.atalho === id ? 'is-active' : ''}
+                onClick={() => atalho(id)}
+              >
+                {rotulo}
+              </button>
+            ))}
+          </div>
+          {filtros.atalho === 'personalizado' ? (
+            <div className="fin-ledger-dates">
+              <input
+                type="date"
+                className="fin-input"
+                aria-label="Início"
+                value={filtros.periodo.inicio}
+                onChange={(e) =>
+                  onFiltros({ periodo: { ...filtros.periodo, inicio: e.target.value }, pagina: 1 })
+                }
+              />
+              <span className="fin-ledger-dates-sep">a</span>
+              <input
+                type="date"
+                className="fin-input"
+                aria-label="Fim"
+                value={filtros.periodo.fim}
+                onChange={(e) =>
+                  onFiltros({ periodo: { ...filtros.periodo, fim: e.target.value }, pagina: 1 })
+                }
+              />
             </div>
           ) : null}
         </div>
-        <select
-          className="fin-select"
-          value={filtros.status}
-          onChange={(e) =>
-            onFiltros({ status: e.target.value as FiltrosFinanceiro['status'], pagina: 1 })
-          }
-        >
-          <option value="todos">Todos os status</option>
-          <option value="pago">Pago</option>
-          <option value="pendente">Pendente</option>
-          <option value="atrasado">Atrasado</option>
-        </select>
-        <input
-          className="fin-input"
-          placeholder="Buscar histórico"
-          value={filtros.busca}
-          onChange={(e) => onFiltros({ busca: e.target.value, pagina: 1 })}
-        />
-        <button type="button" className="fin-btn fin-btn--secondary" onClick={() => exportarLancamentosCsv(filtrados, classificacoes)}>
-          CSV
-        </button>
-        <button type="button" className="fin-btn fin-btn--secondary" onClick={() => exportarLancamentosXlsx(filtrados, classificacoes)}>
-          XLSX
-        </button>
-        <button type="button" className="fin-btn fin-btn--secondary" onClick={() => setImportOpen(true)}>
-          Importar
-        </button>
-      </div>
 
-      <TabelaLancamentos
-        lancamentos={paginaItens}
-        classificacoes={classificacoes}
-        hoje={hoje}
-        ord={filtros.ord}
-        dir={filtros.dir}
-        pagina={filtros.pagina}
-        total={filtrados.length}
-        pageSize={PAGE}
-        highlightId={highlightId}
-        tmpIds={tmpIds}
-        onSort={(campo) =>
-          onFiltros({
-            ord: campo,
-            dir: filtros.ord === campo && filtros.dir === 'desc' ? 'asc' : 'desc',
-          })
-        }
-        onPagina={(p) => onFiltros({ pagina: p })}
-        onSalvarEdicao={onEditar}
-        onLiquidar={onLiquidar}
-        onDuplicar={onDuplicar}
-        onExcluir={(l) => onExcluir(l.id)}
-      />
+        <div className="fin-ledger-filters">
+          <label className="fin-ledger-field">
+            <span className="fin-ledger-label">Movimentação</span>
+            <select
+              className="fin-select"
+              value={filtros.movimentacao}
+              onChange={(e) =>
+                onFiltros({
+                  movimentacao: e.target.value as FiltrosFinanceiro['movimentacao'],
+                  pagina: 1,
+                })
+              }
+            >
+              <option value="todas">Todas</option>
+              <option value="entrada">Entradas</option>
+              <option value="saida">Saídas</option>
+            </select>
+          </label>
+
+          <div className="fin-ledger-field fin-cls-menu">
+            <span className="fin-ledger-label" id="fin-cls-filtro">
+              Classificação
+            </span>
+            <button
+              type="button"
+              className="fin-select fin-cls-trigger"
+              aria-labelledby="fin-cls-filtro"
+              aria-expanded={clsOpen}
+              onClick={() => setClsOpen((o) => !o)}
+            >
+              {filtros.classificacaoIds.length
+                ? `${filtros.classificacaoIds.length} selecionada${filtros.classificacaoIds.length > 1 ? 's' : ''}`
+                : 'Todas'}
+            </button>
+            {clsOpen ? (
+              <div className="fin-cls-dropdown">
+                {classificacoes.map((c) => (
+                  <label key={c.id}>
+                    <input
+                      type="checkbox"
+                      checked={filtros.classificacaoIds.includes(c.id)}
+                      onChange={() => {
+                        const set = new Set(filtros.classificacaoIds)
+                        if (set.has(c.id)) set.delete(c.id)
+                        else set.add(c.id)
+                        onFiltros({ classificacaoIds: [...set], pagina: 1 })
+                      }}
+                    />
+                    {c.codigo} {c.nome}
+                  </label>
+                ))}
+              </div>
+            ) : null}
+          </div>
+
+          <label className="fin-ledger-field">
+            <span className="fin-ledger-label">Status</span>
+            <select
+              className="fin-select"
+              value={filtros.status}
+              onChange={(e) =>
+                onFiltros({ status: e.target.value as FiltrosFinanceiro['status'], pagina: 1 })
+              }
+            >
+              <option value="todos">Todos</option>
+              <option value="pago">Pago</option>
+              <option value="pendente">Pendente</option>
+              <option value="atrasado">Atrasado</option>
+            </select>
+          </label>
+
+          <label className="fin-ledger-field fin-ledger-search">
+            <span className="fin-ledger-label">Buscar</span>
+            <input
+              className="fin-input"
+              placeholder="Histórico do lançamento"
+              value={filtros.busca}
+              onChange={(e) => onFiltros({ busca: e.target.value, pagina: 1 })}
+            />
+          </label>
+        </div>
+
+        <TabelaLancamentos
+          lancamentos={paginaItens}
+          classificacoes={classificacoes}
+          hoje={hoje}
+          ord={filtros.ord}
+          dir={filtros.dir}
+          pagina={filtros.pagina}
+          total={filtrados.length}
+          pageSize={PAGE}
+          highlightId={highlightId}
+          tmpIds={tmpIds}
+          onSort={(campo) =>
+            onFiltros({
+              ord: campo,
+              dir: filtros.ord === campo && filtros.dir === 'desc' ? 'asc' : 'desc',
+            })
+          }
+          onPagina={(p) => onFiltros({ pagina: p })}
+          onSalvarEdicao={onEditar}
+          onLiquidar={onLiquidar}
+          onDuplicar={onDuplicar}
+          onExcluir={(l) => onExcluir(l.id)}
+        />
+      </section>
 
       <ImportCsvModal
         open={importOpen}
