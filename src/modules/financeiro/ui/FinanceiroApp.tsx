@@ -58,7 +58,7 @@ function FinanceiroInner() {
       if (!ok) return
       const [ls, cs] = await Promise.all([
         listarLancamentos().catch(() => [] as Lancamento[]),
-        listarClassificacoes(),
+        listarClassificacoes().catch(() => planoContasSeed()),
       ])
       if (cancelled) return
       setLancamentos(ls)

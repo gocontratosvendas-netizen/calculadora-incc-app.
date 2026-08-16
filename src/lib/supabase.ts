@@ -1,21 +1,14 @@
-import { createClient } from '@supabase/supabase-js'
+import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 
-const url = import.meta.env.VITE_SUPABASE_URL
-const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
-
-if (!url || !anonKey) {
-  throw new Error(
-    'Configure VITE_SUPABASE_URL e VITE_SUPABASE_ANON_KEY no .env.local (veja .env.example).',
-  )
+function env(name: string): string {
+  const value = import.meta.env[name]
+  return typeof value === 'string' ? value.trim() : ''
 }
 
-export const supabase = createClient(url, anonKey, {
-  auth: {
-    persistSession: true,
-    autoRefreshToken: true,
-    detectSessionInUrl: true,
-  },
-})
+const url = env('VITE_SUPABASE_URL')
+const anonKey = env('VITE_SUPABASE_ANON_KEY')
+
+export const isSupabaseConfigured = Boolean(url && anonKey)
 
 export type Profile = {
   id: string
@@ -24,7 +17,45 @@ export type Profile = {
   papel: 'socio' | 'advogado'
 }
 
+export const DEMO_PROFILE: Profile = {
+  id: 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
+  nome: 'Helena Duarte',
+  iniciais: 'HD',
+  papel: 'socio',
+}
+
+const DEMO_PROFILES: Profile[] = [
+  DEMO_PROFILE,
+  { id: 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', nome: 'Vitor P.', iniciais: 'VP', papel: 'socio' },
+  { id: 'cccccccc-cccc-cccc-cccc-cccccccccccc', nome: 'Rafaela Moura', iniciais: 'RM', papel: 'socio' },
+  { id: 'dddddddd-dddd-dddd-dddd-dddddddddddd', nome: 'Lucas Ferreira', iniciais: 'LF', papel: 'advogado' },
+  { id: 'eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee', nome: 'Camila Barros', iniciais: 'CB', papel: 'advogado' },
+  { id: 'ffffffff-ffff-ffff-ffff-ffffffffffff', nome: 'Paulo Mendes', iniciais: 'PM', papel: 'advogado' },
+]
+
+const PLACEHOLDER_JWT =
+  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0'
+
+function fetchDisabled(): Promise<Response> {
+  return Promise.resolve(
+    new Response(JSON.stringify({ message: 'Supabase não configurado neste ambiente.', code: 'UNCONFIGURED' }), {
+      status: 503,
+      headers: { 'Content-Type': 'application/json' },
+    }),
+  )
+}
+
+export const supabase: SupabaseClient = createClient(url || 'https://localhost', anonKey || PLACEHOLDER_JWT, {
+  auth: {
+    persistSession: isSupabaseConfigured,
+    autoRefreshToken: isSupabaseConfigured,
+    detectSessionInUrl: isSupabaseConfigured,
+  },
+  global: isSupabaseConfigured ? {} : { fetch: fetchDisabled },
+})
+
 export async function getSessionUserId(): Promise<string> {
+  if (!isSupabaseConfigured) return DEMO_PROFILE.id
   const { data, error } = await supabase.auth.getSession()
   if (error) throw error
   const id = data.session?.user?.id
@@ -33,6 +64,9 @@ export async function getSessionUserId(): Promise<string> {
 }
 
 export async function getProfile(userId?: string): Promise<Profile> {
+  if (!isSupabaseConfigured) {
+    return DEMO_PROFILES.find((p) => p.id === userId) ?? DEMO_PROFILE
+  }
   const id = userId ?? (await getSessionUserId())
   const { data, error } = await supabase
     .from('profiles')
@@ -44,6 +78,7 @@ export async function getProfile(userId?: string): Promise<Profile> {
 }
 
 export async function listProfiles(): Promise<Profile[]> {
+  if (!isSupabaseConfigured) return DEMO_PROFILES
   const { data, error } = await supabase
     .from('profiles')
     .select('id, nome, iniciais, papel')

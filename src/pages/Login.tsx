@@ -65,7 +65,7 @@ type LoginFormState = {
 
 async function signIn(credentials: SignInInput): Promise<void> {
   try {
-    await signInWithSupabase(credentials.email, credentials.password)
+    await signInWithSupabase(credentials.email, credentials.password, credentials.rememberMe)
     await Promise.all([loadCurrentUser(), carregarEquipe(), carregarUsuarioAtual()])
   } catch {
     throw new Error(AUTH_ERROR_MESSAGE)
