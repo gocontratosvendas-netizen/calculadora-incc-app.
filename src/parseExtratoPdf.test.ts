@@ -127,3 +127,70 @@ describe('parseExtratoFromRows — CivilWeb', () => {
     })
   })
 })
+
+const RELACAO_LINHAS = [
+  'Cliente: Henry Magnus Guarnieri Borgatto',
+  'Projeto: Boulevard Lapa',
+  'Bloco: Origens Data da Compra: 04/11/2013',
+  'Unidade: 74',
+  'S P Original Dt.Venc. Dt.Pagto Atualizado Atr. P.Rata Mora Desc.Adic. Pago Status',
+  '1 1 115.720,00 04/11/2013 08/11/2013 115.720,00 4 0 0 0 115.720,00 Pago',
+  '2 1 2.000,00 04/12/2013 02/12/2013 2.005,26 0 0 0 0 2.005,26 Pago',
+  '4 1 30.000,00 10/11/2014 13/05/2014 30.662,79 0 8,3 0 590,6 30.080,49 Pago',
+  '4 2 30.000,00 10/11/2015 27/02/2015 32.314,28 0 14,43 0 1.698,02 30.630,69 Pago',
+  '5 1 11.443,82 01/08/2016 21/05/2015 12.555,64 0 51,98 0 1.107,62 11.500,00 Pago',
+  '7 1 538,35 01/11/2016 08/11/2016 652,75 7 0,3 1,5 0 654,55 Pago',
+  '7 1 139.061,31 01/11/2016 15/12/2016 168.878,78 44 123,88 2.448,40 1.076,92 170.374,14 Pago',
+  '409.631,21 452.583,43 254,99 2.449,90 5.510,58 449.777,74',
+  'Relação Valores Pagos',
+]
+
+describe('parseExtratoFromRows — Relação Valores Pagos', () => {
+  it('extrai data da compra e lançamentos do Boulevard', () => {
+    const resultado = parseExtratoFromRows(rowsFromLines(RELACAO_LINHAS))
+
+    expect(resultado.dataAssinatura).toBe('2013-11-04')
+    expect(resultado.lancamentos).toHaveLength(7)
+  })
+
+  it('mapeia P.Rata + Mora em juros de mora e Desc. em descontos', () => {
+    const resultado = parseExtratoFromRows(rowsFromLines(RELACAO_LINHAS))
+
+    expect(
+      resultado.lancamentos.find((l) => l.dataPagamento === '2014-05-13'),
+    ).toMatchObject({
+      parcela: '4-1',
+      valorContratual: '30.000,00',
+      valorPago: '30.080,49',
+      jurosMora: '8,30',
+      descontos: '590,60',
+      taxasAdicionais: '0,00',
+    })
+
+    expect(
+      resultado.lancamentos.find((l) => l.dataPagamento === '2016-11-08'),
+    ).toMatchObject({
+      valorContratual: '538,35',
+      valorPago: '654,55',
+      jurosMora: '1,80',
+      descontos: '0,00',
+    })
+
+    expect(
+      resultado.lancamentos.find((l) => l.dataPagamento === '2016-12-15'),
+    ).toMatchObject({
+      valorContratual: '139.061,31',
+      valorPago: '170.374,14',
+      jurosMora: '2.572,28',
+      descontos: '1.076,92',
+    })
+  })
+
+  it('ignora totalizador e não confunde com CivilWeb', () => {
+    const resultado = parseExtratoFromRows(rowsFromLines(RELACAO_LINHAS))
+    expect(resultado.lancamentos.some((l) => l.valorPago === '449.777,74')).toBe(false)
+    expect(resultado.lancamentos.every((l) => l.jurosMora !== '0,00' || l.descontos !== '590,60')).toBe(
+      true,
+    )
+  })
+})

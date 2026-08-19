@@ -165,7 +165,7 @@ function App() {
       const resultado = await parseExtratoFinanceiroPdf(file)
       if (!resultado.lancamentos.length) {
         setMensagemImportacao(
-          'Não encontrei lançamentos neste PDF. Confira se é um Extrato Financeiro/Extrato de Cliente ou uma Posição Financeira da incorporadora.',
+          'Não encontrei lançamentos neste PDF. Confira se é um Extrato Financeiro, Posição Financeira ou Relação Valores Pagos da incorporadora.',
         )
         return
       }
@@ -587,7 +587,7 @@ function App() {
                   <div className="import-copy">
                     <p className="import-title">Importar PDF do extrato</p>
                     <p className="import-hint">
-                      Arraste o extrato financeiro ou a posição financeira da incorporadora.
+                      Arraste o extrato financeiro, a posição financeira ou a relação de valores pagos da incorporadora.
                       Os lançamentos são preenchidos automaticamente.
                     </p>
                   </div>

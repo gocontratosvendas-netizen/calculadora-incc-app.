@@ -54,6 +54,39 @@ function isMoney(token: string) {
   return /^-?\d{1,3}(?:\.\d{3})*,\d{2}$/.test(normalizeMoneyToken(token))
 }
 
+/** Aceita valores com 1 ou 2 casas decimais (ex.: 8,3 e 590,6 no Boulevard). */
+function isFlexibleMoney(token: string) {
+  const t = normalizeMoneyToken(token)
+  return /^-?\d{1,3}(?:\.\d{3})*,\d{1,2}$/.test(t)
+}
+
+function normalizeFlexibleMoney(token: string): string | null {
+  const t = normalizeMoneyToken(token)
+  if (!isFlexibleMoney(t)) return null
+  const m = t.match(/^(-?\d{1,3}(?:\.\d{3})*,)(\d{1,2})$/)
+  if (!m) return null
+  const [, prefix, dec] = m
+  return `${prefix}${dec.padEnd(2, '0')}`
+}
+
+function parseMoneyBr(token: string) {
+  const n = normalizeFlexibleMoney(token)
+  if (!n) return 0
+  return Number.parseFloat(n.replace(/\./g, '').replace(',', '.'))
+}
+
+function formatMoneyBr(value: number) {
+  return value.toLocaleString('pt-BR', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })
+}
+
+function somarMoedaBr(...tokens: string[]) {
+  const total = tokens.reduce((acc, t) => acc + parseMoneyBr(t), 0)
+  return formatMoneyBr(total)
+}
+
 function isDateBr(token: string) {
   return /^\d{2}\/\d{2}\/\d{4}$/.test(token)
 }
@@ -68,6 +101,26 @@ function parecePosicaoFinanceira(fullText: string) {
     t.includes('posicao financeira') ||
     (t.includes('paga em') && t.includes('valor original') && t.includes('valor pago'))
   )
+}
+
+function pareceRelacaoValoresPagos(fullText: string) {
+  const t = semAcento(fullText).toLowerCase()
+  return (
+    t.includes('relacao valores pagos') ||
+    (t.includes('dt.venc') &&
+      t.includes('dt.pagto') &&
+      t.includes('original') &&
+      t.includes('atualizado') &&
+      t.includes('p.rata'))
+  )
+}
+
+function isSerieParcela(token: string) {
+  return /^\d+$/.test(token)
+}
+
+function isStatusPago(token: string) {
+  return /^pago$/i.test(token.trim())
 }
 
 function chaveLancamento(l: LancamentoExtraido) {
@@ -166,6 +219,95 @@ function dataAssinaturaPosicaoFinanceira(fullText: string) {
   return m ? brDateToIso(m[1]) : null
 }
 
+function dataAssinaturaRelacaoValoresPagos(fullText: string) {
+  const m = fullText.match(/Data da Compra:\s*(\d{2}\/\d{2}\/\d{4})/i)
+  return m ? brDateToIso(m[1]) : null
+}
+
+/**
+ * Relação Valores Pagos (Boulevard / Tecnisa):
+ * S | P | Original | Dt.Venc. | Dt.Pagto | Atualizado | Atr. | P.Rata | Mora | Desc. | Adic. | Pago
+ *
+ * A coluna Atualizado é ignorada: a calculadora reaplica o INCC sobre o Original.
+ */
+function parseLancamentoRelacaoValoresPagos(tokens: string[]): LancamentoExtraido | null {
+  if (tokens.length < 8) return null
+  if (!isSerieParcela(tokens[0]) || !isSerieParcela(tokens[1])) return null
+
+  const original = normalizeFlexibleMoney(tokens[2])
+  if (!original) return null
+  if (!isDateBr(tokens[3]) || !isDateBr(tokens[4])) return null
+
+  const dataPagamento = brDateToIso(tokens[4])
+  if (!dataPagamento) return null
+
+  let rest = tokens.slice(5)
+  while (rest.length && isStatusPago(rest[rest.length - 1])) {
+    rest = rest.slice(0, -1)
+  }
+  if (rest.length < 5) return null
+
+  const valorPago = normalizeFlexibleMoney(rest[rest.length - 1])
+  if (!valorPago) return null
+
+  const tail = rest.slice(0, -1)
+  if (tail.length < 5) return null
+
+  const prata = normalizeFlexibleMoney(tail[2]) ?? ZERO
+  const mora = normalizeFlexibleMoney(tail[3]) ?? ZERO
+
+  let descontos = ZERO
+  let taxasAdicionais = ZERO
+  if (tail.length === 5) {
+    descontos = normalizeFlexibleMoney(tail[4]) ?? ZERO
+  } else if (tail.length >= 6) {
+    descontos = normalizeFlexibleMoney(tail[4]) ?? ZERO
+    taxasAdicionais = normalizeFlexibleMoney(tail[5]) ?? ZERO
+  }
+
+  const jurosMora = somarMoedaBr(prata, mora)
+
+  return {
+    dataPagamento,
+    valorContratual: original,
+    valorPago,
+    renegociacao: ZERO,
+    multa: ZERO,
+    jurosMora,
+    descontos,
+    taxasAdicionais,
+    parcela: `${tokens[0]}-${tokens[1]}`,
+  }
+}
+
+function parseRelacaoValoresPagosFromRows(rows: PdfTextRow[]): ExtratoParseResult {
+  const fullText = rows.map((r) => r.text).join('\n')
+  const lancamentos: LancamentoExtraido[] = []
+  const seen = new Set<string>()
+
+  for (const row of rows) {
+    const text = semAcento(row.text).toLowerCase()
+    if (text.includes('relacao valores pagos')) continue
+    if (text.includes('dt.venc') && text.includes('original')) continue
+    if (text.startsWith('cliente:') || text.startsWith('projeto:') || text.startsWith('unidade:')) {
+      continue
+    }
+    if (text.startsWith('bloco:')) continue
+
+    const tokens = row.cells.map((c) => c.str.trim()).filter(Boolean)
+    const parsed = parseLancamentoRelacaoValoresPagos(tokens)
+    if (!parsed) continue
+
+    const key = chaveLancamento(parsed)
+    if (seen.has(key)) continue
+    seen.add(key)
+    lancamentos.push(parsed)
+  }
+
+  lancamentos.sort((a, b) => a.dataPagamento.localeCompare(b.dataPagamento))
+  return { dataAssinatura: dataAssinaturaRelacaoValoresPagos(fullText), lancamentos }
+}
+
 function parseCivilWebFromRows(rows: PdfTextRow[]): ExtratoParseResult {
   const fullText = rows.map((r) => r.text).join('\n')
   const lancamentos: LancamentoExtraido[] = []
@@ -228,11 +370,14 @@ function parsePosicaoFinanceiraFromRows(rows: PdfTextRow[]): ExtratoParseResult 
   return { dataAssinatura: dataAssinaturaPosicaoFinanceira(fullText), lancamentos }
 }
 
-/** Interpreta linhas já extraídas do PDF (CivilWeb ou Posição Financeira). */
+/** Interpreta linhas já extraídas do PDF (CivilWeb, Posição Financeira ou Relação Valores Pagos). */
 export function parseExtratoFromRows(rows: PdfTextRow[]): ExtratoParseResult {
   const fullText = rows.map((r) => r.text).join('\n')
   if (parecePosicaoFinanceira(fullText)) {
     return parsePosicaoFinanceiraFromRows(rows)
+  }
+  if (pareceRelacaoValoresPagos(fullText)) {
+    return parseRelacaoValoresPagosFromRows(rows)
   }
 
   const civil = parseCivilWebFromRows(rows)

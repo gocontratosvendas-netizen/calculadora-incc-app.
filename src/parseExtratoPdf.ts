@@ -76,7 +76,7 @@ function groupRows(items: TextItem[]): PdfTextRow[] {
 }
 
 /**
- * Lê um PDF de Extrato CivilWeb ou de Posição Financeira da incorporadora
+ * Lê um PDF de Extrato CivilWeb, Posição Financeira ou Relação Valores Pagos
  * e extrai pagamento, valores e encargos/descontos.
  */
 export async function parseExtratoFinanceiroPdf(file: File): Promise<ExtratoParseResult> {
