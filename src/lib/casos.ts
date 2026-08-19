@@ -521,6 +521,26 @@ function mapDocumento(row: DocRow): DocumentoCaso {
   }
 }
 
+function normalizarDocumentos(documentos: DocumentoCaso[]): DocumentoCaso[] {
+  const porChave = new Map(documentos.map((doc) => [doc.chave, doc]))
+  return DOCUMENTOS_PADRAO.map((padrao) => {
+    const existente = porChave.get(padrao.chave)
+    if (existente) {
+      return {
+        ...existente,
+        rotulo: padrao.rotulo,
+        obrigatorio: padrao.obrigatorio,
+      }
+    }
+    return {
+      chave: padrao.chave,
+      rotulo: padrao.rotulo,
+      obrigatorio: padrao.obrigatorio,
+      arquivo: null,
+    }
+  })
+}
+
 async function uploadAnexoCaso(casoId: string, arquivo: File) {
   const id = crypto.randomUUID()
   const path = `${casoId}/${id}-${arquivo.name}`
@@ -600,12 +620,7 @@ export async function obterCaso(id: string): Promise<CasoDetalhe> {
     },
     andamentos: ((andamentos ?? []) as AndamentoRow[]).map(mapAndamento),
     prazos: ((prazos ?? []) as PrazoRow[]).map(mapPrazo),
-    documentos: ((documentos ?? []) as DocRow[])
-      .map(mapDocumento)
-      .sort(
-        (a, b) =>
-          ORDEM_DOCUMENTOS_CASO.indexOf(a.chave) - ORDEM_DOCUMENTOS_CASO.indexOf(b.chave),
-      ),
+    documentos: normalizarDocumentos(((documentos ?? []) as DocRow[]).map(mapDocumento)),
   }
 }
 
@@ -801,17 +816,26 @@ export async function anexarDocumento(
   chave: DocumentoChave,
   arquivo: File,
 ): Promise<DocumentoCaso> {
+  const padrao = DOCUMENTOS_PADRAO.find((doc) => doc.chave === chave)
+  if (!padrao) throw new Error('Documento inválido')
+
   const anexo = await uploadAnexoCaso(casoId, arquivo)
   const { data, error } = await supabase
     .from('documentos_caso')
-    .update({
-      arquivo_id: anexo.id,
-      arquivo_nome: anexo.nome,
-      arquivo_tamanho_bytes: anexo.tamanhoBytes,
-      arquivo_url: anexo.url,
-    })
-    .eq('caso_id', casoId)
-    .eq('chave', chave)
+    .upsert(
+      {
+        id: `doc-${casoId}-${chave}`,
+        caso_id: casoId,
+        chave,
+        rotulo: padrao.rotulo,
+        obrigatorio: padrao.obrigatorio,
+        arquivo_id: anexo.id,
+        arquivo_nome: anexo.nome,
+        arquivo_tamanho_bytes: anexo.tamanhoBytes,
+        arquivo_url: anexo.url,
+      },
+      { onConflict: 'caso_id,chave' },
+    )
     .select('*')
     .single()
   if (error) throw error
