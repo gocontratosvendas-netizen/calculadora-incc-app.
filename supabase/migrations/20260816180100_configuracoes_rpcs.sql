@@ -420,7 +420,7 @@ declare
   raw text;
   validade interval;
 begin
-  raw := encode(gen_random_bytes(32), 'hex');
+  raw := encode(extensions.gen_random_bytes(32), 'hex');
   validade := case when p_tipo = 'convite' then interval '7 days' else interval '1 hour' end;
   update public.cfg_tokens
      set usado_em = coalesce(usado_em, now())

@@ -25,7 +25,7 @@ export function schemaCfgAusente(error: { code?: string; message?: string } | nu
     error.code === 'PGRST202' ||
     error.code === 'PGRST205' ||
     /schema cache|Could not find the function public\.cfg_|Could not find the table 'public.cfg_/i.test(
-      error.message,
+      error.message ?? '',
     )
   )
 }

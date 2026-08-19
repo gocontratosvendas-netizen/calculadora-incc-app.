@@ -21,7 +21,7 @@ create table public.cfg_secrets (
 );
 
 insert into public.cfg_secrets (chave, valor) values
-  ('encryption_key', encode(gen_random_bytes(32), 'hex')),
+  ('encryption_key', encode(extensions.gen_random_bytes(32), 'hex')),
   ('app_url', 'http://localhost:5173')
 on conflict (chave) do nothing;
 
