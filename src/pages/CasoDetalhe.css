@@ -157,6 +157,11 @@
   color: var(--c-desc);
 }
 
+.caso-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
 .caso-btn--primary {
   border: none;
   background: var(--c-azul);

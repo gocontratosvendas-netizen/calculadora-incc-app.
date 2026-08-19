@@ -37,7 +37,13 @@ Deno.serve(async (req) => {
       },
       body: JSON.stringify(args),
     })
-    return res.json()
+    const raw = await res.text()
+    if (!raw) return null
+    try {
+      return JSON.parse(raw)
+    } catch {
+      return null
+    }
   }
 
   if (action === 'accept-invite' || action === 'confirm-reset') {
