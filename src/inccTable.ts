@@ -1,4 +1,4 @@
-type YearMonth = `${number}-${string}`
+export type YearMonth = `${number}-${string}`
 
 // Fonte: tabela INCC-DI (FGV). Mantemos local para o app funcionar offline.
 const inccMensal: Record<YearMonth, number> = {
@@ -96,10 +96,49 @@ const inccMensal: Record<YearMonth, number> = {
   '2026-07': 0.61,
 }
 
+export type DefasagemMeses = 0 | 1 | 2 | 3
+
+const MESES_PT = [
+  'jan',
+  'fev',
+  'mar',
+  'abr',
+  'mai',
+  'jun',
+  'jul',
+  'ago',
+  'set',
+  'out',
+  'nov',
+  'dez',
+] as const
+
 function toYearMonth(date: Date): YearMonth {
   const y = date.getFullYear()
   const m = String(date.getMonth() + 1).padStart(2, '0')
   return `${y}-${m}` as YearMonth
+}
+
+export function formatarAnoMes(ym: YearMonth) {
+  const [y, m] = ym.split('-').map(Number)
+  return `${MESES_PT[(m ?? 1) - 1]}/${y}`
+}
+
+export function mesBaseDoIndice(dataContrato: Date, defasagemMeses: number) {
+  const lag = Math.min(3, Math.max(0, Math.trunc(defasagemMeses)))
+  return addMonths(toYearMonth(dataContrato), -lag)
+}
+
+export function aniversariosDecorridos(dataContrato: Date, dataPagamento: Date) {
+  let n = dataPagamento.getFullYear() - dataContrato.getFullYear()
+  const pagamentoMd = dataPagamento.getMonth() * 100 + dataPagamento.getDate()
+  const contratoMd = dataContrato.getMonth() * 100 + dataContrato.getDate()
+  if (pagamentoMd < contratoMd) n -= 1
+  return n < 0 ? 0 : n
+}
+
+export function arredondarMoeda(valor: number) {
+  return Math.round((valor + Number.EPSILON) * 100) / 100
 }
 
 function addMonths(ym: YearMonth, delta: number): YearMonth {
@@ -154,58 +193,83 @@ export function calcularInccAcumuladoEntre(anoMesInicio: YearMonth, anoMesFim: Y
   }
 }
 
+function acumularFatorNaJanela(anoMesInicio: YearMonth, anoMesFim: YearMonth) {
+  let fator = 1
+  let atual = anoMesInicio
+  while (compareYearMonth(atual, anoMesFim) <= 0) {
+    const taxa = getInccMensal(atual)
+    if (taxa == null) {
+      return {
+        fator: 1,
+        erro: `Falta o índice INCC-DI de ${formatarAnoMes(atual)}.`,
+      }
+    }
+    fator *= 1 + taxa / 100
+    atual = addMonths(atual, 1)
+  }
+  return { fator, erro: null as string | null }
+}
+
+export type FatorCorrecao = {
+  fator: number
+  n: number
+  mesBase: YearMonth
+  janelaInicio: YearMonth | null
+  janelaFim: YearMonth | null
+  janelaLabel: string | null
+  acumuladoPercentual: number
+  ultimaTaxa: number | null
+  aviso: string | null
+  erro: string | null
+}
+
 /**
  * Correção anual no aniversário do contrato.
- * Usa o INCC acumulado desde o mês seguinte ao início até o mês do último aniversário
- * já ocorrido na data do pagamento (aplicado de forma linear sobre o valor contratual).
+ * A faixa (n) vem só da data de pagamento vs. aniversários.
+ * A defasagem desloca a janela do índice, sem mudar n nem o tamanho da janela (12×n meses).
  */
 export function calcularFatorCorrecaoPorAniversarios(
   dataInicioContrato: Date,
   dataPagamento: Date,
-) {
+  defasagemMeses: number = 0,
+): FatorCorrecao {
+  const mesBase = mesBaseDoIndice(dataInicioContrato, defasagemMeses)
+  const vazio = (n: number, erro: string | null = null): FatorCorrecao => ({
+    fator: 1,
+    n,
+    mesBase,
+    janelaInicio: null,
+    janelaFim: null,
+    janelaLabel: null,
+    acumuladoPercentual: 0,
+    ultimaTaxa: 0,
+    aviso: null,
+    erro,
+  })
+
   if (dataPagamento.getTime() < dataInicioContrato.getTime()) {
-    return { fator: 1, ultimaTaxa: null as number | null, aviso: null as string | null }
+    return vazio(0)
   }
 
-  const dia = dataInicioContrato.getDate()
-  const mes = dataInicioContrato.getMonth()
-  const anoInicio = dataInicioContrato.getFullYear()
+  const n = aniversariosDecorridos(dataInicioContrato, dataPagamento)
+  if (n === 0) return vazio(0)
 
-  // Último aniversário já ocorrido até a data do pagamento
-  let ultimoAniversario: Date | null = null
-  let ano = anoInicio + 1
-  while (true) {
-    const aniversario = new Date(ano, mes, dia)
-    if (aniversario.getTime() > dataPagamento.getTime()) break
-    ultimoAniversario = aniversario
-    ano += 1
-  }
+  const janelaInicio = addMonths(mesBase, 1)
+  const janelaFim = addMonths(mesBase, 12 * n)
+  const { fator, erro } = acumularFatorNaJanela(janelaInicio, janelaFim)
+  if (erro) return vazio(n, erro)
 
-  if (!ultimoAniversario) {
-    return { fator: 1, ultimaTaxa: null, aviso: null }
-  }
-
-  // Acumula do mês seguinte ao início do contrato até o mês do aniversário
-  const inicioAcumulo = addMonths(toYearMonth(dataInicioContrato), 1)
-  const fimAcumulo = toYearMonth(ultimoAniversario)
-  const { acumuladoPercentual, mesesConsiderados, incompleto } = calcularInccAcumuladoEntre(
-    inicioAcumulo,
-    fimAcumulo,
-  )
-
-  if (mesesConsiderados === 0) {
-    return {
-      fator: 1,
-      ultimaTaxa: null,
-      aviso: 'Sem índices INCC suficientes para este período.',
-    }
-  }
-
+  const acumuladoPercentual = (fator - 1) * 100
   return {
-    fator: 1 + acumuladoPercentual / 100,
+    fator,
+    n,
+    mesBase,
+    janelaInicio,
+    janelaFim,
+    janelaLabel: `${formatarAnoMes(janelaInicio)} a ${formatarAnoMes(janelaFim)}`,
+    acumuladoPercentual,
     ultimaTaxa: acumuladoPercentual,
-    aviso: incompleto
-      ? 'Cálculo parcial: faltam índices INCC em parte do período.'
-      : null,
+    aviso: null,
+    erro: null,
   }
 }

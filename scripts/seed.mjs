@@ -100,6 +100,7 @@ async function ensureUser(user) {
       iniciais: user.iniciais,
       papel: user.papel,
     })
+    await upsertCfgUsuario(existing.id, user)
     return existing.id
   }
   const { data, error } = await admin.auth.admin.createUser({
@@ -116,7 +117,19 @@ async function ensureUser(user) {
     iniciais: user.iniciais,
     papel: user.papel,
   })
+  await upsertCfgUsuario(data.user.id, user)
   return data.user.id
+}
+
+async function upsertCfgUsuario(id, user) {
+  const { error } = await admin.from('cfg_usuarios').upsert({
+    id,
+    nome: user.nome,
+    email: user.email.toLowerCase(),
+    papel_id: user.papel === 'socio' ? 'socio' : 'operacao',
+    situacao: 'ativo',
+  })
+  if (error) console.warn('cfg_usuarios', user.email, error.message)
 }
 
 async function wipe() {
@@ -215,6 +228,12 @@ async function seed() {
     console.log(`  ✓ ${user.email} (${id})`)
   }
   await seedSociosDemo(ids)
+
+  if (process.env.SEED_CFG_ONLY === '1') {
+    console.log('\nSeed de Configurações concluído (SEED_CFG_ONLY).')
+    console.log('Login: admin@admin.com / 123456')
+    return
+  }
 
   console.log('Limpando dados de domínio…')
   await wipe()

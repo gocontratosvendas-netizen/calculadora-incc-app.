@@ -384,18 +384,18 @@ begin
     errors := errors || jsonb_build_object('dataEntrada', 'Data de entrada não pode ser futura.');
   end if;
   if cpf <> '' and exists (
-    select 1 from public.cfg_socios
-     where deletado_em is null
-       and cpf_hash = public.cfg_hash_cpf(cpf)
-       and (p_id is null or id <> p_id)
+    select 1 from public.cfg_socios s
+     where s.deletado_em is null
+       and s.cpf_hash = public.cfg_hash_cpf(cpf)
+       and (p_id is null or s.id <> p_id)
   ) then
     errors := errors || jsonb_build_object('cpf', 'CPF já cadastrado.');
   end if;
   if email <> '' and exists (
-    select 1 from public.cfg_socios
-     where deletado_em is null
-       and lower(email) = email
-       and (p_id is null or id <> p_id)
+    select 1 from public.cfg_socios s
+     where s.deletado_em is null
+       and lower(s.email) = email
+       and (p_id is null or s.id <> p_id)
   ) then
     errors := errors || jsonb_build_object('email', 'E-mail já cadastrado.');
   end if;

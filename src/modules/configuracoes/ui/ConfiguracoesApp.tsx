@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link } from '../../../lib/router'
 import { useRouter } from '../../../lib/router-context'
 import { acessoConfiguracoesBloqueadoPor2fa, aviso2faPendente, podeAcessarMapa, temAlgumaPermissaoConfiguracoes } from '../autorizacao'
-import { invalidarSessaoCfg, usuarioAtual } from '../acesso'
+import { diagnosticarSessao, invalidarSessaoCfg, usuarioAtual } from '../acesso'
 import { marcar2fa } from '../data/repositorio'
 import { supabase } from '../../../lib/supabase'
 import type { UsuarioSessao } from '../types'
@@ -35,6 +35,7 @@ export function ConfiguracoesApp() {
 function ConfiguracoesInner() {
   const { pathname, navigate } = useRouter()
   const [sessao, setSessao] = useState<UsuarioSessao | null | undefined>(undefined)
+  const [schemaAusente, setSchemaAusente] = useState(false)
   const [mfaQr, setMfaQr] = useState<string | null>(null)
   const [mfaCode, setMfaCode] = useState('')
   const [factorId, setFactorId] = useState<string | null>(null)
@@ -42,7 +43,10 @@ function ConfiguracoesInner() {
 
   useEffect(() => {
     invalidarSessaoCfg()
-    void usuarioAtual().then(setSessao)
+    void diagnosticarSessao().then(({ sessao: atual, schemaAusente: faltaSchema }) => {
+      setSessao(atual)
+      setSchemaAusente(faltaSchema)
+    })
   }, [])
 
   useEffect(() => {
@@ -50,6 +54,22 @@ function ConfiguracoesInner() {
   }, [pathname, navigate])
 
   if (sessao === undefined) return <div className="cfg-page" />
+
+  if (schemaAusente) {
+    return (
+      <div className="cfg-page">
+        <div className="cfg-403">
+          <h1>Banco desatualizado</h1>
+          <div className="cfg-header-rule" />
+          <p className="cfg-header-sub">
+            O menu aparece pelo seu perfil de sócio, mas as tabelas de Configurações ainda não estão neste banco.
+            No terminal: <code>npx supabase migration up --local</code> e depois <code>npm run db:seed</code>.
+            Recarregue a página.
+          </p>
+        </div>
+      </div>
+    )
+  }
 
   if (!sessao || !temAlgumaPermissaoConfiguracoes(sessao.permissoes)) {
     return (

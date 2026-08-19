@@ -280,6 +280,13 @@
   padding: 13px 15px;
   margin-bottom: 12px;
   display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+}
+
+.params-row {
+  display: flex;
   align-items: flex-end;
   gap: 16px;
   flex-wrap: wrap;
@@ -352,6 +359,24 @@
   border: 1px solid #b7c2d3;
   accent-color: var(--incc-primary);
   cursor: pointer;
+}
+
+.param-select {
+  height: 36px;
+  min-width: 168px;
+  border: 1px solid var(--incc-field-border);
+  border-radius: var(--incc-radius-field);
+  padding: 0 10px;
+  font-size: 13px;
+  color: var(--incc-value);
+  background: var(--incc-card);
+  font-family: inherit;
+}
+
+.param-indice-base {
+  margin: 0;
+  font-size: 12px;
+  color: var(--incc-secondary);
 }
 
 .method-pill {
@@ -1148,7 +1173,7 @@
     66px
     minmax(72px, 1fr)
     minmax(58px, 0.85fr)
-    52px
+    minmax(96px, 1.2fr)
     minmax(76px, 1.05fr)
     minmax(76px, 1.05fr)
     minmax(70px, 1fr)
@@ -1164,7 +1189,7 @@
     minmax(58px, 0.9fr)
     minmax(58px, 0.9fr)
     minmax(62px, 0.95fr)
-    48px
+    minmax(108px, 1.25fr)
     minmax(64px, 1fr)
     minmax(64px, 1fr)
     minmax(58px, 0.95fr)
@@ -1243,6 +1268,29 @@
 
 .col-incc-value {
   color: #854f0b;
+}
+
+.incc-janela {
+  display: block;
+  margin-top: 2px;
+  font-size: 9px;
+  font-weight: 400;
+  color: #8a93a2;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.incc-erro,
+.incc-erro-banner {
+  color: #a32d2d;
+}
+
+.incc-erro-banner {
+  margin: 0;
+  padding: 8px 14px;
+  font-size: 12px;
+  background: #fdf2f2;
+  border-bottom: 1px solid #f0d6d6;
 }
 
 .memoria-table td.col-excesso.excesso-pos {
@@ -1474,7 +1522,7 @@
 }
 
 @media (max-width: 900px) {
-  .params-card {
+  .params-row {
     flex-direction: column;
     align-items: stretch;
   }
@@ -1542,7 +1590,7 @@
       minmax(58px, 0.9fr)
       minmax(58px, 0.9fr)
       minmax(62px, 0.95fr)
-      48px
+      minmax(108px, 1.25fr)
       minmax(64px, 1fr)
       minmax(64px, 1fr)
       minmax(58px, 0.95fr)

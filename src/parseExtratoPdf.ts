@@ -1,4 +1,8 @@
 import { getDocument, GlobalWorkerOptions } from 'pdfjs-dist'
+import { parseExtratoFromRows, type ExtratoParseResult, type PdfTextRow } from './parseExtratoPdfCore'
+
+export type { ExtratoParseResult, LancamentoExtraido, PdfTextRow } from './parseExtratoPdfCore'
+export { parseExtratoFromRows } from './parseExtratoPdfCore'
 
 // Worker do pdf.js para rodar no browser (Vite)
 GlobalWorkerOptions.workerSrc = new URL(
@@ -6,22 +10,7 @@ GlobalWorkerOptions.workerSrc = new URL(
   import.meta.url,
 ).toString()
 
-export type LancamentoExtraido = {
-  dataPagamento: string // yyyy-mm-dd
-  valorContratual: string // pt-BR
-  valorPago: string // pt-BR
-  renegociacao: string
-  multa: string
-  descontos: string
-  jurosMora: string
-  taxasAdicionais: string
-  parcela?: string
-}
-
-export type ExtratoParseResult = {
-  dataAssinatura: string | null // yyyy-mm-dd
-  lancamentos: LancamentoExtraido[]
-}
+type TextItem = { str: string; x: number; y: number }
 
 /** Converte texto do PDF (fonte custom PUA ≈ Latin-1) para ASCII/Latin-1 legível. */
 function decodePdfText(str: string) {
@@ -35,27 +24,6 @@ function decodePdfText(str: string) {
     })
     .join('')
 }
-
-function brDateToIso(dateBr: string) {
-  const m = dateBr.match(/^(\d{2})\/(\d{2})\/(\d{4})$/)
-  if (!m) return null
-  const [, dd, mm, yyyy] = m
-  return `${yyyy}-${mm}-${dd}`
-}
-
-function normalizeMoneyToken(raw: string) {
-  return raw.replace(/\s/g, '').replace(/^R\$\s?/i, '')
-}
-
-function isMoney(token: string) {
-  return /^-?\d{1,3}(?:\.\d{3})*,\d{2}$/.test(normalizeMoneyToken(token))
-}
-
-function isDateBr(token: string) {
-  return /^\d{2}\/\d{2}\/\d{4}$/.test(token)
-}
-
-type TextItem = { str: string; x: number; y: number }
 
 async function extractTextItems(file: File): Promise<TextItem[]> {
   const buffer = await file.arrayBuffer()
@@ -81,10 +49,9 @@ async function extractTextItems(file: File): Promise<TextItem[]> {
   return items
 }
 
-function groupRows(items: TextItem[]) {
+function groupRows(items: TextItem[]): PdfTextRow[] {
   const byY = new Map<number, TextItem[]>()
   for (const item of items) {
-    // Agrupa linhas próximas (quebra de fonte no PDF)
     let key = item.y
     for (const existing of byY.keys()) {
       if (Math.abs(existing - item.y) <= 2) {
@@ -109,91 +76,11 @@ function groupRows(items: TextItem[]) {
 }
 
 /**
- * Ordem monetária no Extrato CivilWeb (após as 2 datas), da esquerda p/ direita:
- * 0 Contratual, 1 Juros Contr., 2 Correção Monetária, 3 Renegociação, 4 Multa,
- * 5 Juros de Mora, 6 Descontos, 7 Taxas Adicionais, 8 Corrigido, 9 Presente, 10 Pago
- */
-function parseLancamentoFromTokens(tokens: string[]): LancamentoExtraido | null {
-  const dates = tokens.filter(isDateBr)
-  const moneys = tokens.filter(isMoney).map(normalizeMoneyToken)
-  if (dates.length < 2 || moneys.length < 2) return null
-
-  const dataPagamento = brDateToIso(dates[1])
-  if (!dataPagamento) return null
-
-  const parcela = tokens.find((t) => /^\d{3}\/\d{3}-[A-Z]$/i.test(t))
-  const zero = '0,00'
-
-  if (moneys.length >= 11) {
-    return {
-      dataPagamento,
-      valorContratual: moneys[0],
-      renegociacao: moneys[3] ?? zero,
-      multa: moneys[4] ?? zero,
-      jurosMora: moneys[5] ?? zero,
-      descontos: moneys[6] ?? zero,
-      taxasAdicionais: moneys[7] ?? zero,
-      valorPago: moneys[10] ?? moneys[moneys.length - 1],
-      parcela,
-    }
-  }
-
-  // Fallback quando a linha veio incompleta no PDF
-  return {
-    dataPagamento,
-    valorContratual: moneys[0],
-    renegociacao: zero,
-    multa: zero,
-    descontos: zero,
-    jurosMora: zero,
-    taxasAdicionais: zero,
-    valorPago: moneys[moneys.length - 1],
-    parcela,
-  }
-}
-
-/**
- * Lê um PDF de "Extrato de Cliente / Extrato Financeiro" (CivilWeb)
+ * Lê um PDF de Extrato CivilWeb ou de Posição Financeira da incorporadora
  * e extrai pagamento, valores e encargos/descontos.
  */
 export async function parseExtratoFinanceiroPdf(file: File): Promise<ExtratoParseResult> {
   const items = await extractTextItems(file)
   const rows = groupRows(items)
-  const fullText = rows.map((r) => r.text).join('\n')
-
-  let dataAssinatura: string | null = null
-  const assinaturaMatch = fullText.match(/Data Assinatura:\s*(\d{2}\/\d{2}\/\d{4})/i)
-  if (assinaturaMatch) {
-    dataAssinatura = brDateToIso(assinaturaMatch[1])
-  }
-
-  const lancamentos: LancamentoExtraido[] = []
-  const seen = new Set<string>()
-
-  for (let i = 0; i < rows.length; i += 1) {
-    const current = rows[i]
-    // Junta com a linha anterior quando a parcela ficou sozinha acima
-    const prev = rows[i - 1]
-    const mergedTokens = [
-      ...(prev && /^\d{3}\/\d{3}-[A-Z]$/i.test(prev.text.trim())
-        ? prev.cells.map((c) => c.str)
-        : []),
-      ...current.cells.map((c) => c.str),
-    ]
-
-    const candidates = [mergedTokens, current.cells.map((c) => c.str)]
-    for (const tokens of candidates) {
-      const parsed = parseLancamentoFromTokens(tokens)
-      if (!parsed) continue
-      const key = `${parsed.dataPagamento}|${parsed.valorContratual}|${parsed.valorPago}|${parsed.parcela ?? ''}`
-      if (seen.has(key)) continue
-      seen.add(key)
-      lancamentos.push(parsed)
-      break
-    }
-  }
-
-  lancamentos.sort((a, b) => a.dataPagamento.localeCompare(b.dataPagamento))
-
-  return { dataAssinatura, lancamentos }
+  return parseExtratoFromRows(rows)
 }

@@ -8,6 +8,8 @@ export default defineConfig({
     include: [
       'src/modules/financeiro/**/*.test.ts',
       'src/modules/configuracoes/**/*.test.ts',
+      'src/parseExtratoPdf.test.ts',
+      'src/inccTable.test.ts',
     ],
     coverage: {
       provider: 'v8',

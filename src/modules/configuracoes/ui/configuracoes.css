@@ -349,6 +349,13 @@
   max-width: 480px;
 }
 
+.cfg-403 code {
+  font-size: 11px;
+  background: #f0f2f6;
+  padding: 1px 5px;
+  border-radius: 3px;
+}
+
 .cfg-overlay {
   position: fixed;
   inset: 0;

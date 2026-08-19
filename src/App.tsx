@@ -1,6 +1,6 @@
 import { useMemo, useRef, useState } from 'react'
 import './App.css'
-import { calcularFatorCorrecaoPorAniversarios } from './inccTable'
+import { arredondarMoeda, calcularFatorCorrecaoPorAniversarios, formatarAnoMes, mesBaseDoIndice, type DefasagemMeses } from './inccTable'
 import { cadastrarCaso } from './lib/casos'
 import { useRouter } from './lib/router-context'
 import { parseExtratoFinanceiroPdf } from './parseExtratoPdf'
@@ -42,6 +42,10 @@ function formatMesAnoExtenso(iso: string) {
 function formatCelulaNumero(value: number) {
   if (value === 0) return '—'
   return numberFormatter.format(value)
+}
+
+function formatPercent4(value: number) {
+  return `${value.toFixed(4).replace('.', ',')}%`
 }
 
 function App() {
@@ -129,6 +133,7 @@ function App() {
 
   const [tela, setTela] = useState<'entrada' | 'resultado'>('entrada')
   const [dataAniversarioManual, setDataAniversarioManual] = useState('')
+  const [defasagemMeses, setDefasagemMeses] = useState<DefasagemMeses>(0)
   const [linhas, setLinhas] = useState<Linha[]>([criarLinhaVazia()])
   const [edicaoValorPago, setEdicaoValorPago] = useState<{
     linhaId: string
@@ -155,7 +160,7 @@ function App() {
       const resultado = await parseExtratoFinanceiroPdf(file)
       if (!resultado.lancamentos.length) {
         setMensagemImportacao(
-          'Não encontrei lançamentos neste PDF. Confira se é um Extrato Financeiro/Extrato de Cliente.',
+          'Não encontrei lançamentos neste PDF. Confira se é um Extrato Financeiro/Extrato de Cliente ou uma Posição Financeira da incorporadora.',
         )
         return
       }
@@ -207,15 +212,18 @@ function App() {
     align: 'left' | 'right' | 'center',
     baseSize: number,
   ) {
+    const pad = 3.5
     let size = baseSize
     pdf.setFontSize(size)
-    while (size > 5 && pdf.getTextWidth(text) > maxWidth - 1.5) {
+    while (size > 5 && pdf.getTextWidth(text) > maxWidth - pad * 2) {
       size -= 0.4
       pdf.setFontSize(size)
     }
-    const drawX =
-      align === 'right' ? x + maxWidth - 1 : align === 'center' ? x + maxWidth / 2 : x + 1
-    pdf.text(text, drawX, y, { align, baseline: 'middle' })
+    const textWidth = pdf.getTextWidth(text)
+    let drawX = x + pad
+    if (align === 'right') drawX = x + maxWidth - pad - textWidth
+    if (align === 'center') drawX = x + (maxWidth - textWidth) / 2
+    pdf.text(text, drawX, y, { baseline: 'middle' })
   }
 
   function exportarRelatorioComoPdf(
@@ -250,10 +258,19 @@ function App() {
         'Excesso',
       ]
 
-      // Larguras proporcionais à quantidade de dígitos típica
-      const colWeights = [1.15, 1.45, 1.25, 1.05, 1.25, 1.25, 1.1, 0.85, 1.45, 1.45, 1.35]
+      // Larguras proporcionais: índice e taxas precisam de caixa própria, senão o 0,00
+      // da taxa encosta no INCC e parece que os dois valores estão na mesma coluna.
+      const colWeights = [1.15, 1.35, 1.15, 0.95, 1.15, 1.1, 1.0, 1.55, 1.35, 1.35, 1.25]
       const weightSum = colWeights.reduce((a, b) => a + b, 0)
       const colWidths = colWeights.map((w) => (w / weightSum) * usableWidth)
+      const colXs: number[] = []
+      {
+        let acc = marginX
+        for (const w of colWidths) {
+          colXs.push(acc)
+          acc += w
+        }
+      }
 
       const rowHeight = 14
       const headerHeight = 22
@@ -315,25 +332,47 @@ function App() {
         paintTableHeader()
       }
 
+      const alignForColumn = (i: number): 'left' | 'right' | 'center' => {
+        if (i === 0) return 'left'
+        if (i === 6 || i === 7) return 'center'
+        return 'right'
+      }
+
+      const paintColumnRules = (top: number, height: number) => {
+        pdf.setDrawColor(210, 220, 230)
+        pdf.setLineWidth(0.25)
+        for (let i = 1; i < colXs.length; i += 1) {
+          pdf.line(colXs[i], top, colXs[i], top + height)
+        }
+      }
+
       const paintTableHeader = () => {
         pdf.setFillColor(16, 57, 111)
         pdf.rect(marginX, y, usableWidth, headerHeight, 'F')
         pdf.setFont('helvetica', 'bold')
         pdf.setTextColor(255, 255, 255)
-        let x = marginX
+        pdf.setFontSize(fontHeader)
         headers.forEach((header, i) => {
-          const lines = pdf.splitTextToSize(header, colWidths[i] - 3)
-          pdf.setFontSize(fontHeader)
+          const lines = pdf.splitTextToSize(header, colWidths[i] - 7)
           const lineH = 8
           const startY = y + (headerHeight - lines.length * lineH) / 2 + lineH / 2
-          lines.forEach((line: string, li: number) => {
-            pdf.text(line, x + colWidths[i] / 2, startY + li * lineH, {
-              align: 'center',
-              baseline: 'middle',
-            })
+          ;(lines as string[]).forEach((line, li) => {
+            drawPdfTextFit(
+              pdf,
+              line,
+              colXs[i],
+              startY + li * lineH,
+              colWidths[i],
+              'center',
+              fontHeader,
+            )
           })
-          x += colWidths[i]
         })
+        pdf.setDrawColor(255, 255, 255)
+        pdf.setLineWidth(0.35)
+        for (let i = 1; i < colXs.length; i += 1) {
+          pdf.line(colXs[i], y + 3, colXs[i], y + headerHeight - 3)
+        }
         y += headerHeight
       }
 
@@ -343,17 +382,23 @@ function App() {
           pdf.setFillColor(245, 248, 252)
           pdf.rect(marginX, y, usableWidth, rowHeight, 'F')
         }
+        paintColumnRules(y, rowHeight)
         pdf.setDrawColor(220, 228, 236)
         pdf.setLineWidth(0.3)
         pdf.line(marginX, y + rowHeight, marginX + usableWidth, y + rowHeight)
 
         pdf.setFont('helvetica', opts?.bold ? 'bold' : 'normal')
         pdf.setTextColor(30, 30, 30)
-        let x = marginX
         cells.forEach((cell, i) => {
-          const align = i === 0 || i === 7 ? 'left' : 'right'
-          drawPdfTextFit(pdf, cell, x, y + rowHeight / 2, colWidths[i], align, fontBody)
-          x += colWidths[i]
+          drawPdfTextFit(
+            pdf,
+            cell,
+            colXs[i],
+            y + rowHeight / 2,
+            colWidths[i],
+            alignForColumn(i),
+            fontBody,
+          )
         })
         y += rowHeight
       }
@@ -372,7 +417,9 @@ function App() {
             formatPdfMoney(r.jurosMora),
             formatPdfMoney(r.descontos),
             formatPdfMoney(r.taxasAdicionais),
-            r.incc == null ? '-' : r.incc.toFixed(2),
+            r.erroIndice
+              ? r.erroIndice
+              : `${formatPercent4(r.incc)}${r.janela ? ` ${r.janela}` : ''}`,
             formatPdfMoney(r.devido),
             formatPdfMoney(r.vp),
             formatPdfMoney(r.excesso),
@@ -423,6 +470,7 @@ function App() {
       'Descontos',
       'Taxas adicionais',
       'INCC acumulado',
+      'Janela do índice',
       'Valor devido',
       'Valor pago',
       'Valor cobrado em excesso',
@@ -436,7 +484,8 @@ function App() {
       r.jurosMora,
       r.descontos,
       r.taxasAdicionais,
-      r.incc == null ? null : Number(r.incc.toFixed(2)),
+      r.incc == null ? null : Number(r.incc.toFixed(4)),
+      r.janela,
       r.devido,
       r.vp,
       r.excesso,
@@ -450,6 +499,7 @@ function App() {
       relatorio.totalJurosMora,
       relatorio.totalDescontos,
       relatorio.totalTaxasAdicionais,
+      null,
       null,
       relatorio.totalDevido,
       relatorio.totalPago,
@@ -467,6 +517,7 @@ function App() {
       { wch: 12 },
       { wch: 16 },
       { wch: 14 },
+      { wch: 22 },
       { wch: 14 },
       { wch: 14 },
       { wch: 22 },
@@ -516,11 +567,15 @@ function App() {
 
     const rows = linhasValidas.map((l) => {
       const baseInicio = inicioEfetivo ?? l.data!
-      const { fator, ultimaTaxa } = calcularFatorCorrecaoPorAniversarios(baseInicio, l.data!)
-      const baseCorrigida = l.vc * fator
+      const correcao = calcularFatorCorrecaoPorAniversarios(
+        baseInicio,
+        l.data!,
+        defasagemMeses,
+      )
       const encargos =
         l.renegociacao + l.multa + l.jurosMora + l.taxasAdicionais - l.descontos
-      const devido = baseCorrigida + encargos
+      const baseCorrigida = correcao.erro ? l.vc : arredondarMoeda(l.vc * correcao.fator)
+      const devido = correcao.erro ? l.vc + encargos : arredondarMoeda(baseCorrigida + encargos)
       const excesso = l.vp - devido
       return {
         id: l.id,
@@ -532,16 +587,19 @@ function App() {
         descontos: l.descontos,
         jurosMora: l.jurosMora,
         taxasAdicionais: l.taxasAdicionais,
-        incc: ultimaTaxa,
+        n: correcao.n,
+        incc: correcao.acumuladoPercentual,
+        janela: correcao.janelaLabel,
+        erroIndice: correcao.erro,
         baseCorrigida,
         devido,
         excesso,
       }
     })
 
-    const totalDevido = rows.reduce((acc, r) => acc + r.devido, 0)
-    const totalPago = rows.reduce((acc, r) => acc + r.vp, 0)
-    const totalExcesso = rows.reduce((acc, r) => acc + r.excesso, 0)
+    const totalDevido = arredondarMoeda(rows.reduce((acc, r) => acc + r.devido, 0))
+    const totalPago = arredondarMoeda(rows.reduce((acc, r) => acc + r.vp, 0))
+    const totalExcesso = arredondarMoeda(rows.reduce((acc, r) => acc + r.excesso, 0))
     const totalRenegociacao = rows.reduce((acc, r) => acc + r.renegociacao, 0)
     const totalMulta = rows.reduce((acc, r) => acc + r.multa, 0)
     const totalDescontos = rows.reduce((acc, r) => acc + r.descontos, 0)
@@ -550,6 +608,10 @@ function App() {
 
     return {
       inicioEfetivo,
+      indiceBaseLabel: inicioEfetivo
+        ? formatarAnoMes(mesBaseDoIndice(inicioEfetivo, defasagemMeses))
+        : null,
+      errosIndice: [...new Set(rows.map((r) => r.erroIndice).filter((e): e is string => Boolean(e)))],
       rows,
       totalDevido,
       totalPago,
@@ -560,7 +622,7 @@ function App() {
       totalJurosMora,
       totalTaxasAdicionais,
     }
-  }, [linhas, dataAniversarioManual])
+  }, [linhas, dataAniversarioManual, defasagemMeses])
 
   const linhaEmEdicao = useMemo(() => {
     if (!edicaoValorPago) return null
@@ -757,8 +819,8 @@ function App() {
                   <div className="import-copy">
                     <p className="import-title">Importar PDF do extrato</p>
                     <p className="import-hint">
-                      Arraste aqui o extrato financeiro da incorporadora. Os lançamentos são
-                      preenchidos automaticamente.
+                      Arraste o extrato financeiro ou a posição financeira da incorporadora.
+                      Os lançamentos são preenchidos automaticamente.
                     </p>
                   </div>
                   <button
@@ -828,6 +890,7 @@ function App() {
           </div>
 
           <div className="params-card">
+            <div className="params-row">
             <div className="param-field">
               <label htmlFor="dataInicioContrato">Data de início do contrato</label>
               <div className="param-date-wrap">
@@ -872,6 +935,22 @@ function App() {
               />
               Usar a data da 1ª linha
             </label>
+            <div className="param-field">
+              <label htmlFor="defasagemIndice">Defasagem do índice</label>
+              <select
+                id="defasagemIndice"
+                className="param-select"
+                value={defasagemMeses}
+                onChange={(e) =>
+                  setDefasagemMeses(Number(e.target.value) as DefasagemMeses)
+                }
+              >
+                <option value={0}>Sem defasagem</option>
+                <option value={1}>1 mês</option>
+                <option value={2}>2 meses</option>
+                <option value={3}>3 meses</option>
+              </select>
+            </div>
             <details className="method-pill">
               <summary>
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true">
@@ -888,9 +967,14 @@ function App() {
                 </span>
               </summary>
               <div className="method-panel">
-                No aniversário, aplicamos o INCC-DI acumulado em 12 meses do mês do aniversário.
+                No aniversário, aplicamos o INCC-DI acumulado em 12 meses. A defasagem só recua
+                o índice-base; a faixa continua vindo da data do pagamento.
               </div>
             </details>
+            </div>
+            {relatorio.indiceBaseLabel ? (
+              <p className="param-indice-base">Índice-base: {relatorio.indiceBaseLabel}</p>
+            ) : null}
           </div>
 
           <section className="launch-card">
@@ -1236,13 +1320,13 @@ function App() {
                     {(() => {
                       let fator: number | null = null
                       for (let i = relatorio.rows.length - 1; i >= 0; i -= 1) {
-                        const taxa = relatorio.rows[i]?.incc
-                        if (taxa != null) {
-                          fator = taxa
+                        const row = relatorio.rows[i]
+                        if (row && row.n > 0) {
+                          fator = row.incc
                           break
                         }
                       }
-                      return fator == null ? '—' : `${fator.toFixed(2)}%`
+                      return fator == null ? '—' : formatPercent4(fator)
                     })()}
                   </span>
                   .
@@ -1375,6 +1459,12 @@ function App() {
               </button>
             </div>
 
+            {relatorio.errosIndice.length > 0 ? (
+              <p className="incc-erro-banner" role="alert">
+                {relatorio.errosIndice.join(' ')}
+              </p>
+            ) : null}
+
             <table
               className={
                 detalharAjustes
@@ -1412,6 +1502,8 @@ function App() {
                   </th>
                   <th scope="col" className="col-incc">
                     INCC
+                    <br />
+                    / janela
                   </th>
                   <th scope="col" className="col-devido col-divider">
                     Valor
@@ -1454,7 +1546,14 @@ function App() {
                         {formatCelulaNumero(r.taxasAdicionais)}
                       </td>
                       <td className="col-incc col-num col-incc-value">
-                        {r.incc == null ? '—' : `${r.incc.toFixed(2)}%`}
+                        {r.erroIndice ? (
+                          <span className="incc-erro">{r.erroIndice}</span>
+                        ) : (
+                          <>
+                            <span>{formatPercent4(r.incc)}</span>
+                            {r.janela ? <small className="incc-janela">{r.janela}</small> : null}
+                          </>
+                        )}
                       </td>
                       <td className="col-devido col-divider col-num">
                         {formatCelulaNumero(r.devido)}
@@ -1559,7 +1658,8 @@ function App() {
             <p className="memoria-note">
               <span className="memoria-note-label">Metodologia.</span> Valor devido = (Valor
               contratual × fator INCC) + Renegociação + Multa + Juros de mora + Taxas adicionais −
-              Descontos. A correção INCC só começa após o 1º aniversário. Valores em reais.{' '}
+              Descontos. A correção INCC só começa após o 1º aniversário. A defasagem recua o
+              índice-base, sem alterar a faixa nem o tamanho da janela. Valores em reais.{' '}
               {relatorio.rows.length} lançamentos apurados.
             </p>
           </div>

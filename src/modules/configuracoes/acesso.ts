@@ -1,9 +1,10 @@
 import { mapaVazio, podeAcessarMapa, temAlgumaPermissaoConfiguracoes, type MapaPermissoes, type NivelPermissao, type Recurso } from './autorizacao'
 import { getCachedCurrentUser } from '../../lib/session'
-import { carregarSessao, type SessaoPayload } from './data/repositorio'
+import { carregarSessaoDetalhe, type SessaoPayload } from './data/repositorio'
 import type { UsuarioSessao } from './types'
 
 let cache: UsuarioSessao | null | undefined
+let schemaAusenteCache = false
 
 function toSessao(row: SessaoPayload): UsuarioSessao {
   return {
@@ -23,13 +24,20 @@ function toSessao(row: SessaoPayload): UsuarioSessao {
 
 export function invalidarSessaoCfg(): void {
   cache = undefined
+  schemaAusenteCache = false
 }
 
 export async function usuarioAtual(): Promise<UsuarioSessao | null> {
-  if (cache !== undefined) return cache
-  const row = await carregarSessao()
-  cache = row ? toSessao(row) : null
-  return cache
+  const { sessao } = await diagnosticarSessao()
+  return sessao
+}
+
+export async function diagnosticarSessao(): Promise<{ sessao: UsuarioSessao | null; schemaAusente: boolean }> {
+  if (cache !== undefined) return { sessao: cache, schemaAusente: schemaAusenteCache }
+  const { usuario, schemaAusente } = await carregarSessaoDetalhe()
+  cache = usuario ? toSessao(usuario) : null
+  schemaAusenteCache = schemaAusente
+  return { sessao: cache, schemaAusente }
 }
 
 export async function obterPermissoes(usuarioId: string): Promise<MapaPermissoes> {

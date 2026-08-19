@@ -7,8 +7,27 @@ export type RpcResult<T> =
   | { ok: false; code?: string; message?: string; errors?: Record<string, string> }
 
 function asObj(data: unknown): Record<string, unknown> | null {
-  if (data && typeof data === 'object' && !Array.isArray(data)) return data as Record<string, unknown>
+  let value = data
+  if (typeof value === 'string') {
+    try {
+      value = JSON.parse(value) as unknown
+    } catch {
+      return null
+    }
+  }
+  if (value && typeof value === 'object' && !Array.isArray(value)) return value as Record<string, unknown>
   return null
+}
+
+export function schemaCfgAusente(error: { code?: string; message?: string } | null): boolean {
+  if (!error) return false
+  return (
+    error.code === 'PGRST202' ||
+    error.code === 'PGRST205' ||
+    /schema cache|Could not find the function public\.cfg_|Could not find the table 'public.cfg_/i.test(
+      error.message,
+    )
+  )
 }
 
 function interpretar<T>(data: unknown, error: { message: string } | null, key: string): RpcResult<T> {
@@ -39,12 +58,22 @@ export type SessaoPayload = {
   iniciais: string
 }
 
-export async function carregarSessao(): Promise<SessaoPayload | null> {
+export type ResultadoSessao = {
+  usuario: SessaoPayload | null
+  schemaAusente: boolean
+}
+
+export async function carregarSessaoDetalhe(): Promise<ResultadoSessao> {
   const { data, error } = await supabase.rpc('cfg_sessao_atual')
-  if (error) return null
+  if (error) return { usuario: null, schemaAusente: schemaCfgAusente(error) }
   const payload = asObj(data)
-  if (!payload || payload.ok !== true) return null
-  return (payload.usuario as SessaoPayload | null) ?? null
+  if (!payload || payload.ok !== true) return { usuario: null, schemaAusente: false }
+  return { usuario: (payload.usuario as SessaoPayload | null) ?? null, schemaAusente: false }
+}
+
+export async function carregarSessao(): Promise<SessaoPayload | null> {
+  const { usuario } = await carregarSessaoDetalhe()
+  return usuario
 }
 
 export async function confirmarPosLogin(): Promise<RpcResult<true>> {

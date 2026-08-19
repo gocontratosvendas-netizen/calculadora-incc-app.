@@ -9,8 +9,8 @@ A sessão é o **Supabase Auth** (JWT). Não há segundo cadastro de senhas. Log
 ## Instalação
 
 1. `npm run db:start` e copie as chaves para `.env.local` (veja `.env.example`).
-2. `npm run db:reset` aplica as migrations, inclusive `cfg_*` e o seed idempotente dos papéis.
-3. Desenvolvimento com dados de demonstração: `npm run db:seed` (Helena e os demais já entram como usuários ativos).
+2. `npm run db:reset` aplica as migrations, inclusive `cfg_*` e o seed idempotente dos papéis. Se o banco local já está no ar, use `npx supabase migration up --local` para não apagar os dados.
+3. Desenvolvimento com dados de demonstração: `npm run db:seed` (Helena e os demais já entram como usuários ativos). Só papéis, usuários `cfg_*` e sócios: `SEED_CFG_ONLY=1 npm run db:seed`. Se Configurações mostrar “Acesso restrito” para uma sócia, as migrations `cfg_*` ainda não foram aplicadas.
 4. Primeiro sócio em banco vazio, sem demo:
 
 ```bash
