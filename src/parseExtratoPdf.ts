@@ -10,7 +10,7 @@ GlobalWorkerOptions.workerSrc = new URL(
   import.meta.url,
 ).toString()
 
-type TextItem = { str: string; x: number; y: number }
+type TextItem = { str: string; x: number; y: number; page: number }
 
 /** Converte texto do PDF (fonte custom PUA ≈ Latin-1) para ASCII/Latin-1 legível. */
 function decodePdfText(str: string) {
@@ -42,6 +42,7 @@ async function extractTextItems(file: File): Promise<TextItem[]> {
         str,
         x: transform[4],
         y: Math.round(transform[5]),
+        page: pageNum,
       })
     }
   }
@@ -50,6 +51,22 @@ async function extractTextItems(file: File): Promise<TextItem[]> {
 }
 
 function groupRows(items: TextItem[]): PdfTextRow[] {
+  const byPage = new Map<number, TextItem[]>()
+  for (const item of items) {
+    const pageItems = byPage.get(item.page) ?? []
+    pageItems.push(item)
+    byPage.set(item.page, pageItems)
+  }
+
+  const rows: PdfTextRow[] = []
+  for (const pageNum of [...byPage.keys()].sort((a, b) => a - b)) {
+    rows.push(...groupRowsOnPage(byPage.get(pageNum)!))
+  }
+  return rows
+}
+
+/** Agrupa itens de uma mesma página; Y não é comparável entre páginas do PDF. */
+function groupRowsOnPage(items: TextItem[]): PdfTextRow[] {
   const byY = new Map<number, TextItem[]>()
   for (const item of items) {
     let key = item.y
