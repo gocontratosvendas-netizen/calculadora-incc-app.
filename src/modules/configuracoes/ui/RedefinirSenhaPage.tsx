@@ -67,6 +67,14 @@ export function RedefinirSenhaPage({ token }: { token: string }) {
     <div className="cfg-public">
       <div className="cfg-public-card">
         <h1 style={{ margin: 0, fontSize: 18, color: '#16346b' }}>Nova senha</h1>
+        <div className="cfg-password-rules" aria-label="Requisitos da senha">
+          <p className="cfg-password-rules-title">Requisitos da senha</p>
+          <ul>
+            <li>No mínimo 12 caracteres.</li>
+            <li>Combinar letras e números.</li>
+            <li>Evitar sequências e senhas óbvias.</li>
+          </ul>
+        </div>
         <form onSubmit={(e) => void enviar(e)} style={{ marginTop: 18 }}>
           <div className="cfg-field">
             <label htmlFor="cfg-ns">Senha</label>

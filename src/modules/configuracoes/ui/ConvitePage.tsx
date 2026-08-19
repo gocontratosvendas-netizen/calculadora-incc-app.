@@ -110,6 +110,14 @@ export function ConvitePage({ token }: { token: string }) {
         <p className="cfg-header-sub">
           {nome} · {papel}
         </p>
+        <div className="cfg-password-rules" aria-label="Requisitos da senha">
+          <p className="cfg-password-rules-title">Requisitos da senha</p>
+          <ul>
+            <li>No mínimo 12 caracteres.</li>
+            <li>Combinar letras e números.</li>
+            <li>Evitar sequências e senhas óbvias.</li>
+          </ul>
+        </div>
         <form onSubmit={(e) => void enviar(e)} style={{ marginTop: 18 }}>
           <div className="cfg-field">
             <label htmlFor="cfg-senha">Senha</label>
