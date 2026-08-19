@@ -17,7 +17,11 @@ async function aceitarConvite(token: string, password: string): Promise<{ ok: tr
     return { ok: true }
   }
   if (error) {
-    return { ok: false, message: 'Não foi possível concluir. Em desenvolvimento, rode `supabase functions serve`.' }
+    const msg = typeof error.message === 'string' ? error.message : ''
+    if (/Failed to send a request|FunctionsHttpError|404|not found/i.test(msg)) {
+      return { ok: false, message: 'Serviço de confirmação temporariamente indisponível. Tente novamente em instantes.' }
+    }
+    return { ok: false, message: msg || 'Não foi possível concluir no momento. Tente novamente.' }
   }
   return { ok: false, message: payload?.message ?? 'Este link não é mais válido.' }
 }

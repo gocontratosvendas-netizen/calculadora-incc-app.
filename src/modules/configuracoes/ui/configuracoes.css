@@ -10,7 +10,8 @@
   border: 0;
 }
 
-.cfg-page {
+.cfg-page,
+.cfg-public {
   --cfg-azul: #16346b;
   --cfg-azul-hover: #1d4382;
   --cfg-dourado: #b9975b;
@@ -29,11 +30,14 @@
   --cfg-blue-bg: #e6f1fb;
   --cfg-blue: #185fa5;
   --cfg-gray-bg: #f0f2f6;
-  max-width: 1180px;
-  margin: 0 auto;
   color: var(--cfg-texto);
   text-align: left;
   font-weight: 400;
+}
+
+.cfg-page {
+  max-width: 1180px;
+  margin: 0 auto;
 }
 
 .cfg-header {
@@ -521,6 +525,23 @@
   border: 1px solid var(--cfg-borda);
   border-radius: 10px;
   padding: 28px 24px;
+  text-align: left;
+}
+
+.cfg-public-card .cfg-field input {
+  background: #fff;
+  border-color: var(--cfg-campo);
+}
+
+.cfg-public-card .cfg-field input:focus {
+  outline: 2px solid rgba(22, 52, 107, 0.2);
+  outline-offset: 0;
+  border-color: var(--cfg-azul);
+}
+
+.cfg-public-card .cfg-btn--primary {
+  min-height: 40px;
+  font-weight: 600;
 }
 
 .cfg-toast {

@@ -32,7 +32,12 @@ export function RedefinirSenhaPage({ token }: { token: string }) {
     })
     const payload = data as { ok?: boolean; session?: { access_token?: string; refresh_token?: string } }
     if (error || !payload?.ok) {
-      setErro('Este link não é mais válido.')
+      const msg = typeof error?.message === 'string' ? error.message : ''
+      if (/Failed to send a request|FunctionsHttpError|404|not found/i.test(msg)) {
+        setErro('Serviço de redefinição temporariamente indisponível. Tente novamente em instantes.')
+      } else {
+        setErro(payload?.ok === false ? 'Este link não é mais válido.' : msg || 'Não foi possível concluir no momento. Tente novamente.')
+      }
       return
     }
     if (payload.session?.access_token && payload.session.refresh_token) {
