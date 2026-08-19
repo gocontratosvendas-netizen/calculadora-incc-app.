@@ -153,14 +153,20 @@ export type NovoCasoInput = {
   valorContrato: number
   excessoApurado: number | null
   valorCausa: number | null
+  memoriaRevisaoIncc?: File | null
 }
 
+export const ROTULO_MEMORIA_REVISAO_INCC = 'Memória de Cálculo Revisão INCC'
+
 const DOCUMENTOS_PADRAO: { chave: DocumentoChave; rotulo: string; obrigatorio: boolean }[] = [
+  { chave: 'memoria_revisao_incc', rotulo: ROTULO_MEMORIA_REVISAO_INCC, obrigatorio: false },
   { chave: 'memorial', rotulo: 'Memorial de cálculo da incorporadora', obrigatorio: true },
   { chave: 'contrato', rotulo: 'Contrato de compra e venda', obrigatorio: false },
   { chave: 'chaves', rotulo: 'Termo de entrega de chaves', obrigatorio: false },
   { chave: 'comprovantes', rotulo: 'Comprovantes de pagamento', obrigatorio: false },
 ]
+
+export const ORDEM_DOCUMENTOS_CASO: DocumentoChave[] = DOCUMENTOS_PADRAO.map((doc) => doc.chave)
 
 function criteriosPadrao(excesso: number | null, status: CasoStatus) {
   return [
@@ -227,6 +233,10 @@ export async function cadastrarCaso(input: NovoCasoInput): Promise<Caso> {
     })),
   )
 
+  if (input.memoriaRevisaoIncc) {
+    await anexarDocumento(id, 'memoria_revisao_incc', input.memoriaRevisaoIncc)
+  }
+
   await supabase.from('andamentos').insert({
     id: `and-${crypto.randomUUID()}`,
     caso_id: id,
@@ -266,7 +276,12 @@ export type Desfecho =
   | 'acordo'
   | 'desistencia'
 
-export type DocumentoChave = 'memorial' | 'contrato' | 'chaves' | 'comprovantes'
+export type DocumentoChave =
+  | 'memoria_revisao_incc'
+  | 'memorial'
+  | 'contrato'
+  | 'chaves'
+  | 'comprovantes'
 
 export interface AndamentoAutor {
   id: string
@@ -585,7 +600,12 @@ export async function obterCaso(id: string): Promise<CasoDetalhe> {
     },
     andamentos: ((andamentos ?? []) as AndamentoRow[]).map(mapAndamento),
     prazos: ((prazos ?? []) as PrazoRow[]).map(mapPrazo),
-    documentos: ((documentos ?? []) as DocRow[]).map(mapDocumento),
+    documentos: ((documentos ?? []) as DocRow[])
+      .map(mapDocumento)
+      .sort(
+        (a, b) =>
+          ORDEM_DOCUMENTOS_CASO.indexOf(a.chave) - ORDEM_DOCUMENTOS_CASO.indexOf(b.chave),
+      ),
   }
 }
 

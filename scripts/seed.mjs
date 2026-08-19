@@ -581,6 +581,7 @@ async function seed() {
   }
   {
     const docs = [
+      { chave: 'memoria_revisao_incc', rotulo: 'Memória de Cálculo Revisão INCC', obrigatorio: false },
       { chave: 'memorial', rotulo: 'Memorial de cálculo da incorporadora', obrigatorio: true },
       { chave: 'contrato', rotulo: 'Contrato de compra e venda', obrigatorio: false },
       { chave: 'chaves', rotulo: 'Termo de entrega de chaves', obrigatorio: false },
@@ -599,6 +600,7 @@ async function seed() {
   // docs padrão para demais casos
   const outros = ['caso-002', 'caso-003', 'caso-004', 'caso-005', 'caso-006', 'caso-007']
   const padrao = [
+    { chave: 'memoria_revisao_incc', rotulo: 'Memória de Cálculo Revisão INCC', obrigatorio: false },
     { chave: 'memorial', rotulo: 'Memorial de cálculo da incorporadora', obrigatorio: true },
     { chave: 'contrato', rotulo: 'Contrato de compra e venda', obrigatorio: false },
     { chave: 'chaves', rotulo: 'Termo de entrega de chaves', obrigatorio: false },

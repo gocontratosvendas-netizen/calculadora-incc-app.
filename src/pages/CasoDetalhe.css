@@ -650,6 +650,10 @@
   font-family: inherit;
 }
 
+.caso-doc-row--static {
+  cursor: default;
+}
+
 .caso-doc-icon {
   flex-shrink: 0;
   display: inline-flex;

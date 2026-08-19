@@ -135,14 +135,6 @@ function IconCalc() {
   )
 }
 
-function IconDownload() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-      <path d="M8 2.8v6.4M5.4 6.8 8 9.5l2.6-2.7M3.2 12.4h9.6" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  )
-}
-
 function IconPencil() {
   return (
     <svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden="true">
@@ -306,6 +298,10 @@ function StatusChip({
   )
 }
 
+function podeAnexarDocumentoManualmente(chave: DocumentoChave) {
+  return chave !== 'memoria_revisao_incc'
+}
+
 function Esqueleto() {
   return (
     <div className="caso-page" aria-busy="true" aria-live="polite">
@@ -428,7 +424,6 @@ export default function CasoDetalhe({ id }: { id: string }) {
   }
 
   const prazosAbertos = caso.prazos.filter((prazo) => !prazo.concluido)
-  const memorialCaso = caso.documentos.find((doc) => doc.chave === 'memorial')?.arquivo ?? null
   const hoje = hojeIsoLocal()
   const enq = caso.enquadramento
   const veredito =
@@ -451,26 +446,13 @@ export default function CasoDetalhe({ id }: { id: string }) {
   }
 
   async function onAnexar(chave: DocumentoChave, arquivo: File) {
+    if (!podeAnexarDocumentoManualmente(chave)) return
     try {
       await anexarDocumento(id, chave, arquivo)
       setCaso(await obterCaso(id))
     } catch {
       /* keep state */
     }
-  }
-
-  function onAcessarMemoriaCalculadora() {
-    navigate(`/calculadora?caso=${encodeURIComponent(caso.id)}`)
-  }
-
-  function onBaixarMemoriaCalculadora() {
-    if (!memorialCaso) return
-    const link = document.createElement('a')
-    link.href = memorialCaso.url
-    link.download = memorialCaso.nome
-    document.body.append(link)
-    link.click()
-    link.remove()
   }
 
   return (
@@ -500,23 +482,9 @@ export default function CasoDetalhe({ id }: { id: string }) {
           </p>
         </div>
         <div className="caso-header-actions">
-          <button type="button" className="caso-btn caso-btn--secondary" onClick={onAcessarMemoriaCalculadora}>
+          <button type="button" className="caso-btn caso-btn--secondary" onClick={() => navigate('/calculadora')}>
             <IconCalc />
-            Memória de cálculos
-          </button>
-          <button
-            type="button"
-            className="caso-btn caso-btn--secondary"
-            onClick={onBaixarMemoriaCalculadora}
-            disabled={!memorialCaso}
-            title={
-              memorialCaso
-                ? `Baixar ${memorialCaso.nome}`
-                : 'Anexe o memorial nos documentos para liberar o download'
-            }
-          >
-            <IconDownload />
-            Baixar memória
+            Calculadora
           </button>
           <button
             type="button"
@@ -682,7 +650,9 @@ export default function CasoDetalhe({ id }: { id: string }) {
                 type="button"
                 className="caso-link-btn"
                 onClick={() => {
-                  const pendente = caso.documentos.find((doc) => doc.arquivo == null)
+                  const pendente = caso.documentos.find(
+                    (doc) => doc.arquivo == null && podeAnexarDocumentoManualmente(doc.chave),
+                  )
                   chaveAnexoRef.current = pendente?.chave ?? 'comprovantes'
                   fileRef.current?.click()
                 }}
@@ -694,11 +664,17 @@ export default function CasoDetalhe({ id }: { id: string }) {
               {caso.documentos.map((doc, index) => {
                 const presente = doc.arquivo != null
                 const ultimo = index === caso.documentos.length - 1
-                const iconColor = !presente ? '#AEB5C0' : doc.chave === 'memorial' ? '#0F6E56' : '#5B6474'
+                const geradoPelaCalculadora = doc.chave === 'memoria_revisao_incc'
+                const iconColor =
+                  !presente ? '#AEB5C0' : geradoPelaCalculadora || doc.chave === 'memorial' ? '#0F6E56' : '#5B6474'
                 const conteudo: ReactNode = (
                   <>
                     <span className="caso-doc-icon" style={{ color: iconColor }}>
-                      {doc.chave === 'memorial' && presente ? <IconDocCheck /> : <IconFile />}
+                      {presente && (geradoPelaCalculadora || doc.chave === 'memorial') ? (
+                        <IconDocCheck />
+                      ) : (
+                        <IconFile />
+                      )}
                     </span>
                     <span className={`caso-doc-nome${presente ? '' : ' is-pendente'}`}>
                       {doc.rotulo}
@@ -706,10 +682,18 @@ export default function CasoDetalhe({ id }: { id: string }) {
                         <span className="caso-doc-size"> · {formatarTamanho(doc.arquivo.tamanhoBytes)}</span>
                       ) : null}
                     </span>
+                    {presente && geradoPelaCalculadora ? (
+                      <span className="caso-doc-badge caso-doc-badge--ok">Gerada</span>
+                    ) : null}
                     {presente && doc.chave === 'memorial' ? (
                       <span className="caso-doc-badge caso-doc-badge--ok">Obrigatório</span>
                     ) : null}
-                    {!presente ? <span className="caso-doc-badge caso-doc-badge--pend">Pendente</span> : null}
+                    {!presente && geradoPelaCalculadora ? (
+                      <span className="caso-doc-badge caso-doc-badge--pend">Não gerada</span>
+                    ) : null}
+                    {!presente && !geradoPelaCalculadora ? (
+                      <span className="caso-doc-badge caso-doc-badge--pend">Pendente</span>
+                    ) : null}
                   </>
                 )
                 return (
@@ -718,6 +702,8 @@ export default function CasoDetalhe({ id }: { id: string }) {
                       <a className="caso-doc-row" href={doc.arquivo.url} download={doc.arquivo.nome}>
                         {conteudo}
                       </a>
+                    ) : geradoPelaCalculadora ? (
+                      <div className="caso-doc-row caso-doc-row--static">{conteudo}</div>
                     ) : (
                       <button
                         type="button"
