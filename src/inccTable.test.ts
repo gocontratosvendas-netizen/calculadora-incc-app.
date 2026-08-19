@@ -57,9 +57,16 @@ describe('defasagem do índice INCC-DI', () => {
   )
 
   it('aborta com o mês ausente e não trata falta de índice como zero', () => {
-    const r = calcularFatorCorrecaoPorAniversarios(data('2010-01-15'), data('2011-02-01'), 0)
-    expect(r.erro).toMatch(/Falta o índice INCC-DI de fev\/2010/)
+    const r = calcularFatorCorrecaoPorAniversarios(data('2009-01-15'), data('2010-02-01'), 0)
+    expect(r.erro).toMatch(/Falta o índice INCC-DI de fev\/2009/)
     expect(r.fator).toBe(1)
+  })
+
+  it('calcula contrato de nov/2013 com índices históricos', () => {
+    const r = calcularFatorCorrecaoPorAniversarios(data('2013-11-04'), data('2014-12-10'), 0)
+    expect(r.erro).toBeNull()
+    expect(r.n).toBe(1)
+    expect(r.janelaLabel).toBe('dez/2013 a nov/2014')
   })
 })
 
