@@ -104,3 +104,18 @@ export async function uploadFile(
   if (error) throw error
   return { path, url: publicUrl(bucket, path) }
 }
+
+export function mensagemErroSupabase(error: unknown, fallback = 'Operação falhou.'): string {
+  if (typeof error === 'object' && error !== null && 'message' in error) {
+    const message = String((error as { message: unknown }).message)
+    if (message) {
+      if (/memoria_revisao_incc|documento_chave|invalid input value for enum/i.test(message)) {
+        return 'Atualização pendente no banco: execute a migration memoria_revisao_incc no Supabase (SQL Editor) e tente novamente.'
+      }
+      return message
+    }
+  }
+  if (error instanceof Error && error.message) return error.message
+  if (typeof error === 'string') return error
+  return fallback
+}

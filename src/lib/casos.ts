@@ -223,7 +223,7 @@ export async function cadastrarCaso(input: NovoCasoInput): Promise<Caso> {
     .single()
   if (error) throw error
 
-  await supabase.from('documentos_caso').insert(
+  const { error: docsError } = await supabase.from('documentos_caso').insert(
     DOCUMENTOS_PADRAO.map((doc) => ({
       id: `doc-${id}-${doc.chave}`,
       caso_id: id,
@@ -232,12 +232,21 @@ export async function cadastrarCaso(input: NovoCasoInput): Promise<Caso> {
       obrigatorio: doc.obrigatorio,
     })),
   )
-
-  if (input.memoriaRevisaoIncc) {
-    await anexarDocumento(id, 'memoria_revisao_incc', input.memoriaRevisaoIncc)
+  if (docsError) {
+    await supabase.from('casos').delete().eq('id', id)
+    throw docsError
   }
 
-  await supabase.from('andamentos').insert({
+  if (input.memoriaRevisaoIncc) {
+    try {
+      await anexarDocumento(id, 'memoria_revisao_incc', input.memoriaRevisaoIncc)
+    } catch (memoriaError) {
+      await supabase.from('casos').delete().eq('id', id)
+      throw memoriaError
+    }
+  }
+
+  const { error: andamentoError } = await supabase.from('andamentos').insert({
     id: `and-${crypto.randomUUID()}`,
     caso_id: id,
     tipo: 'sistema',
@@ -247,6 +256,10 @@ export async function cadastrarCaso(input: NovoCasoInput): Promise<Caso> {
     autor_id: userId,
     automatico: true,
   })
+  if (andamentoError) {
+    await supabase.from('casos').delete().eq('id', id)
+    throw andamentoError
+  }
 
   return mapCasoLista(data as CasoRow)
 }

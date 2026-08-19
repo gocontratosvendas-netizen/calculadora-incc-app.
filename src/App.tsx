@@ -2,6 +2,7 @@ import { useMemo, useRef, useState } from 'react'
 import './App.css'
 import { arredondarMoeda, calcularFatorCorrecaoPorAniversarios, formatarAnoMes, mesBaseDoIndice, type DefasagemMeses } from './inccTable'
 import { cadastrarCaso } from './lib/casos'
+import { mensagemErroSupabase } from './lib/supabase'
 import {
   gerarMemoriaCalculoPdf,
   gerarMemoriaCalculoPdfBlob,
@@ -492,13 +493,7 @@ function App() {
       setPopupCadastrarClienteAberto(false)
       navigate(`/casos/${caso.id}`)
     } catch (err) {
-      const msg =
-        err instanceof Error
-          ? err.message
-          : typeof err === 'string'
-            ? err
-            : 'Não foi possível cadastrar o cliente.'
-      setErroCadastroCliente(msg)
+      setErroCadastroCliente(mensagemErroSupabase(err, 'Não foi possível cadastrar o cliente.'))
     } finally {
       setCadastrandoCliente(false)
     }
