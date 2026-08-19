@@ -5,7 +5,6 @@
  *   APP_URL=https://seu-app.vercel.app node --env-file=.env.local scripts/convidar-socios.mjs
  */
 import { createClient } from '@supabase/supabase-js'
-import { createHash, randomBytes, randomUUID } from 'node:crypto'
 
 const url = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL
 const anonKey = process.env.VITE_SUPABASE_ANON_KEY
@@ -18,6 +17,7 @@ const SOCIOS = [
   { nome: 'Ricardo Bianchi', email: 'ricardobianchi@rbadvogados.com.br' },
   { nome: 'Henry Magnus', email: 'henrymagnus@gmail.com' },
   { nome: 'Georges Eduardo', email: 'georges_capps90@yahoo.com.br' },
+  { nome: 'Henrique Barbieri', email: 'henriquebarbieri@outlook.com.br' },
 ]
 
 if (!url || !anonKey || !serviceKey) {
@@ -33,10 +33,6 @@ const admin = createClient(url, serviceKey, {
   auth: { autoRefreshToken: false, persistSession: false },
 })
 const client = createClient(url, anonKey)
-
-function hashToken(raw) {
-  return createHash('sha256').update(raw, 'utf8').digest()
-}
 
 async function convidarViaAdmin(socio) {
   const { data, error } = await admin.rpc('cfg_convidar_usuario_admin', {
@@ -65,78 +61,18 @@ async function convidarViaSessao(socio) {
   return { ok: true, link: null }
 }
 
-async function convidarDireto(socio, autorId) {
-  const email = socio.email.toLowerCase().trim()
-  const { data: existente } = await admin
-    .from('cfg_usuarios')
-    .select('id,nome,situacao')
-    .ilike('email', email)
-    .maybeSingle()
-
-  if (existente?.situacao === 'ativo') {
-    return { ok: false, message: 'Usuário já ativo.' }
-  }
-
-  let uid = existente?.id
-  if (!uid) {
-    uid = randomUUID()
-    const { error: insertError } = await admin.from('cfg_usuarios').insert({
-      id: uid,
-      nome: socio.nome,
-      email,
-      papel_id: 'socio',
-      situacao: 'convidado',
-      convidado_por: autorId,
-      dois_fatores_desde: new Date().toISOString(),
-    })
-    if (insertError) return { ok: false, message: insertError.message }
-  } else if (existente.situacao !== 'convidado') {
-    return { ok: false, message: `Situação atual: ${existente.situacao}` }
-  }
-
-  await admin
-    .from('cfg_tokens')
-    .update({ usado_em: new Date().toISOString() })
-    .eq('usuario_id', uid)
-    .eq('tipo', 'convite')
-    .is('usado_em', null)
-
-  const raw = randomBytes(32).toString('hex')
-  const expires = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString()
-  const { error: tokenError } = await admin.from('cfg_tokens').insert({
-    usuario_id: uid,
-    tipo: 'convite',
-    token_hash: `\\x${hashToken(raw).toString('hex')}`,
-    expires_at: expires,
-  })
-  if (tokenError) return { ok: false, message: tokenError.message }
-
-  const link = `${appUrl}/convite/${raw}`
-  await admin.from('cfg_emails_fila').insert({
-    tipo: 'convite',
-    destinatario: email,
-    assunto: 'Convite para o VERUM',
-    corpo: 'Você foi convidado. Defina sua senha pelo link.',
-    payload: { token: raw, link, nome: socio.nome, papel: 'Sócio' },
-  })
-
-  return { ok: true, link }
-}
-
 async function main() {
+  if (/localhost|127\.0\.0\.1/.test(url)) {
+    console.warn(
+      '⚠️  VITE_SUPABASE_URL aponta para Supabase LOCAL. Para convites de produção, use .env com o projeto remoto (jupvqqsnvdvfceklaztl.supabase.co).\n',
+    )
+  }
   const { error: urlError } = await admin.rpc('cfg_definir_app_url', { p_url: appUrl })
   if (urlError) {
     console.error('Não foi possível definir APP_URL:', urlError.message)
     process.exit(1)
   }
   console.log(`APP_URL definida: ${appUrl}\n`)
-
-  const { data: adminRow } = await admin
-    .from('cfg_usuarios')
-    .select('id')
-    .eq('email', adminEmail)
-    .maybeSingle()
-  const autorId = adminRow?.id ?? 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb'
 
   const { error: loginError } = await client.auth.signInWithPassword({
     email: adminEmail,
@@ -147,9 +83,8 @@ async function main() {
   const links = []
 
   for (const socio of SOCIOS) {
-    let result = sessaoOk ? await convidarViaSessao(socio) : { ok: false, message: 'sem sessão' }
-    if (!result.ok) result = await convidarViaAdmin(socio)
-    if (!result.ok) result = await convidarDireto(socio, autorId)
+    let result = await convidarViaAdmin(socio)
+    if (!result.ok && sessaoOk) result = await convidarViaSessao(socio)
 
     if (!result.ok) {
       console.error(`✗ ${socio.nome} — ${result.message}`)
