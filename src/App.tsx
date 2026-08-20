@@ -165,7 +165,7 @@ function App() {
       const resultado = await parseExtratoFinanceiroPdf(file)
       if (!resultado.lancamentos.length) {
         setMensagemImportacao(
-          'Não encontrei lançamentos neste PDF. Confira se é um Extrato Financeiro, Posição Financeira ou Relação Valores Pagos da incorporadora.',
+          'Não encontrei lançamentos neste PDF. Confira se é um Extrato Financeiro, Posição Financeira (incl. Portal Benx) ou Relação Valores Pagos da incorporadora.',
         )
         return
       }

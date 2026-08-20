@@ -95,8 +95,27 @@ function semAcento(text: string) {
   return text.normalize('NFD').replace(/[\u0300-\u036f]/g, '')
 }
 
+/**
+ * Portal do Cliente Benx (e similares):
+ * Valores pagos → Vencimento | Pagamento | Valor | Encargos | Descontos | Total
+ * Diferente da Posição Financeira com "Paga em" / Valor Original.
+ */
+function parecePosicaoFinanceiraBenx(fullText: string) {
+  const t = semAcento(fullText).toLowerCase()
+  const temCabecalhoBenx =
+    t.includes('valores pagos') &&
+    t.includes('vencimento') &&
+    t.includes('pagamento') &&
+    t.includes('encargos') &&
+    t.includes('descontos')
+  const ehLayoutComPagaEm =
+    t.includes('paga em') || (t.includes('valor original') && t.includes('valor pago'))
+  return temCabecalhoBenx && !ehLayoutComPagaEm
+}
+
 function parecePosicaoFinanceira(fullText: string) {
   const t = semAcento(fullText).toLowerCase()
+  if (parecePosicaoFinanceiraBenx(fullText)) return false
   return (
     t.includes('posicao financeira') ||
     (t.includes('paga em') && t.includes('valor original') && t.includes('valor pago'))
@@ -166,6 +185,53 @@ function parseLancamentoCivilWeb(tokens: string[]): LancamentoExtraido | null {
     taxasAdicionais: ZERO,
     valorPago: moneys[moneys.length - 1],
     parcela,
+  }
+}
+
+function extractDatesBr(text: string) {
+  return [...text.matchAll(/\b(\d{2}\/\d{2}\/\d{4})\b/g)].map((m) => m[1])
+}
+
+/**
+ * Posição Financeira — Portal Benx:
+ * Vencimento | Pagamento | Valor | Encargos | Descontos | Total
+ *
+ * Quando há encargos, a coluna Valor já os inclui (Valor == Total).
+ * valorContratual = Valor − Encargos; a calculadora reaplica o INCC sobre essa base.
+ */
+function parseLancamentoPosicaoFinanceiraBenx(text: string): LancamentoExtraido | null {
+  const compact = text.replace(/\s+/g, ' ').trim()
+  if (!compact) return null
+  if (/posi[cç][aã]o financeira/i.test(compact)) return null
+  if (/valores\s+(pagos|em atraso|a vencer)/i.test(compact)) return null
+  if (/vencimento/i.test(compact) && /pagamento/i.test(compact)) return null
+  if (/n[aã]o h[aá] valores/i.test(compact)) return null
+  if (/resumo financeiro|total pago|data base/i.test(compact)) return null
+
+  const dates = extractDatesBr(compact)
+  const moneys = extractMoneys(compact)
+  if (dates.length < 2 || moneys.length < 4) return null
+
+  const dataPagamento = brDateToIso(dates[1])
+  if (!dataPagamento) return null
+
+  const valor = moneys[0]
+  const encargos = moneys[1]
+  const descontos = moneys[2]
+  const total = moneys[3]
+  const valorContratual = formatMoneyBr(
+    Math.max(0, parseMoneyBr(valor) - parseMoneyBr(encargos)),
+  )
+
+  return {
+    dataPagamento,
+    valorPago: total,
+    valorContratual,
+    renegociacao: ZERO,
+    multa: ZERO,
+    jurosMora: encargos,
+    descontos,
+    taxasAdicionais: ZERO,
   }
 }
 
@@ -339,6 +405,23 @@ function parseCivilWebFromRows(rows: PdfTextRow[]): ExtratoParseResult {
   return { dataAssinatura: dataAssinaturaCivilWeb(fullText), lancamentos }
 }
 
+function parsePosicaoFinanceiraBenxFromRows(rows: PdfTextRow[]): ExtratoParseResult {
+  const lancamentos: LancamentoExtraido[] = []
+  const seen = new Set<string>()
+
+  for (const row of rows) {
+    const parsed = parseLancamentoPosicaoFinanceiraBenx(row.text)
+    if (!parsed) continue
+    const key = chaveLancamento(parsed)
+    if (seen.has(key)) continue
+    seen.add(key)
+    lancamentos.push(parsed)
+  }
+
+  lancamentos.sort((a, b) => a.dataPagamento.localeCompare(b.dataPagamento))
+  return { dataAssinatura: null, lancamentos }
+}
+
 function parsePosicaoFinanceiraFromRows(rows: PdfTextRow[]): ExtratoParseResult {
   const fullText = rows.map((r) => r.text).join('\n')
   const lancamentos: LancamentoExtraido[] = []
@@ -370,9 +453,12 @@ function parsePosicaoFinanceiraFromRows(rows: PdfTextRow[]): ExtratoParseResult 
   return { dataAssinatura: dataAssinaturaPosicaoFinanceira(fullText), lancamentos }
 }
 
-/** Interpreta linhas já extraídas do PDF (CivilWeb, Posição Financeira ou Relação Valores Pagos). */
+/** Interpreta linhas já extraídas do PDF (CivilWeb, Posição Financeira, Benx ou Relação Valores Pagos). */
 export function parseExtratoFromRows(rows: PdfTextRow[]): ExtratoParseResult {
   const fullText = rows.map((r) => r.text).join('\n')
+  if (parecePosicaoFinanceiraBenx(fullText)) {
+    return parsePosicaoFinanceiraBenxFromRows(rows)
+  }
   if (parecePosicaoFinanceira(fullText)) {
     return parsePosicaoFinanceiraFromRows(rows)
   }
@@ -382,6 +468,9 @@ export function parseExtratoFromRows(rows: PdfTextRow[]): ExtratoParseResult {
 
   const civil = parseCivilWebFromRows(rows)
   if (civil.lancamentos.length) return civil
+
+  const benx = parsePosicaoFinanceiraBenxFromRows(rows)
+  if (benx.lancamentos.length) return benx
 
   return parsePosicaoFinanceiraFromRows(rows)
 }

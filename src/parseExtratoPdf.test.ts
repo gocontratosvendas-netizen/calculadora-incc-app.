@@ -104,6 +104,76 @@ describe('parseExtratoFromRows — Posição Financeira', () => {
   })
 })
 
+const BENX_LINHAS = [
+  'Posição Financeira',
+  'VIVA BENX CASA DO ATOR',
+  'APTO - Unidade 1302',
+  'Data base: 31/08/2026 Atenção: Os valores constantes na posição financeira estão projetados.',
+  'Resumo Financeiro',
+  'Total Pago: R$ 332.123,17 A vencer: R$ 0,00 Em atraso: R$ 0,00',
+  'Valores em atraso',
+  'Vencimento Valor Encargos Valor Atualizado',
+  'Não há valores em atraso para a unidade selecionada.',
+  'Valores a vencer',
+  'Não há valores a vencer para a unidade selecionada.',
+  'Valores pagos',
+  'Vencimento Pagamento Valor Encargos Descontos Total',
+  '14/12/2021 15/12/2021 R$ 16.370,00 R$ 0,00 R$ 0,00 R$ 16.370,00',
+  '25/02/2022 22/02/2022 R$ 1.515,31 R$ 0,00 R$ 0,00 R$ 1.515,31',
+  '25/05/2023 30/05/2023 R$ 1.709,51 R$ 37,81 R$ 0,00 R$ 1.709,51',
+  '25/02/2024 04/03/2024 R$ 1.756,64 R$ 38,31 R$ 0,00 R$ 1.756,64',
+  '30/05/2025 17/06/2025 R$ 229.856,65 R$ 2.336,13 R$ 0,00 R$ 229.856,65',
+]
+
+describe('parseExtratoFromRows — Posição Financeira Benx', () => {
+  it('detecta o layout do Portal Benx e extrai os lançamentos pagos', () => {
+    const resultado = parseExtratoFromRows(rowsFromLines(BENX_LINHAS))
+
+    expect(resultado.dataAssinatura).toBeNull()
+    expect(resultado.lancamentos).toHaveLength(5)
+    expect(resultado.lancamentos[0]).toMatchObject({
+      dataPagamento: '2021-12-15',
+      valorContratual: '16.370,00',
+      valorPago: '16.370,00',
+      jurosMora: '0,00',
+      descontos: '0,00',
+    })
+  })
+
+  it('subtrai encargos do valor para obter a base contratual', () => {
+    const resultado = parseExtratoFromRows(rowsFromLines(BENX_LINHAS))
+
+    expect(
+      resultado.lancamentos.find((l) => l.dataPagamento === '2023-05-30'),
+    ).toMatchObject({
+      valorContratual: '1.671,70',
+      valorPago: '1.709,51',
+      jurosMora: '37,81',
+    })
+
+    expect(
+      resultado.lancamentos.find((l) => l.dataPagamento === '2024-03-04'),
+    ).toMatchObject({
+      valorContratual: '1.718,33',
+      valorPago: '1.756,64',
+      jurosMora: '38,31',
+    })
+
+    expect(
+      resultado.lancamentos.find((l) => l.dataPagamento === '2025-06-17'),
+    ).toMatchObject({
+      valorContratual: '227.520,52',
+      valorPago: '229.856,65',
+      jurosMora: '2.336,13',
+    })
+  })
+
+  it('ignora resumo, cabeçalhos e seções sem valores', () => {
+    const resultado = parseExtratoFromRows(rowsFromLines(BENX_LINHAS))
+    expect(resultado.lancamentos.some((l) => l.valorPago === '332.123,17')).toBe(false)
+  })
+})
+
 describe('parseExtratoFromRows — CivilWeb', () => {
   it('continua lendo extrato com duas datas e onze colunas monetárias', () => {
     const linha =
