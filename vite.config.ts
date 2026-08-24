@@ -8,6 +8,7 @@ export default defineConfig({
     include: [
       'src/modules/financeiro/**/*.test.ts',
       'src/modules/configuracoes/**/*.test.ts',
+      'src/lib/casos.test.ts',
       'src/parseExtratoPdf.test.ts',
       'src/inccTable.test.ts',
     ],

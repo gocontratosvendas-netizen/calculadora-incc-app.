@@ -1,4 +1,4 @@
-import { listarCasos, type Caso } from './casos'
+import { casoEntraNaCarteiraJudicial, listarCasos, type Caso } from './casos'
 import { supabase } from './supabase'
 
 export interface DashboardSummary {
@@ -20,15 +20,16 @@ function fromCasos(casos: Caso[], revisao: number): DashboardSummary {
   let casosLiquidados = 0
 
   for (const caso of casos) {
+    if (caso.status === 'processo_de_venda' && caso.excessoApurado == null) {
+      casosEmCalculo += 1
+    }
+    if (!casoEntraNaCarteiraJudicial(caso.status)) continue
     if (caso.excessoApurado != null) {
       excessoTotalCarteira += caso.excessoApurado
       contratosApurados += 1
     }
     if (caso.status !== 'encerrado') {
       casosAtivos += 1
-    }
-    if (caso.status === 'processo_de_venda' && caso.excessoApurado == null) {
-      casosEmCalculo += 1
     }
     if (caso.status === 'encerrado') {
       casosLiquidados += 1

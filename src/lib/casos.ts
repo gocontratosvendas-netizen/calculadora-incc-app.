@@ -30,22 +30,38 @@ export interface CarteiraResumo {
 }
 
 export interface CarteiraFinanceiro {
-  /** R$ 2.500 por caso que já saiu de processo de venda (ajuizado ou encerrado). */
+  /** R$ 2.500 por caso ajuizado ou encerrado. */
   proLaboreRecebido: number
-  /** 30% do valor total de causa da base. */
+  /** 30% do valor total de causa da carteira judicial. */
   honorariosExitoEsperados: number
 }
 
 export const PRO_LABORE_POR_AJUIZAMENTO = 2_500
 export const HONORARIOS_EXITO_PERCENTUAL = 0.3
 
+/** Fases em que o caso já segue para o Judiciário e entra nos gráficos da carteira. */
+export const STATUS_CARTEIRA_JUDICIAL: readonly CasoStatus[] = [
+  'confeccao_de_peticao_inicial',
+  'ajuizado',
+  'encerrado',
+]
+
+export function casoEntraNaCarteiraJudicial(status: CasoStatus): boolean {
+  return (STATUS_CARTEIRA_JUDICIAL as readonly string[]).includes(status)
+}
+
+function casosDaCarteiraJudicial(casos: Caso[]): Caso[] {
+  return casos.filter((caso) => casoEntraNaCarteiraJudicial(caso.status))
+}
+
 export function calcularResumoCarteira(casos: Caso[]): CarteiraResumo {
+  const base = casosDaCarteiraJudicial(casos)
   let emAndamento = 0
   let valorTotalCausa = 0
   let excessoTotalCarteira = 0
   let recuperado = 0
 
-  for (const caso of casos) {
+  for (const caso of base) {
     if (caso.status !== 'encerrado') {
       emAndamento += 1
     }
@@ -61,7 +77,7 @@ export function calcularResumoCarteira(casos: Caso[]): CarteiraResumo {
   }
 
   return {
-    casosCadastrados: casos.length,
+    casosCadastrados: base.length,
     emAndamento,
     valorTotalCausa,
     excessoTotalCarteira,
@@ -70,10 +86,11 @@ export function calcularResumoCarteira(casos: Caso[]): CarteiraResumo {
 }
 
 export function calcularResumoFinanceiro(casos: Caso[]): CarteiraFinanceiro {
+  const base = casosDaCarteiraJudicial(casos)
   let clientesComProLabore = 0
   let valorTotalCausa = 0
 
-  for (const caso of casos) {
+  for (const caso of base) {
     if (caso.status === 'ajuizado' || caso.status === 'encerrado') {
       clientesComProLabore += 1
     }
