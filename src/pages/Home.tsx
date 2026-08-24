@@ -9,7 +9,7 @@ import {
   type KeyboardEvent as ReactKeyboardEvent,
   type ReactNode,
 } from 'react'
-import { listarCasos, type Caso, type CasoStatus } from '../lib/casos'
+import { listarCasos, STATUS_CASO_ROTULO, type Caso } from '../lib/casos'
 import { getDashboardSummary, type DashboardSummary } from '../lib/dashboard'
 import {
   comentar,
@@ -55,12 +55,6 @@ type PublicarEstado = {
   casoVinculado: CasoVinculado | null
   anexo: AnexoPost | null
   restritoASocios: boolean
-}
-
-const STATUS_CASO: Record<CasoStatus, string> = {
-  processo_de_venda: 'Processo de venda',
-  ajuizado: 'Ajuizado',
-  encerrado: 'Encerrado',
 }
 
 const moeda = new Intl.NumberFormat('pt-BR', {
@@ -131,7 +125,7 @@ function casoParaVinculo(caso: Caso): CasoVinculado {
     id: caso.id,
     cliente: caso.cliente,
     empreendimento: caso.empreendimento,
-    status: STATUS_CASO[caso.status],
+    status: STATUS_CASO_ROTULO[caso.status],
     excesso: caso.excessoApurado,
   }
 }
@@ -1158,7 +1152,7 @@ export default function Home() {
                         >
                           <span>
                             {caso.cliente} · {caso.empreendimento}
-                            <span className="mural-picker-option-meta"> {STATUS_CASO[caso.status]}</span>
+                            <span className="mural-picker-option-meta"> {STATUS_CASO_ROTULO[caso.status]}</span>
                           </span>
                         </button>
                       </li>

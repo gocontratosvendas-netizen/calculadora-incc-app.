@@ -255,6 +255,12 @@
   color: #854f0b;
 }
 
+.caso-status-chip--confeccao_de_peticao_inicial {
+  background: #eee8f6;
+  border-color: #d9cce8;
+  color: #5c3d7a;
+}
+
 .caso-status-chip--ajuizado {
   background: #e6f1fb;
   border-color: #c7def5;
@@ -271,7 +277,7 @@
   position: absolute;
   top: calc(100% + 4px);
   left: 0;
-  min-width: 188px;
+  min-width: 248px;
   background: #ffffff;
   border: 1px solid var(--c-borda-card);
   border-radius: 8px;
@@ -662,6 +668,9 @@
 .caso-doc-nome {
   flex: 1;
   min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   font-size: 11.5px;
   color: var(--c-texto);
 }
@@ -690,6 +699,13 @@
 .caso-doc-badge--pend {
   background: var(--c-ambar-bg);
   color: var(--c-ambar);
+}
+
+.caso-doc-erro {
+  margin: 0;
+  padding: 8px 13px 12px;
+  font-size: 11.5px;
+  color: var(--c-vermelho);
 }
 
 .caso-side-card {

@@ -10,8 +10,11 @@ import { AndamentoFormModal, IconTipoAndamento } from '../components/AndamentoFo
 import { MudarStatusModal } from '../components/MudarStatusModal'
 import {
   anexarDocumento,
+  anexarDocumentoLivre,
   concluirPrazo,
+  isDocumentoPadrao,
   obterCaso,
+  STATUS_CASO_LISTA,
   STATUS_CASO_ROTULO,
   type Andamento,
   type CasoDetalhe as CasoDetalheTipo,
@@ -21,10 +24,10 @@ import {
 } from '../lib/casos'
 import { Link } from '../lib/router'
 import { useRouter } from '../lib/router-context'
+import { mensagemErroSupabase } from '../lib/supabase'
 import './CasoDetalhe.css'
 
 const USUARIO_ATUAL_ID = 'usr-vitor'
-const STATUS_LISTA: CasoStatus[] = ['processo_de_venda', 'ajuizado', 'encerrado']
 
 const TIPO_MARKER: Record<
   Andamento['tipo'],
@@ -271,7 +274,7 @@ function StatusChip({
       </button>
       {aberto ? (
         <div className="caso-status-menu" id={menuId} role="menu">
-          {STATUS_LISTA.map((item) => {
+          {STATUS_CASO_LISTA.map((item) => {
             const atual = item === status
             return (
               <button
@@ -339,9 +342,10 @@ function Esqueleto() {
 export default function CasoDetalhe({ id }: { id: string }) {
   const { navigate } = useRouter()
   const fileRef = useRef<HTMLInputElement>(null)
-  const chaveAnexoRef = useRef<DocumentoChave | null>(null)
+  const chaveAnexoRef = useRef<DocumentoChave | 'livre' | null>(null)
 
   const [caso, setCaso] = useState<CasoDetalheTipo | null>(null)
+  const [erroDocumentos, setErroDocumentos] = useState<string | null>(null)
   const [status, setStatus] = useState<'loading' | 'ready' | 'notfound' | 'error'>('loading')
   const [carregadoId, setCarregadoId] = useState(id)
   const [modalAndamento, setModalAndamento] = useState<Andamento | null | 'novo'>(null)
@@ -355,6 +359,7 @@ export default function CasoDetalhe({ id }: { id: string }) {
     setStatus('loading')
     setCaso(null)
     setCriteriosAbertos(false)
+    setErroDocumentos(null)
   }
 
   const carregar = useCallback(async () => {
@@ -445,13 +450,18 @@ export default function CasoDetalhe({ id }: { id: string }) {
     }
   }
 
-  async function onAnexar(chave: DocumentoChave, arquivo: File) {
-    if (!podeAnexarDocumentoManualmente(chave)) return
+  async function onAnexar(destino: DocumentoChave | 'livre', arquivo: File) {
     try {
-      await anexarDocumento(id, chave, arquivo)
+      if (destino === 'livre') {
+        await anexarDocumentoLivre(id, arquivo)
+      } else {
+        if (!podeAnexarDocumentoManualmente(destino)) return
+        await anexarDocumento(id, destino, arquivo)
+      }
+      setErroDocumentos(null)
       setCaso(await obterCaso(id))
-    } catch {
-      /* keep state */
+    } catch (error) {
+      setErroDocumentos(mensagemErroSupabase(error, 'Não foi possível anexar o documento.'))
     }
   }
 
@@ -650,10 +660,7 @@ export default function CasoDetalhe({ id }: { id: string }) {
                 type="button"
                 className="caso-link-btn"
                 onClick={() => {
-                  const pendente = caso.documentos.find(
-                    (doc) => doc.arquivo == null && podeAnexarDocumentoManualmente(doc.chave),
-                  )
-                  chaveAnexoRef.current = pendente?.chave ?? 'comprovantes'
+                  chaveAnexoRef.current = 'livre'
                   fileRef.current?.click()
                 }}
               >
@@ -665,19 +672,25 @@ export default function CasoDetalhe({ id }: { id: string }) {
                 const presente = doc.arquivo != null
                 const ultimo = index === caso.documentos.length - 1
                 const geradoPelaCalculadora = doc.chave === 'memoria_revisao_incc'
+                const extra = !isDocumentoPadrao(doc.chave)
+                const nome = extra && doc.arquivo ? doc.arquivo.nome : doc.rotulo
                 const iconColor =
-                  !presente ? '#AEB5C0' : geradoPelaCalculadora || doc.chave === 'memorial' ? '#0F6E56' : '#5B6474'
+                  !presente
+                    ? '#AEB5C0'
+                    : geradoPelaCalculadora || doc.chave === 'memorial' || extra
+                      ? '#0F6E56'
+                      : '#5B6474'
                 const conteudo: ReactNode = (
                   <>
                     <span className="caso-doc-icon" style={{ color: iconColor }}>
-                      {presente && (geradoPelaCalculadora || doc.chave === 'memorial') ? (
+                      {presente && (geradoPelaCalculadora || doc.chave === 'memorial' || extra) ? (
                         <IconDocCheck />
                       ) : (
                         <IconFile />
                       )}
                     </span>
                     <span className={`caso-doc-nome${presente ? '' : ' is-pendente'}`}>
-                      {doc.rotulo}
+                      {nome}
                       {presente && doc.arquivo ? (
                         <span className="caso-doc-size"> · {formatarTamanho(doc.arquivo.tamanhoBytes)}</span>
                       ) : null}
@@ -687,6 +700,9 @@ export default function CasoDetalhe({ id }: { id: string }) {
                     ) : null}
                     {presente && doc.chave === 'memorial' ? (
                       <span className="caso-doc-badge caso-doc-badge--ok">Obrigatório</span>
+                    ) : null}
+                    {presente && extra ? (
+                      <span className="caso-doc-badge caso-doc-badge--ok">Anexo</span>
                     ) : null}
                     {!presente && geradoPelaCalculadora ? (
                       <span className="caso-doc-badge caso-doc-badge--pend">Não gerada</span>
@@ -709,6 +725,7 @@ export default function CasoDetalhe({ id }: { id: string }) {
                         type="button"
                         className="caso-doc-row"
                         onClick={() => {
+                          if (!isDocumentoPadrao(doc.chave)) return
                           chaveAnexoRef.current = doc.chave
                           fileRef.current?.click()
                         }}
@@ -720,15 +737,17 @@ export default function CasoDetalhe({ id }: { id: string }) {
                 )
               })}
             </ul>
+            {erroDocumentos ? <p className="caso-doc-erro">{erroDocumentos}</p> : null}
             <input
               ref={fileRef}
               className="caso-visually-hidden"
               type="file"
               onChange={(event) => {
                 const file = event.target.files?.[0]
-                const chave = chaveAnexoRef.current
+                const destino = chaveAnexoRef.current
+                chaveAnexoRef.current = null
                 event.target.value = ''
-                if (file && chave) void onAnexar(chave, file)
+                if (file && destino) void onAnexar(destino, file)
               }}
             />
           </section>

@@ -1,7 +1,11 @@
 import { publicarPost } from './mural'
 import { getSessionUserId, supabase, uploadFile, type Profile } from './supabase'
 
-export type CasoStatus = 'processo_de_venda' | 'ajuizado' | 'encerrado'
+export type CasoStatus =
+  | 'processo_de_venda'
+  | 'confeccao_de_peticao_inicial'
+  | 'ajuizado'
+  | 'encerrado'
 
 export interface Caso {
   id: string
@@ -42,7 +46,7 @@ export function calcularResumoCarteira(casos: Caso[]): CarteiraResumo {
   let recuperado = 0
 
   for (const caso of casos) {
-    if (caso.status === 'ajuizado' || caso.status === 'processo_de_venda') {
+    if (caso.status !== 'encerrado') {
       emAndamento += 1
     }
     if (caso.valorCausa != null) {
@@ -167,6 +171,10 @@ const DOCUMENTOS_PADRAO: { chave: DocumentoChave; rotulo: string; obrigatorio: b
 ]
 
 export const ORDEM_DOCUMENTOS_CASO: DocumentoChave[] = DOCUMENTOS_PADRAO.map((doc) => doc.chave)
+
+export function isDocumentoPadrao(chave: string): chave is DocumentoChave {
+  return (ORDEM_DOCUMENTOS_CASO as readonly string[]).includes(chave)
+}
 
 function criteriosPadrao(excesso: number | null, status: CasoStatus) {
   return [
@@ -332,7 +340,7 @@ export interface Prazo {
 }
 
 export interface DocumentoCaso {
-  chave: DocumentoChave
+  chave: DocumentoChave | string
   rotulo: string
   obrigatorio: boolean
   arquivo: AndamentoAnexo | null
@@ -402,8 +410,16 @@ export interface MudarStatusInput {
   dataDesfecho?: string | null
 }
 
+export const STATUS_CASO_LISTA: CasoStatus[] = [
+  'processo_de_venda',
+  'confeccao_de_peticao_inicial',
+  'ajuizado',
+  'encerrado',
+]
+
 export const STATUS_CASO_ROTULO: Record<CasoStatus, string> = {
   processo_de_venda: 'Processo de venda',
+  confeccao_de_peticao_inicial: 'Confecção de Petição Inicial',
   ajuizado: 'Ajuizado',
   encerrado: 'Encerrado',
 }
@@ -466,7 +482,7 @@ type PrazoRow = {
 }
 
 type DocRow = {
-  chave: DocumentoChave
+  chave: string
   rotulo: string
   obrigatorio: boolean
   arquivo_id: string | null
@@ -536,22 +552,24 @@ function mapDocumento(row: DocRow): DocumentoCaso {
 
 function normalizarDocumentos(documentos: DocumentoCaso[]): DocumentoCaso[] {
   const porChave = new Map(documentos.map((doc) => [doc.chave, doc]))
-  return DOCUMENTOS_PADRAO.map((padrao) => {
-    const existente = porChave.get(padrao.chave)
+  const padrao = DOCUMENTOS_PADRAO.map((item) => {
+    const existente = porChave.get(item.chave)
     if (existente) {
       return {
         ...existente,
-        rotulo: padrao.rotulo,
-        obrigatorio: padrao.obrigatorio,
+        rotulo: item.rotulo,
+        obrigatorio: item.obrigatorio,
       }
     }
     return {
-      chave: padrao.chave,
-      rotulo: padrao.rotulo,
-      obrigatorio: padrao.obrigatorio,
+      chave: item.chave,
+      rotulo: item.rotulo,
+      obrigatorio: item.obrigatorio,
       arquivo: null,
     }
   })
+  const extras = documentos.filter((doc) => !isDocumentoPadrao(doc.chave))
+  return [...padrao, ...extras]
 }
 
 async function uploadAnexoCaso(casoId: string, arquivo: File) {
@@ -849,6 +867,34 @@ export async function anexarDocumento(
       },
       { onConflict: 'caso_id,chave' },
     )
+    .select('*')
+    .single()
+  if (error) throw error
+
+  await supabase
+    .from('casos')
+    .update({ atualizado_em: new Date().toISOString() })
+    .eq('id', casoId)
+
+  return mapDocumento(data as DocRow)
+}
+
+export async function anexarDocumentoLivre(casoId: string, arquivo: File): Promise<DocumentoCaso> {
+  const anexo = await uploadAnexoCaso(casoId, arquivo)
+  const chave = `anexo-${crypto.randomUUID()}`
+  const { data, error } = await supabase
+    .from('documentos_caso')
+    .insert({
+      id: `doc-${crypto.randomUUID()}`,
+      caso_id: casoId,
+      chave,
+      rotulo: arquivo.name,
+      obrigatorio: false,
+      arquivo_id: anexo.id,
+      arquivo_nome: anexo.nome,
+      arquivo_tamanho_bytes: anexo.tamanhoBytes,
+      arquivo_url: anexo.url,
+    })
     .select('*')
     .single()
   if (error) throw error

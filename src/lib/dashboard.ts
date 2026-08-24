@@ -24,7 +24,7 @@ function fromCasos(casos: Caso[], revisao: number): DashboardSummary {
       excessoTotalCarteira += caso.excessoApurado
       contratosApurados += 1
     }
-    if (caso.status === 'ajuizado' || caso.status === 'processo_de_venda') {
+    if (caso.status !== 'encerrado') {
       casosAtivos += 1
     }
     if (caso.status === 'processo_de_venda' && caso.excessoApurado == null) {

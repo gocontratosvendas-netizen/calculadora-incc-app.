@@ -29,6 +29,7 @@ const PAGE_SIZE = 20
 const STATUS_CHIPS: { id: StatusFiltro; rotulo: string }[] = [
   { id: 'todos', rotulo: 'Todos' },
   { id: 'processo_de_venda', rotulo: 'Processo de venda' },
+  { id: 'confeccao_de_peticao_inicial', rotulo: 'Confecção de Petição Inicial' },
   { id: 'ajuizado', rotulo: 'Ajuizado' },
   { id: 'encerrado', rotulo: 'Encerrado' },
 ]
@@ -38,6 +39,10 @@ const STATUS_META: Record<
   { rotulo: string; className: string }
 > = {
   processo_de_venda: { rotulo: 'Processo de venda', className: 'casos-badge--venda' },
+  confeccao_de_peticao_inicial: {
+    rotulo: 'Confecção de Petição Inicial',
+    className: 'casos-badge--peticao',
+  },
   ajuizado: { rotulo: 'Ajuizado', className: 'casos-badge--ajuizado' },
   encerrado: { rotulo: 'Encerrado', className: 'casos-badge--encerrado' },
 }
