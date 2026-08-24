@@ -15,6 +15,7 @@ import {
   type CasoStatus,
   type Desfecho,
 } from '../lib/casos'
+import { mensagemErroSupabase } from '../lib/supabase'
 import '../pages/CasoDetalhe.css'
 
 type FormState = {
@@ -154,7 +155,7 @@ export function MudarStatusModal({
   const [baseline] = useState(() => JSON.stringify(form))
   const [errors, setErrors] = useState<Partial<Record<FieldKey, string>>>({})
   const [salvando, setSalvando] = useState(false)
-  const [erroSalvar, setErroSalvar] = useState(false)
+  const [erroSalvar, setErroSalvar] = useState<string | null>(null)
 
   const dirty = JSON.stringify(form) !== baseline
   const precisaValor = form.desfecho !== '' && DESFECHO_COM_VALOR.includes(form.desfecho)
@@ -240,7 +241,7 @@ export function MudarStatusModal({
     if (Object.keys(next).length > 0) return
     setSalvando(true)
     salvandoRef.current = true
-    setErroSalvar(false)
+    setErroSalvar(null)
     try {
       const salvo = await mudarStatus(caso.id, {
         status: novoStatus,
@@ -258,8 +259,8 @@ export function MudarStatusModal({
         dataDesfecho: novoStatus === 'encerrado' ? form.dataDesfecho : undefined,
       })
       onSaved(salvo)
-    } catch {
-      setErroSalvar(true)
+    } catch (error) {
+      setErroSalvar(mensagemErroSupabase(error, 'Não foi possível alterar o status.'))
     } finally {
       setSalvando(false)
       salvandoRef.current = false
@@ -290,7 +291,7 @@ export function MudarStatusModal({
           <div className="caso-dialog-body">
             {erroSalvar ? (
               <p className="caso-alert" role="alert">
-                Não foi possível alterar o status.
+                {erroSalvar}
               </p>
             ) : null}
 
