@@ -783,17 +783,18 @@ export default function CasoDetalhe({ id }: { id: string }) {
                 const ultimo = index === caso.documentos.length - 1
                 const geradoPelaCalculadora = doc.chave === 'memoria_revisao_incc'
                 const extra = !isDocumentoPadrao(doc.chave)
+                const obrigatorio = doc.obrigatorio
                 const nome = extra && doc.arquivo ? doc.arquivo.nome : doc.rotulo
                 const iconColor =
                   !presente
                     ? '#AEB5C0'
-                    : geradoPelaCalculadora || doc.chave === 'memorial' || extra
+                    : geradoPelaCalculadora || obrigatorio || extra
                       ? '#0F6E56'
                       : '#5B6474'
                 const conteudo: ReactNode = (
                   <>
                     <span className="caso-doc-icon" style={{ color: iconColor }}>
-                      {presente && (geradoPelaCalculadora || doc.chave === 'memorial' || extra) ? (
+                      {presente && (geradoPelaCalculadora || obrigatorio || extra) ? (
                         <IconDocCheck />
                       ) : (
                         <IconFile />
@@ -808,7 +809,7 @@ export default function CasoDetalhe({ id }: { id: string }) {
                     {presente && geradoPelaCalculadora ? (
                       <span className="caso-doc-badge caso-doc-badge--ok">Gerada</span>
                     ) : null}
-                    {presente && doc.chave === 'memorial' ? (
+                    {presente && obrigatorio ? (
                       <span className="caso-doc-badge caso-doc-badge--ok">Obrigatório</span>
                     ) : null}
                     {presente && extra ? (

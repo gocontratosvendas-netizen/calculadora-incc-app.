@@ -182,7 +182,7 @@ export const ROTULO_MEMORIA_REVISAO_INCC = 'Memória de Cálculo Revisão INCC'
 const DOCUMENTOS_PADRAO: { chave: DocumentoChave; rotulo: string; obrigatorio: boolean }[] = [
   { chave: 'memoria_revisao_incc', rotulo: ROTULO_MEMORIA_REVISAO_INCC, obrigatorio: false },
   { chave: 'memorial', rotulo: 'Memorial de cálculo da incorporadora', obrigatorio: true },
-  { chave: 'contrato', rotulo: 'Contrato de compra e venda', obrigatorio: false },
+  { chave: 'contrato', rotulo: 'Contrato de compra e venda', obrigatorio: true },
   { chave: 'chaves', rotulo: 'Termo de entrega de chaves', obrigatorio: false },
   { chave: 'comprovantes', rotulo: 'Comprovantes de pagamento', obrigatorio: false },
 ]
