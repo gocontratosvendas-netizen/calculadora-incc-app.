@@ -844,16 +844,18 @@ export default function CasoDetalhe({ id }: { id: string }) {
                           {conteudo}
                         </button>
                       )}
-                      {presente ? (
                         <button
                           type="button"
                           className="caso-doc-excluir"
                           aria-label={`Excluir ${nome}`}
-                          onClick={() => setDocParaExcluir(doc)}
+                          onClick={(event) => {
+                            event.preventDefault()
+                            event.stopPropagation()
+                            setDocParaExcluir(doc)
+                          }}
                         >
-                          <IconTrash />
-                        </button>
-                      ) : null}
+                        <IconTrash />
+                      </button>
                     </div>
                   </li>
                 )

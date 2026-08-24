@@ -552,21 +552,16 @@ function mapDocumento(row: DocRow): DocumentoCaso {
 
 function normalizarDocumentos(documentos: DocumentoCaso[]): DocumentoCaso[] {
   const porChave = new Map(documentos.map((doc) => [doc.chave, doc]))
-  const padrao = DOCUMENTOS_PADRAO.map((item) => {
+  const padrao = DOCUMENTOS_PADRAO.flatMap((item) => {
     const existente = porChave.get(item.chave)
-    if (existente) {
-      return {
+    if (!existente) return []
+    return [
+      {
         ...existente,
         rotulo: item.rotulo,
         obrigatorio: item.obrigatorio,
-      }
-    }
-    return {
-      chave: item.chave,
-      rotulo: item.rotulo,
-      obrigatorio: item.obrigatorio,
-      arquivo: null,
-    }
+      },
+    ]
   })
   const extras = documentos.filter((doc) => !isDocumentoPadrao(doc.chave))
   return [...padrao, ...extras]
@@ -939,8 +934,9 @@ export async function excluirDocumento(casoId: string, chave: string): Promise<v
 
   const row = data as DocRow
   const caminhos = caminhosStorageDocumento(row, casoId)
+  const temArquivo = Boolean(row.arquivo_id || row.arquivo_url)
 
-  if (isDocumentoPadrao(chave)) {
+  if (isDocumentoPadrao(chave) && temArquivo) {
     const { error } = await supabase
       .from('documentos_caso')
       .update({
