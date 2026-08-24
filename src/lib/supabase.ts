@@ -110,7 +110,7 @@ export function mensagemErroSupabase(error: unknown, fallback = 'Operação falh
     const message = String((error as { message: unknown }).message)
     if (message) {
       if (/memoria_revisao_incc|documento_chave|invalid input value for enum/i.test(message)) {
-        return 'Atualização pendente no banco: execute a migration memoria_revisao_incc no Supabase (SQL Editor) e tente novamente.'
+        return 'Atualização pendente no banco: execute as migrations de documentos no Supabase (SQL Editor) e tente novamente.'
       }
       return message
     }
