@@ -220,6 +220,16 @@ describe('fórmulas da DRE', () => {
     expect(dre.lucroLiquido).toBe(45_000)
   })
 
+  it('pró-labore de entrada entra na receita bruta, não na despesa operacional', () => {
+    const ls = [
+      lancamento({ id: 'pl', classificacaoId: cls('3.01.005').id, valor: 2_500, movimentacao: 'entrada' }),
+      lancamento({ id: 'pessoal', classificacaoId: cls('4.02.002').id, valor: 1_000, movimentacao: 'saida' }),
+    ]
+    const dre = calcularDRE(ls, CLASSIFS, MARCO, 'competencia')
+    expect(dre.receitaBruta).toBe(2_500)
+    expect(dre.despesasOperacionais).toBe(1_000)
+  })
+
   it('resultado financeiro soma entradas e subtrai saídas do grupo', () => {
     const jurosRecebidos: Classificacao = {
       id: '4.03.010',
@@ -452,6 +462,11 @@ describe('ramos restantes da engine', () => {
     expect(isTrimestreCivil({ inicio: '2026-01-15', fim: '2026-03-31' })).toBe(false)
     expect(isAnoCivil({ inicio: '2026-01-01', fim: '2026-11-30' })).toBe(false)
     expect(classificacaoPorCodigo(CLASSIFS, '3.01.001')?.nome).toBe('Cessão de crédito')
+    expect(classificacaoPorCodigo(CLASSIFS, '3.01.005')).toMatchObject({
+      nome: 'Pró-labore',
+      movimentacao: 'entrada',
+      grupoDRE: 'receita_bruta',
+    })
     expect(classificacaoPorCodigo(CLASSIFS, '99')).toBeUndefined()
     const extra: Classificacao = {
       id: '9.99.001',

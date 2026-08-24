@@ -7,6 +7,7 @@ const SEED: readonly Seed[] = [
   { id: '3.01.002', codigo: '3.01.002', nome: 'Honorários de êxito', movimentacao: 'entrada', grupoDRE: 'receita_bruta', ordem: 102 },
   { id: '3.01.003', codigo: '3.01.003', nome: 'Upside CDC (dobro)', movimentacao: 'entrada', grupoDRE: 'receita_bruta', ordem: 103 },
   { id: '3.01.004', codigo: '3.01.004', nome: 'Outras receitas', movimentacao: 'entrada', grupoDRE: 'receita_bruta', ordem: 104 },
+  { id: '3.01.005', codigo: '3.01.005', nome: 'Pró-labore', movimentacao: 'entrada', grupoDRE: 'receita_bruta', ordem: 105 },
   { id: '3.02.001', codigo: '3.02.001', nome: 'Aporte de sócios', movimentacao: 'entrada', grupoDRE: null, ordem: 201 },
   { id: '3.02.002', codigo: '3.02.002', nome: 'Empréstimo / funding', movimentacao: 'entrada', grupoDRE: null, ordem: 202 },
   { id: '4.01.001', codigo: '4.01.001', nome: 'Honorários escritório parceiro', movimentacao: 'saida', grupoDRE: 'custo_direto', ordem: 301 },
