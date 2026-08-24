@@ -906,3 +906,63 @@ export async function anexarDocumentoLivre(casoId: string, arquivo: File): Promi
 
   return mapDocumento(data as DocRow)
 }
+
+function caminhosStorageDocumento(row: DocRow, casoId: string): string[] {
+  const caminhos = new Set<string>()
+  if (row.arquivo_url) {
+    const marcador = '/object/public/casos-arquivos/'
+    const indice = row.arquivo_url.indexOf(marcador)
+    if (indice >= 0) {
+      const bruto = row.arquivo_url.slice(indice + marcador.length).split('?')[0]
+      try {
+        caminhos.add(decodeURIComponent(bruto))
+      } catch {
+        caminhos.add(bruto)
+      }
+    }
+  }
+  if (row.arquivo_id && row.arquivo_nome) {
+    caminhos.add(`${casoId}/${row.arquivo_id}-${row.arquivo_nome}`)
+  }
+  return [...caminhos]
+}
+
+export async function excluirDocumento(casoId: string, chave: string): Promise<void> {
+  const { data, error: fetchError } = await supabase
+    .from('documentos_caso')
+    .select('*')
+    .eq('caso_id', casoId)
+    .eq('chave', chave)
+    .maybeSingle()
+  if (fetchError) throw fetchError
+  if (!data) throw new Error('Documento não encontrado')
+
+  const row = data as DocRow
+  const caminhos = caminhosStorageDocumento(row, casoId)
+
+  if (isDocumentoPadrao(chave)) {
+    const { error } = await supabase
+      .from('documentos_caso')
+      .update({
+        arquivo_id: null,
+        arquivo_nome: null,
+        arquivo_tamanho_bytes: null,
+        arquivo_url: null,
+      })
+      .eq('caso_id', casoId)
+      .eq('chave', chave)
+    if (error) throw error
+  } else {
+    const { error } = await supabase.from('documentos_caso').delete().eq('caso_id', casoId).eq('chave', chave)
+    if (error) throw error
+  }
+
+  if (caminhos.length > 0) {
+    await supabase.storage.from('casos-arquivos').remove(caminhos)
+  }
+
+  await supabase
+    .from('casos')
+    .update({ atualizado_em: new Date().toISOString() })
+    .eq('id', casoId)
+}

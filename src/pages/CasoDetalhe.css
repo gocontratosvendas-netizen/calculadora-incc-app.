@@ -172,6 +172,16 @@
   background: var(--c-azul-hover);
 }
 
+.caso-btn--danger {
+  border: none;
+  background: var(--c-vermelho);
+  color: #ffffff;
+}
+
+.caso-btn--danger:hover:not(:disabled) {
+  background: #8c2626;
+}
+
 .caso-btn--sm {
   height: 30px;
   padding: 0 12px;
@@ -197,6 +207,7 @@
 .caso-switch:focus,
 .caso-type-btn:focus,
 .caso-doc-row:focus,
+.caso-doc-excluir:focus,
 .caso-file-btn:focus,
 .caso-status-option:focus {
   outline: none;
@@ -212,6 +223,7 @@
 .caso-switch:focus-visible,
 .caso-type-btn:focus-visible,
 .caso-doc-row:focus-visible,
+.caso-doc-excluir:focus-visible,
 .caso-file-btn:focus-visible,
 .caso-status-option:focus-visible,
 .caso-person:focus-visible,
@@ -656,6 +668,36 @@
   font-family: inherit;
 }
 
+.caso-doc-line {
+  display: flex;
+  align-items: stretch;
+}
+
+.caso-doc-line .caso-doc-row {
+  flex: 1;
+  min-width: 0;
+}
+
+.caso-doc-excluir {
+  flex-shrink: 0;
+  width: 32px;
+  margin: 4px 8px 4px 0;
+  border: none;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--c-meta);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  align-self: center;
+}
+
+.caso-doc-excluir:hover {
+  background: var(--c-vermelho-bg);
+  color: var(--c-vermelho);
+}
+
 .caso-doc-row--static {
   cursor: default;
 }
@@ -1050,6 +1092,17 @@
   background: #ffffff;
   border-radius: 12px;
   overflow-y: auto;
+}
+
+.caso-dialog--confirm {
+  max-width: 400px;
+}
+
+.caso-confirm-text {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--c-desc);
 }
 
 .caso-dialog--status {
