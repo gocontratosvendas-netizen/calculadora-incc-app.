@@ -4,7 +4,6 @@ import {
   calcularResumoFinanceiro,
   casoEntraNaCarteiraJudicial,
   HONORARIOS_EXITO_PERCENTUAL,
-  PRO_LABORE_POR_AJUIZAMENTO,
   type Caso,
   type CasoStatus,
 } from './casos'
@@ -76,8 +75,8 @@ describe('carteira judicial', () => {
       excessoTotalCarteira: 55_000,
       recuperado: 5_000,
     })
-    expect(calcularResumoFinanceiro([standBy, venda, peticao, ajuizado, encerrado])).toEqual({
-      proLaboreRecebido: 2 * PRO_LABORE_POR_AJUIZAMENTO,
+    expect(calcularResumoFinanceiro([standBy, venda, peticao, ajuizado, encerrado], 5_000)).toEqual({
+      proLaboreRecebido: 5_000,
       honorariosExitoEsperados: 110_000 * HONORARIOS_EXITO_PERCENTUAL,
     })
   })

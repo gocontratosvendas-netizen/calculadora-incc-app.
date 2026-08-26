@@ -17,6 +17,7 @@ import {
   type Caso,
   type CasoStatus,
 } from '../lib/casos'
+import { obterTotalProLaboreRecebido } from '../modules/financeiro/data/repositorio'
 import { useRouter } from '../lib/router-context'
 import './Casos.css'
 
@@ -312,6 +313,7 @@ export default function Casos() {
   const { navigate } = useRouter()
   const tituloExcluirId = useId()
   const [casos, setCasos] = useState<Caso[]>([])
+  const [proLaboreRecebido, setProLaboreRecebido] = useState(0)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(false)
   const [statusFiltro, setStatusFiltro] = useState<StatusFiltro>('todos')
@@ -328,8 +330,9 @@ export default function Casos() {
     setLoading(true)
     setError(false)
     try {
-      const lista = await listarCasos()
+      const [lista, proLabore] = await Promise.all([listarCasos(), obterTotalProLaboreRecebido()])
       setCasos(lista)
+      setProLaboreRecebido(proLabore)
     } catch {
       setError(true)
     } finally {
@@ -373,7 +376,10 @@ export default function Casos() {
   }, [casos, statusFiltro, anoFiltro, buscaDebounced])
 
   const resumo = useMemo(() => calcularResumoCarteira(filtrados), [filtrados])
-  const financeiro = useMemo(() => calcularResumoFinanceiro(casos), [casos])
+  const financeiro = useMemo(
+    () => calcularResumoFinanceiro(casos, proLaboreRecebido),
+    [casos, proLaboreRecebido],
+  )
 
   const ordenados = useMemo(() => {
     return [...filtrados].sort((a, b) => compareNullable(a[sortKey], b[sortKey], sortDir))
@@ -461,7 +467,12 @@ export default function Casos() {
   }
 
   const resumoExibido = carteiraVazia ? EMPTY_RESUMO : resumo
-  const financeiroExibido = carteiraVazia ? EMPTY_FINANCEIRO : financeiro
+  const financeiroExibido = {
+    proLaboreRecebido: financeiro.proLaboreRecebido,
+    honorariosExitoEsperados: carteiraVazia
+      ? EMPTY_FINANCEIRO.honorariosExitoEsperados
+      : financeiro.honorariosExitoEsperados,
+  }
 
   const kpis = [
     {

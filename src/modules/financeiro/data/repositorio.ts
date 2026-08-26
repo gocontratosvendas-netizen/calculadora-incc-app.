@@ -1,5 +1,6 @@
 import { supabase } from '../../../lib/supabase'
-import { mesclarPlanoContas, planoContasSeed } from '../engine/planoContas'
+import { CLASSIFICACAO_PRO_LABORE_RECEITA, mesclarPlanoContas, planoContasSeed } from '../engine/planoContas'
+import { proLaboreCentavosParaReais } from '../engine/somarProLaboreRecebido'
 import type { Classificacao, GrupoDRE, Lancamento, LancamentoInput, Movimentacao } from '../types'
 
 export type RpcResult<T> =
@@ -71,6 +72,19 @@ export async function listarClassificacoes(): Promise<Classificacao[]> {
     .order('ordem')
   if (error) return planoContasSeed()
   return mesclarPlanoContas(((data ?? []) as ClassificacaoRow[]).map(mapClassificacao))
+}
+
+/** Total de pró-labore recebido na área financeira, em reais. Falha de acesso devolve 0. */
+export async function obterTotalProLaboreRecebido(): Promise<number> {
+  const { data, error } = await supabase
+    .from('fin_lancamentos')
+    .select('valor')
+    .eq('classificacao_id', CLASSIFICACAO_PRO_LABORE_RECEITA)
+    .eq('movimentacao', 'entrada')
+    .is('deletado_em', null)
+  if (error) return 0
+  const centavos = (data ?? []).reduce((acc, row) => acc + Number(row.valor), 0)
+  return proLaboreCentavosParaReais(centavos)
 }
 
 export async function listarLancamentos(): Promise<Lancamento[]> {

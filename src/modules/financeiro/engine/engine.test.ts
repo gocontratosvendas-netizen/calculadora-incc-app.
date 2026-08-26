@@ -9,6 +9,7 @@ import { derivarStatus } from './derivarStatus'
 import { filtrarPorRegime } from './filtrarPorRegime'
 import { margem, montarLinhasDRE } from './montarLinhasDRE'
 import { classificacaoPorCodigo, mesclarPlanoContas, planoContasSeed } from './planoContas'
+import { proLaboreCentavosParaReais, somarProLaboreRecebido } from './somarProLaboreRecebido'
 
 const CLASSIFS = planoContasSeed()
 
@@ -489,5 +490,34 @@ describe('ramos restantes da engine', () => {
         'competencia',
       ),
     ).toEqual([])
+  })
+})
+
+describe('somarProLaboreRecebido', () => {
+  it('soma só entradas da conta de pró-labore e ignora o restante', () => {
+    const lancamentos = [
+      lancamento({ id: 'pl1', classificacaoId: cls('3.01.005').id, valor: 250_000, movimentacao: 'entrada' }),
+      lancamento({ id: 'pl2', classificacaoId: cls('3.01.005').id, valor: 250_000, movimentacao: 'entrada' }),
+      lancamento({ id: 'honorarios', classificacaoId: cls('3.01.002').id, valor: 100_000, movimentacao: 'entrada' }),
+      lancamento({ id: 'pessoal', classificacaoId: cls('4.02.002').id, valor: 80_000, movimentacao: 'saida' }),
+      lancamento({
+        id: 'apagado',
+        classificacaoId: cls('3.01.005').id,
+        valor: 250_000,
+        movimentacao: 'entrada',
+        deletadoEm: '2026-03-12T00:00:00.000Z',
+      }),
+    ]
+    expect(somarProLaboreRecebido(lancamentos)).toBe(500_000)
+    expect(proLaboreCentavosParaReais(500_000)).toBe(5_000)
+  })
+
+  it('devolve zero quando não há pró-labore cadastrado', () => {
+    expect(somarProLaboreRecebido([])).toBe(0)
+    expect(
+      somarProLaboreRecebido([
+        lancamento({ classificacaoId: cls('3.01.001').id, valor: 10_000, movimentacao: 'entrada' }),
+      ]),
+    ).toBe(0)
   })
 })

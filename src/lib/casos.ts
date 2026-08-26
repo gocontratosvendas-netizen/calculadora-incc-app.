@@ -31,13 +31,12 @@ export interface CarteiraResumo {
 }
 
 export interface CarteiraFinanceiro {
-  /** R$ 2.500 por caso ajuizado ou encerrado. */
+  /** Soma dos lançamentos de pró-labore da área financeira, em reais. */
   proLaboreRecebido: number
   /** 30% do valor total de causa da carteira judicial. */
   honorariosExitoEsperados: number
 }
 
-export const PRO_LABORE_POR_AJUIZAMENTO = 2_500
 export const HONORARIOS_EXITO_PERCENTUAL = 0.3
 
 /** Fases em que o caso já segue para o Judiciário e entra nos gráficos da carteira. */
@@ -86,22 +85,21 @@ export function calcularResumoCarteira(casos: Caso[]): CarteiraResumo {
   }
 }
 
-export function calcularResumoFinanceiro(casos: Caso[]): CarteiraFinanceiro {
+export function calcularResumoFinanceiro(
+  casos: Caso[],
+  proLaboreRecebido = 0,
+): CarteiraFinanceiro {
   const base = casosDaCarteiraJudicial(casos)
-  let clientesComProLabore = 0
   let valorTotalCausa = 0
 
   for (const caso of base) {
-    if (caso.status === 'ajuizado' || caso.status === 'encerrado') {
-      clientesComProLabore += 1
-    }
     if (caso.valorCausa != null) {
       valorTotalCausa += caso.valorCausa
     }
   }
 
   return {
-    proLaboreRecebido: clientesComProLabore * PRO_LABORE_POR_AJUIZAMENTO,
+    proLaboreRecebido,
     honorariosExitoEsperados: valorTotalCausa * HONORARIOS_EXITO_PERCENTUAL,
   }
 }
