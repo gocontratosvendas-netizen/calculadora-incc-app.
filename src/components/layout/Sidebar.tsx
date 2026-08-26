@@ -117,6 +117,30 @@ function IconChart() {
   )
 }
 
+function IconScale() {
+  return (
+    <svg viewBox="0 0 16 16" fill="none" aria-hidden="true">
+      <path d="M8 2.25v10.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+      <path d="M5.25 13.25h5.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+      <path d="M4.25 3.4h7.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+      <path
+        d="M4.25 3.4 2.45 7.25a2.05 2.05 0 1 0 3.6 0L4.25 3.4Z"
+        stroke="currentColor"
+        strokeWidth="1.2"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M11.75 3.4 9.95 7.25a2.05 2.05 0 1 0 3.6 0L11.75 3.4Z"
+        stroke="currentColor"
+        strokeWidth="1.2"
+        strokeLinejoin="round"
+      />
+    </svg>
+  )
+}
+
+const JURISPRUDENCIAS_URL = 'https://claude.ai/code/artifact/097f01ba-f382-4801-b4f3-160805c7fb12'
+
 const ICONS: Record<(typeof NAV_ITEMS)[number]['icon'], () => ReactNode> = {
   home: IconHome,
   calculator: IconCalculator,
@@ -207,6 +231,17 @@ export function Sidebar({ onSignOut, showSettings = false }: SidebarProps) {
               </Link>
             )
           })}
+          <a
+            href={JURISPRUDENCIAS_URL}
+            className="sidebar-link"
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label="Jurisprudências TJSP"
+            title="Jurisprudências TJSP"
+          >
+            <IconScale />
+            <span className="sidebar-link-label">Jurisprudências TJSP</span>
+          </a>
         </nav>
       </div>
 
