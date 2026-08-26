@@ -28,15 +28,22 @@ function caso(parcial: Partial<Caso> & Pick<Caso, 'status'>): Caso {
 describe('carteira judicial', () => {
   it('só entra nos gráficos a partir da confecção de petição inicial', () => {
     const status: CasoStatus[] = [
+      'stand_by',
       'processo_de_venda',
       'confeccao_de_peticao_inicial',
       'ajuizado',
       'encerrado',
     ]
-    expect(status.map(casoEntraNaCarteiraJudicial)).toEqual([false, true, true, true])
+    expect(status.map(casoEntraNaCarteiraJudicial)).toEqual([false, false, true, true, true])
   })
 
   it('ignora processo de venda nos indicadores da carteira', () => {
+    const standBy = caso({
+      id: 'standby',
+      status: 'stand_by',
+      valorCausa: 50_000,
+      excessoApurado: 25_000,
+    })
     const venda = caso({
       id: 'venda',
       status: 'processo_de_venda',
@@ -62,14 +69,14 @@ describe('carteira judicial', () => {
       excessoApurado: 5_000,
     })
 
-    expect(calcularResumoCarteira([venda, peticao, ajuizado, encerrado])).toEqual({
+    expect(calcularResumoCarteira([standBy, venda, peticao, ajuizado, encerrado])).toEqual({
       casosCadastrados: 3,
       emAndamento: 2,
       valorTotalCausa: 110_000,
       excessoTotalCarteira: 55_000,
       recuperado: 5_000,
     })
-    expect(calcularResumoFinanceiro([venda, peticao, ajuizado, encerrado])).toEqual({
+    expect(calcularResumoFinanceiro([standBy, venda, peticao, ajuizado, encerrado])).toEqual({
       proLaboreRecebido: 2 * PRO_LABORE_POR_AJUIZAMENTO,
       honorariosExitoEsperados: 110_000 * HONORARIOS_EXITO_PERCENTUAL,
     })

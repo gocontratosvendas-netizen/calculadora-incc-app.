@@ -2,6 +2,7 @@ import { publicarPost } from './mural'
 import { getSessionUserId, supabase, uploadFile, type Profile } from './supabase'
 
 export type CasoStatus =
+  | 'stand_by'
   | 'processo_de_venda'
   | 'confeccao_de_peticao_inicial'
   | 'ajuizado'
@@ -196,7 +197,11 @@ export function isDocumentoPadrao(chave: string): chave is DocumentoChave {
 function criteriosPadrao(excesso: number | null, status: CasoStatus) {
   return [
     { rotulo: 'Parcelas reais inferiores às do contrato', atendido: excesso != null },
-    { rotulo: 'Obra entregue', atendido: status !== 'processo_de_venda' || excesso != null },
+    {
+      rotulo: 'Obra entregue',
+      atendido:
+        (status !== 'stand_by' && status !== 'processo_de_venda') || excesso != null,
+    },
     { rotulo: 'Dentro do prazo prescricional', atendido: true },
     { rotulo: 'Memorial de cálculo disponível', atendido: excesso != null },
     { rotulo: 'Excesso apurado', atendido: excesso != null },
@@ -428,6 +433,7 @@ export interface MudarStatusInput {
 }
 
 export const STATUS_CASO_LISTA: CasoStatus[] = [
+  'stand_by',
   'processo_de_venda',
   'confeccao_de_peticao_inicial',
   'ajuizado',
@@ -435,6 +441,7 @@ export const STATUS_CASO_LISTA: CasoStatus[] = [
 ]
 
 export const STATUS_CASO_ROTULO: Record<CasoStatus, string> = {
+  stand_by: 'Stand-by',
   processo_de_venda: 'Processo de venda',
   confeccao_de_peticao_inicial: 'Confecção de Petição Inicial',
   ajuizado: 'Ajuizado',

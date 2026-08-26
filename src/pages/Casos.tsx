@@ -28,6 +28,7 @@ const PAGE_SIZE = 20
 
 const STATUS_CHIPS: { id: StatusFiltro; rotulo: string }[] = [
   { id: 'todos', rotulo: 'Todos' },
+  { id: 'stand_by', rotulo: 'Stand-by' },
   { id: 'processo_de_venda', rotulo: 'Processo de venda' },
   { id: 'confeccao_de_peticao_inicial', rotulo: 'Confecção de Petição Inicial' },
   { id: 'ajuizado', rotulo: 'Ajuizado' },
@@ -38,6 +39,7 @@ const STATUS_META: Record<
   CasoStatus,
   { rotulo: string; className: string }
 > = {
+  stand_by: { rotulo: 'Stand-by', className: 'casos-badge--standby' },
   processo_de_venda: { rotulo: 'Processo de venda', className: 'casos-badge--venda' },
   confeccao_de_peticao_inicial: {
     rotulo: 'Confecção de Petição Inicial',

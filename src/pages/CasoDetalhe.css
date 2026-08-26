@@ -261,6 +261,12 @@
   flex-shrink: 0;
 }
 
+.caso-status-chip--stand_by {
+  background: #e8eef2;
+  border-color: #d0dbe3;
+  color: #3d5a6c;
+}
+
 .caso-status-chip--processo_de_venda {
   background: #faeeda;
   border-color: #f0dcb6;

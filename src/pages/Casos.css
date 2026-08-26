@@ -32,6 +32,8 @@
   --casos-skeleton: #f0f2f6;
   --casos-busca-ph: #aeb5c0;
   --casos-avatar-bg: #f0f2f6;
+  --casos-status-standby-bg: #e8eef2;
+  --casos-status-standby-fg: #3d5a6c;
   --casos-status-venda-bg: #faeeda;
   --casos-status-venda-fg: #854f0b;
   --casos-status-peticao-bg: #eee8f6;
@@ -483,6 +485,11 @@
   border-radius: 4px;
   white-space: nowrap;
   font-weight: 400;
+}
+
+.casos-badge--standby {
+  background: var(--casos-status-standby-bg);
+  color: var(--casos-status-standby-fg);
 }
 
 .casos-badge--venda {
