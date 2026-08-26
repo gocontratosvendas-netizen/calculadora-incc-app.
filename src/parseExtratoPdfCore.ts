@@ -113,9 +113,15 @@ function parecePosicaoFinanceiraBenx(fullText: string) {
   return temCabecalhoBenx && !ehLayoutComPagaEm
 }
 
+function parecePosicaoFinanceiraMac(fullText: string) {
+  const t = semAcento(fullText).toLowerCase()
+  return t.includes('dt.pagto') && t.includes('at.pago')
+}
+
 function parecePosicaoFinanceira(fullText: string) {
   const t = semAcento(fullText).toLowerCase()
   if (parecePosicaoFinanceiraBenx(fullText)) return false
+  if (parecePosicaoFinanceiraMac(fullText)) return false
   return (
     t.includes('posicao financeira') ||
     (t.includes('paga em') && t.includes('valor original') && t.includes('valor pago'))
@@ -124,6 +130,7 @@ function parecePosicaoFinanceira(fullText: string) {
 
 function pareceRelacaoValoresPagos(fullText: string) {
   const t = semAcento(fullText).toLowerCase()
+  if (parecePosicaoFinanceiraMac(fullText)) return false
   return (
     t.includes('relacao valores pagos') ||
     (t.includes('dt.venc') &&
@@ -140,6 +147,10 @@ function isSerieParcela(token: string) {
 
 function isStatusPago(token: string) {
   return /^pago$/i.test(token.trim())
+}
+
+function isIntegerToken(token: string) {
+  return /^\d+$/.test(token.trim())
 }
 
 function chaveLancamento(l: LancamentoExtraido) {
@@ -288,6 +299,109 @@ function dataAssinaturaPosicaoFinanceira(fullText: string) {
 function dataAssinaturaRelacaoValoresPagos(fullText: string) {
   const m = fullText.match(/Data da Compra:\s*(\d{2}\/\d{2}\/\d{4})/i)
   return m ? brDateToIso(m[1]) : null
+}
+
+function dataAssinaturaPosicaoFinanceiraMac(fullText: string) {
+  const pcv = fullText.match(/\bPCV\s+(\d{2}\/\d{2}\/\d{4})/i)
+  if (pcv) return brDateToIso(pcv[1])
+  const labeled = dataAssinaturaPosicaoFinanceira(fullText)
+  if (labeled) return labeled
+  const header = fullText.match(
+    /\b\d{1,6}\s+(\d{2}\/\d{2}\/\d{4})\s+\d{2}\/\d{2}\/\d{4}\s+\d{2}\/\d{2}\/\d{4}[\s\S]{0,80}\bQuitado\b/i,
+  )
+  if (header) return brDateToIso(header[1])
+  return null
+}
+
+function tokensFromRow(row: PdfTextRow): string[] {
+  const fromCells = row.cells.map((c) => c.str.trim()).filter(Boolean)
+  if (
+    fromCells.length >= 10 &&
+    isSerieParcela(fromCells[0]) &&
+    isSerieParcela(fromCells[1])
+  ) {
+    return fromCells
+  }
+  return row.text.split(/\s+/).filter(Boolean)
+}
+
+/**
+ * Posição Financeira MAC (Vendas | Recebíveis):
+ * S | P | Original | Dt.Venc. | Dt.Pagto | Atualizado | Atr. | At.Pago | P.Rata |
+ * Multa | Mora | Desc.TP | Desc.Adic. | Resíduo | Dif.Encargo | Pago | Status | Doc | Recibo
+ *
+ * Só a tabela de pagamentos: Original → valor contratual, Pago → valor pago, Dt.Pagto → data.
+ * Atualizado / At.Pago são ignorados: a calculadora reaplica o INCC.
+ */
+function parseLancamentoPosicaoFinanceiraMac(
+  tokens: string[],
+): LancamentoExtraido | null {
+  if (tokens.length < 10) return null
+  if (!isSerieParcela(tokens[0]) || !isSerieParcela(tokens[1])) return null
+
+  const original = normalizeFlexibleMoney(tokens[2])
+  if (!original) return null
+  if (!isDateBr(tokens[3]) || !isDateBr(tokens[4])) return null
+
+  const dataPagamento = brDateToIso(tokens[4])
+  if (!dataPagamento) return null
+  if (!tokens.some(isStatusPago)) return null
+
+  let rest = tokens.slice(5)
+  while (rest.length) {
+    const last = rest[rest.length - 1]
+    if (isStatusPago(last) || isIntegerToken(last)) {
+      rest = rest.slice(0, -1)
+      continue
+    }
+    break
+  }
+
+  const moneys = rest
+    .map(normalizeFlexibleMoney)
+    .filter((m): m is string => m != null)
+  if (moneys.length < 3) return null
+
+  const valorPago = moneys[moneys.length - 1]
+  const mid = moneys.slice(2, -1)
+
+  return {
+    dataPagamento,
+    valorContratual: original,
+    valorPago,
+    renegociacao: ZERO,
+    multa: mid[1] ?? ZERO,
+    jurosMora: somarMoedaBr(mid[0] ?? ZERO, mid[2] ?? ZERO),
+    descontos: mid[3] ?? ZERO,
+    taxasAdicionais: mid[4] ?? ZERO,
+    parcela: `${tokens[0]}-${tokens[1]}`,
+  }
+}
+
+function parsePosicaoFinanceiraMacFromRows(rows: PdfTextRow[]): ExtratoParseResult {
+  const fullText = rows.map((r) => r.text).join('\n')
+  const lancamentos: LancamentoExtraido[] = []
+  const seen = new Set<string>()
+
+  for (const row of rows) {
+    const text = semAcento(row.text).toLowerCase()
+    if (text.includes('plano pagamento')) continue
+    if (text.includes('resumo financeiro')) continue
+    if (text.includes('dt.venc') && text.includes('original')) continue
+    if (text.includes('proprietarios')) continue
+    if (text.includes('cheque devolvido')) continue
+
+    const parsed = parseLancamentoPosicaoFinanceiraMac(tokensFromRow(row))
+    if (!parsed) continue
+
+    const key = chaveLancamento(parsed)
+    if (seen.has(key)) continue
+    seen.add(key)
+    lancamentos.push(parsed)
+  }
+
+  lancamentos.sort((a, b) => a.dataPagamento.localeCompare(b.dataPagamento))
+  return { dataAssinatura: dataAssinaturaPosicaoFinanceiraMac(fullText), lancamentos }
 }
 
 /**
@@ -453,11 +567,14 @@ function parsePosicaoFinanceiraFromRows(rows: PdfTextRow[]): ExtratoParseResult 
   return { dataAssinatura: dataAssinaturaPosicaoFinanceira(fullText), lancamentos }
 }
 
-/** Interpreta linhas já extraídas do PDF (CivilWeb, Posição Financeira, Benx ou Relação Valores Pagos). */
+/** Interpreta linhas já extraídas do PDF (CivilWeb, Posição Financeira, Benx, MAC ou Relação Valores Pagos). */
 export function parseExtratoFromRows(rows: PdfTextRow[]): ExtratoParseResult {
   const fullText = rows.map((r) => r.text).join('\n')
   if (parecePosicaoFinanceiraBenx(fullText)) {
     return parsePosicaoFinanceiraBenxFromRows(rows)
+  }
+  if (parecePosicaoFinanceiraMac(fullText)) {
+    return parsePosicaoFinanceiraMacFromRows(rows)
   }
   if (parecePosicaoFinanceira(fullText)) {
     return parsePosicaoFinanceiraFromRows(rows)

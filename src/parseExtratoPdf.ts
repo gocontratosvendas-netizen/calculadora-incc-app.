@@ -93,7 +93,7 @@ function groupRowsOnPage(items: TextItem[]): PdfTextRow[] {
 }
 
 /**
- * Lê um PDF de Extrato CivilWeb, Posição Financeira (incl. Portal Benx)
+ * Lê um PDF de Extrato CivilWeb, Posição Financeira (incl. Portal Benx ou MAC)
  * ou Relação Valores Pagos e extrai pagamento, valores e encargos/descontos.
  */
 export async function parseExtratoFinanceiroPdf(file: File): Promise<ExtratoParseResult> {
