@@ -1,4 +1,8 @@
 import { supabase } from '../../../lib/supabase'
+import {
+  mapearHonorariosDaCarteira,
+  type HonorariosDoCaso,
+} from '../engine/honorariosCarteira'
 import { CLASSIFICACAO_PRO_LABORE_RECEITA, mesclarPlanoContas, planoContasSeed } from '../engine/planoContas'
 import { proLaboreCentavosParaReais, resumirProLaboreDoCaso, type ProLaboreDoCaso } from '../engine/somarProLaboreRecebido'
 import type { Classificacao, GrupoDRE, Lancamento, LancamentoInput, Movimentacao } from '../types'
@@ -87,7 +91,7 @@ export async function obterTotalProLaboreRecebido(): Promise<number> {
   return proLaboreCentavosParaReais(centavos)
 }
 
-export type { ProLaboreDoCaso }
+export type { HonorariosDoCaso, ProLaboreDoCaso }
 
 /** Pró-labore vinculado ao caso, em reais. Falha devolve zeros / não pago. */
 export async function obterProLaboreDoCaso(casoId: string): Promise<ProLaboreDoCaso> {
@@ -97,6 +101,15 @@ export async function obterProLaboreDoCaso(casoId: string): Promise<ProLaboreDoC
   const payload = data as { ok?: boolean; valorPago?: number; valorPendente?: number }
   if (payload.ok === false) return vazio
   return resumirProLaboreDoCaso(Number(payload.valorPago ?? 0), Number(payload.valorPendente ?? 0))
+}
+
+/** Pró-labore e êxito por caso, em reais. Falha devolve mapa vazio. */
+export async function obterHonorariosDaCarteira(): Promise<Record<string, HonorariosDoCaso>> {
+  const { data, error } = await supabase.rpc('fin_honorarios_da_carteira')
+  if (error || !data) return {}
+  const payload = data as { ok?: boolean; itens?: Parameters<typeof mapearHonorariosDaCarteira>[0] }
+  if (payload.ok === false) return {}
+  return mapearHonorariosDaCarteira(payload.itens)
 }
 
 export async function listarLancamentos(): Promise<Lancamento[]> {

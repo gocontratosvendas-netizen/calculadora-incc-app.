@@ -13,11 +13,24 @@ import {
   calcularResumoCarteira,
   calcularResumoFinanceiro,
   excluirCaso,
+  honorariosExitoDoCaso,
   listarCasos,
   type Caso,
   type CasoStatus,
 } from '../lib/casos'
-import { obterTotalProLaboreRecebido } from '../modules/financeiro/data/repositorio'
+import { exportarCarteiraCasos } from '../lib/exportarCasos'
+import {
+  obterHonorariosDaCarteira,
+  obterTotalProLaboreRecebido,
+  type HonorariosDoCaso,
+} from '../modules/financeiro/data/repositorio'
+import {
+  rotuloSituacaoHonorario,
+  situacaoHonorario,
+  valorHonorarioExibido,
+  valorHonorarioRecebido,
+  type HonorarioDoCaso,
+} from '../modules/financeiro/engine/honorariosCarteira'
 import { useRouter } from '../lib/router-context'
 import './Casos.css'
 
@@ -38,16 +51,21 @@ const STATUS_CHIPS: { id: StatusFiltro; rotulo: string }[] = [
 
 const STATUS_META: Record<
   CasoStatus,
-  { rotulo: string; className: string }
+  { rotulo: string; rotuloTabela: string; className: string }
 > = {
-  stand_by: { rotulo: 'Stand-by', className: 'casos-badge--standby' },
-  processo_de_venda: { rotulo: 'Processo de venda', className: 'casos-badge--venda' },
+  stand_by: { rotulo: 'Stand-by', rotuloTabela: 'Stand-by', className: 'casos-badge--standby' },
+  processo_de_venda: {
+    rotulo: 'Processo de venda',
+    rotuloTabela: 'Em venda',
+    className: 'casos-badge--venda',
+  },
   confeccao_de_peticao_inicial: {
     rotulo: 'Confecção de Petição Inicial',
+    rotuloTabela: 'Petição inicial',
     className: 'casos-badge--peticao',
   },
-  ajuizado: { rotulo: 'Ajuizado', className: 'casos-badge--ajuizado' },
-  encerrado: { rotulo: 'Encerrado', className: 'casos-badge--encerrado' },
+  ajuizado: { rotulo: 'Ajuizado', rotuloTabela: 'Ajuizado', className: 'casos-badge--ajuizado' },
+  encerrado: { rotulo: 'Encerrado', rotuloTabela: 'Encerrado', className: 'casos-badge--encerrado' },
 }
 
 const EMPTY_RESUMO = {
@@ -63,25 +81,68 @@ const EMPTY_FINANCEIRO = {
   honorariosExitoEsperados: 0,
 }
 
-const moneyCell = new Intl.NumberFormat('pt-BR', {
-  minimumFractionDigits: 0,
-  maximumFractionDigits: 0,
+const moneyDecimal = new Intl.NumberFormat('pt-BR', {
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
 })
 
 const moneyFull = new Intl.NumberFormat('pt-BR', {
   style: 'currency',
   currency: 'BRL',
-  minimumFractionDigits: 0,
-  maximumFractionDigits: 0,
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
 })
 
 function normalizar(texto: string) {
   return texto.normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase()
 }
 
-function formatMoneyCell(value: number | null) {
-  if (value == null) return null
-  return moneyCell.format(value)
+function MoneyAmount({
+  value,
+  className,
+}: {
+  value: number | null
+  className?: string
+}) {
+  if (value == null) return <span className="casos-empty-dash">—</span>
+  return (
+    <span className={`casos-money${className ? ` ${className}` : ''}`}>
+      <span className="casos-money-sym">R$</span>
+      {moneyDecimal.format(value)}
+    </span>
+  )
+}
+
+function HonorarioCell({
+  resumo,
+  fallback = null,
+  mostrarEsperado = false,
+}: {
+  resumo: HonorarioDoCaso | undefined
+  fallback?: number | null
+  mostrarEsperado?: boolean
+}) {
+  const situacao = situacaoHonorario(resumo)
+  const valor = valorHonorarioExibido(resumo, mostrarEsperado ? fallback : null)
+  const usandoFallback =
+    mostrarEsperado &&
+    situacao === 'nao_recebido' &&
+    (!resumo || (resumo.valorPago === 0 && resumo.valorPendente === 0)) &&
+    fallback != null
+
+  return (
+    <span className={`casos-fee casos-fee--${situacao}`}>
+      <span className="casos-fee-status">{rotuloSituacaoHonorario(situacao)}</span>
+      {valor != null ? (
+        <span className={`casos-fee-value${usandoFallback ? ' is-esperado' : ''}`}>
+          <span className="casos-money-sym">R$</span>
+          {moneyDecimal.format(valor)}
+        </span>
+      ) : (
+        <span className="casos-empty-dash">—</span>
+      )}
+    </span>
+  )
 }
 
 function formatMoneyCard(value: number) {
@@ -273,40 +334,12 @@ function ConfirmDialog({
   )
 }
 
-function exportarCsv(casos: Caso[]) {
-  const header = [
-    'Cliente',
-    'Empreendimento',
-    'Incorporadora',
-    'Ano',
-    'Contrato',
-    'Excesso',
-    'Valor da causa',
-    'Responsável',
-    'Status',
-  ]
-  const rows = casos.map((c) => [
-    c.cliente,
-    c.empreendimento,
-    c.incorporadora,
-    c.anoAjuizamento?.toString() ?? '',
-    c.valorContrato.toString(),
-    c.excessoApurado?.toString() ?? '',
-    c.valorCausa?.toString() ?? '',
-    c.responsavel.nome,
-    STATUS_META[c.status].rotulo,
-  ])
-  const escape = (cell: string) => `"${cell.replace(/"/g, '""')}"`
-  const csv = [header, ...rows].map((row) => row.map(escape).join(';')).join('\n')
-  const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8' })
-  const url = URL.createObjectURL(blob)
-  const link = document.createElement('a')
-  link.href = url
-  link.download = 'casos.csv'
-  document.body.append(link)
-  link.click()
-  link.remove()
-  URL.revokeObjectURL(url)
+function exportarRelatorio(
+  casos: Caso[],
+  honorarios: Record<string, HonorariosDoCaso>,
+  filtrado: boolean,
+) {
+  exportarCarteiraCasos(casos, honorarios, STATUS_META, { filtrado })
 }
 
 export default function Casos() {
@@ -314,6 +347,7 @@ export default function Casos() {
   const tituloExcluirId = useId()
   const [casos, setCasos] = useState<Caso[]>([])
   const [proLaboreRecebido, setProLaboreRecebido] = useState(0)
+  const [honorarios, setHonorarios] = useState<Record<string, HonorariosDoCaso>>({})
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(false)
   const [statusFiltro, setStatusFiltro] = useState<StatusFiltro>('todos')
@@ -330,9 +364,14 @@ export default function Casos() {
     setLoading(true)
     setError(false)
     try {
-      const [lista, proLabore] = await Promise.all([listarCasos(), obterTotalProLaboreRecebido()])
+      const [lista, proLabore, honorariosCarteira] = await Promise.all([
+        listarCasos(),
+        obterTotalProLaboreRecebido(),
+        obterHonorariosDaCarteira(),
+      ])
       setCasos(lista)
       setProLaboreRecebido(proLabore)
+      setHonorarios(honorariosCarteira)
     } catch {
       setError(true)
     } finally {
@@ -396,14 +435,19 @@ export default function Casos() {
 
   const pageTotals = useMemo(() => {
     return pageItems.reduce(
-      (acc, c) => ({
-        contrato: acc.contrato + c.valorContrato,
-        excesso: acc.excesso + (c.excessoApurado ?? 0),
-        causa: acc.causa + (c.valorCausa ?? 0),
-      }),
-      { contrato: 0, excesso: 0, causa: 0 },
+      (acc, c) => {
+        const hon = honorarios[c.id]
+        return {
+          contrato: acc.contrato + c.valorContrato,
+          excesso: acc.excesso + (c.excessoApurado ?? 0),
+          causa: acc.causa + (c.valorCausa ?? 0),
+          proLabore: acc.proLabore + valorHonorarioRecebido(hon?.proLabore),
+          exito: acc.exito + valorHonorarioRecebido(hon?.exito),
+        }
+      },
+      { contrato: 0, excesso: 0, causa: 0, proLabore: 0, exito: 0 },
     )
-  }, [pageItems])
+  }, [pageItems, honorarios])
 
   const filtroAtivo =
     statusFiltro !== 'todos' || anoFiltro !== 'todos' || buscaDebounced.trim().length > 0
@@ -538,7 +582,7 @@ export default function Casos() {
           <button
             type="button"
             className="casos-btn casos-btn--secondary"
-            onClick={() => exportarCsv(ordenados)}
+            onClick={() => exportarRelatorio(ordenados, honorarios, filtroAtivo)}
             disabled={loading || ordenados.length === 0}
           >
             <IconDownload />
@@ -668,9 +712,13 @@ export default function Casos() {
                   Excesso
                 </th>
                 <th scope="col" role="columnheader" className="is-right">
-                  Valor da
-                  <br />
-                  causa
+                  Valor da causa
+                </th>
+                <th scope="col" role="columnheader" className="is-right">
+                  Pró-labore
+                </th>
+                <th scope="col" role="columnheader" className="is-right">
+                  Honorários de êxito
                 </th>
                 <th scope="col" role="columnheader" className="is-center">
                   Resp.
@@ -686,7 +734,7 @@ export default function Casos() {
             <tbody>
               {Array.from({ length: 10 }, (_, i) => (
                 <tr key={i} className="casos-skel-row" role="row">
-                  {Array.from({ length: 9 }, (_, j) => (
+                  {Array.from({ length: 11 }, (_, j) => (
                     <td key={j} role="cell">
                       <div className="casos-skeleton" />
                     </td>
@@ -771,11 +819,17 @@ export default function Casos() {
                   aria-sort={ariaSortFor('valorCausa')}
                 >
                   <button type="button" className="casos-sort" onClick={() => handleSort('valorCausa')}>
-                    Valor da
-                    <br />
-                    causa
+                    Valor da causa
                     {sortKey === 'valorCausa' ? <IconSortArrow dir={sortDir} /> : null}
                   </button>
+                </th>
+                <th scope="col" role="columnheader" className="is-right">
+                  Pró-labore
+                </th>
+                <th scope="col" role="columnheader" className="is-right">
+                  Honorários
+                  <br />
+                  de êxito
                 </th>
                 <th scope="col" role="columnheader" className="is-center">
                   Resp.
@@ -791,8 +845,8 @@ export default function Casos() {
             <tbody>
               {pageItems.map((caso) => {
                 const status = STATUS_META[caso.status]
-                const excesso = formatMoneyCell(caso.excessoApurado)
-                const causa = formatMoneyCell(caso.valorCausa)
+                const hon = honorarios[caso.id]
+                const esperado = honorariosExitoDoCaso(caso.valorCausa, caso.percentualExito)
                 return (
                   <tr
                     key={caso.id}
@@ -807,7 +861,9 @@ export default function Casos() {
                       <span className="casos-caso-nome">{caso.cliente}</span>
                       <span className="casos-caso-emp">{caso.empreendimento}</span>
                     </td>
-                    <td role="cell">{caso.incorporadora}</td>
+                    <td role="cell" className="casos-incorporadora">
+                      {caso.incorporadora}
+                    </td>
                     <td role="cell" className="is-center">
                       {caso.anoAjuizamento != null ? (
                         caso.anoAjuizamento
@@ -816,21 +872,19 @@ export default function Casos() {
                       )}
                     </td>
                     <td role="cell" className="is-num">
-                      {formatMoneyCell(caso.valorContrato)}
+                      <MoneyAmount value={caso.valorContrato} />
                     </td>
                     <td role="cell" className="is-num">
-                      {excesso != null ? (
-                        <span className="casos-excesso">{excesso}</span>
-                      ) : (
-                        <span className="casos-empty-dash">—</span>
-                      )}
+                      <MoneyAmount value={caso.excessoApurado} className="casos-excesso" />
                     </td>
                     <td role="cell" className="is-num">
-                      {causa != null ? (
-                        <span className="casos-causa">{causa}</span>
-                      ) : (
-                        <span className="casos-empty-dash">—</span>
-                      )}
+                      <MoneyAmount value={caso.valorCausa} className="casos-causa" />
+                    </td>
+                    <td role="cell" className="is-num">
+                      <HonorarioCell resumo={hon?.proLabore} />
+                    </td>
+                    <td role="cell" className="is-num">
+                      <HonorarioCell resumo={hon?.exito} fallback={esperado} mostrarEsperado />
                     </td>
                     <td role="cell" className="is-center">
                       <span
@@ -842,7 +896,7 @@ export default function Casos() {
                       </span>
                     </td>
                     <td role="cell" className="is-right">
-                      <span className={`casos-badge ${status.className}`}>{status.rotulo}</span>
+                      <span className={`casos-badge ${status.className}`}>{status.rotuloTabela}</span>
                     </td>
                     <td role="cell" className="is-center">
                       <button
@@ -867,13 +921,19 @@ export default function Casos() {
                 <td role="cell" />
                 <td role="cell" />
                 <td role="cell" className="is-num">
-                  <span className="casos-total-contrato">{moneyCell.format(pageTotals.contrato)}</span>
+                  <MoneyAmount value={pageTotals.contrato} className="casos-total-contrato" />
                 </td>
                 <td role="cell" className="is-num">
-                  <span className="casos-total-excesso">{moneyCell.format(pageTotals.excesso)}</span>
+                  <MoneyAmount value={pageTotals.excesso} className="casos-total-excesso" />
                 </td>
                 <td role="cell" className="is-num">
-                  <span className="casos-total-causa">{moneyCell.format(pageTotals.causa)}</span>
+                  <MoneyAmount value={pageTotals.causa} className="casos-total-causa" />
+                </td>
+                <td role="cell" className="is-num">
+                  <MoneyAmount value={pageTotals.proLabore} className="casos-total-fee" />
+                </td>
+                <td role="cell" className="is-num">
+                  <MoneyAmount value={pageTotals.exito} className="casos-total-fee" />
                 </td>
                 <td role="cell" />
                 <td role="cell" />

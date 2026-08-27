@@ -5,9 +5,12 @@ type Seed = Omit<Classificacao, 'ativa' | 'sistema'>
 /** Receita de pró-labore (ajuizamento). Distinta de 4.02.002 (despesa de pessoal). */
 export const CLASSIFICACAO_PRO_LABORE_RECEITA = '3.01.005'
 
+/** Receita de honorários de êxito. */
+export const CLASSIFICACAO_HONORARIOS_EXITO = '3.01.002'
+
 const SEED: readonly Seed[] = [
   { id: '3.01.001', codigo: '3.01.001', nome: 'Cessão de crédito', movimentacao: 'entrada', grupoDRE: 'receita_bruta', ordem: 101 },
-  { id: '3.01.002', codigo: '3.01.002', nome: 'Honorários de êxito', movimentacao: 'entrada', grupoDRE: 'receita_bruta', ordem: 102 },
+  { id: CLASSIFICACAO_HONORARIOS_EXITO, codigo: CLASSIFICACAO_HONORARIOS_EXITO, nome: 'Honorários de êxito', movimentacao: 'entrada', grupoDRE: 'receita_bruta', ordem: 102 },
   { id: '3.01.003', codigo: '3.01.003', nome: 'Upside CDC (dobro)', movimentacao: 'entrada', grupoDRE: 'receita_bruta', ordem: 103 },
   { id: '3.01.004', codigo: '3.01.004', nome: 'Outras receitas', movimentacao: 'entrada', grupoDRE: 'receita_bruta', ordem: 104 },
   { id: CLASSIFICACAO_PRO_LABORE_RECEITA, codigo: CLASSIFICACAO_PRO_LABORE_RECEITA, nome: 'Pró-labore', movimentacao: 'entrada', grupoDRE: 'receita_bruta', ordem: 105 },

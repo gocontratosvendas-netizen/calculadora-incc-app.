@@ -6,4 +6,12 @@ export { derivarStatus } from './derivarStatus'
 export { filtrarPorRegime } from './filtrarPorRegime'
 export { margem, montarLinhasDRE } from './montarLinhasDRE'
 export { classificacaoPorCodigo, mesclarPlanoContas, planoContasSeed } from './planoContas'
+export {
+  honorariosVazio,
+  mapearHonorariosDaCarteira,
+  rotuloSituacaoHonorario,
+  situacaoHonorario,
+  valorHonorarioExibido,
+  valorHonorarioRecebido,
+} from './honorariosCarteira'
 export { proLaboreCentavosParaReais, resumirProLaboreDoCaso, somarProLaboreRecebido } from './somarProLaboreRecebido'
