@@ -92,12 +92,22 @@ function groupRowsOnPage(items: TextItem[]): PdfTextRow[] {
     }))
 }
 
+export class PdfSemCamadaDeTextoError extends Error {
+  constructor() {
+    super('PDF_SEM_CAMADA_DE_TEXTO')
+    this.name = 'PdfSemCamadaDeTextoError'
+  }
+}
+
 /**
  * Lê um PDF de Extrato CivilWeb, Posição Financeira (incl. Portal Benx ou MAC)
  * ou Relação Valores Pagos e extrai pagamento, valores e encargos/descontos.
  */
 export async function parseExtratoFinanceiroPdf(file: File): Promise<ExtratoParseResult> {
   const items = await extractTextItems(file)
+  if (!items.length) {
+    throw new PdfSemCamadaDeTextoError()
+  }
   const rows = groupRows(items)
   return parseExtratoFromRows(rows)
 }

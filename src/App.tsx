@@ -9,7 +9,7 @@ import {
   nomeArquivoMemoriaRevisaoIncc,
 } from './lib/memoriaCalculoPdf'
 import { useRouter } from './lib/router-context'
-import { parseExtratoFinanceiroPdf } from './parseExtratoPdf'
+import { parseExtratoFinanceiroPdf, PdfSemCamadaDeTextoError } from './parseExtratoPdf'
 import * as XLSX from 'xlsx'
 
 const currencyFormatter = new Intl.NumberFormat('pt-BR', {
@@ -23,6 +23,17 @@ const numberFormatter = new Intl.NumberFormat('pt-BR', {
 })
 
 let ultimoNomePdfImportado = ''
+
+const MENSAGEM_IMAGEM_EXTRATO =
+  'Esta é uma foto do extrato, não o PDF. A calculadora já lê o Relatório de Extrato do Cliente (CivilWeb), mas só com a camada de texto do PDF — JPEG/PNG, principalmente pelo WhatsApp, embaralha os valores. Peça ao cliente o PDF desse mesmo relatório (imprimir ou exportar em PDF no CivilWeb) e arraste aqui.'
+
+const MENSAGEM_PDF_SO_IMAGEM =
+  'Este PDF é a foto do extrato salva como PDF — não tem texto selecionável. Converter JPEG em PDF não resolve. Peça ao cliente o arquivo gerado pelo CivilWeb (imprimir ou exportar PDF na tela do Relatório de Extrato), não uma captura de tela.'
+
+function ehImagemExtrato(file: File) {
+  if (file.type.startsWith('image/')) return true
+  return /\.(jpe?g|png|webp|gif|bmp|heic|heif|tiff?)$/i.test(file.name)
+}
 
 function formatDataCurta(iso: string) {
   const [y, m, d] = iso.split('-')
@@ -159,6 +170,12 @@ function App() {
   const pdfInputRef = useRef<HTMLInputElement | null>(null)
 
   async function handleImportarPdf(file: File) {
+    if (ehImagemExtrato(file)) {
+      setMensagemImportacao(MENSAGEM_IMAGEM_EXTRATO)
+      if (pdfInputRef.current) pdfInputRef.current.value = ''
+      return
+    }
+
     setImportandoPdf(true)
     setMensagemImportacao(null)
     try {
@@ -196,7 +213,9 @@ function App() {
     } catch (err) {
       console.error(err)
       setMensagemImportacao(
-        'Falha ao ler o PDF. Tente outro arquivo ou informe o erro do console.',
+        err instanceof PdfSemCamadaDeTextoError
+          ? MENSAGEM_PDF_SO_IMAGEM
+          : 'Falha ao ler o PDF. Tente outro arquivo ou informe o erro do console.',
       )
     } finally {
       setImportandoPdf(false)
@@ -553,7 +572,7 @@ function App() {
             <input
               ref={pdfInputRef}
               type="file"
-              accept="application/pdf,.pdf"
+              accept="application/pdf,.pdf,image/jpeg,.jpg,.jpeg,image/png,.png,image/webp,.webp"
               className="hidden-file-input"
               onChange={(e) => {
                 const file = e.target.files?.[0]
@@ -600,8 +619,8 @@ function App() {
                   <div className="import-copy">
                     <p className="import-title">Importar PDF do extrato</p>
                     <p className="import-hint">
-                      Arraste o extrato financeiro, a posição financeira ou a relação de valores pagos da incorporadora.
-                      Os lançamentos são preenchidos automaticamente.
+                      Arraste o PDF do extrato financeiro, da posição financeira ou da relação de valores pagos da
+                      incorporadora. Foto de tela (JPEG/PNG) não serve — peça o PDF.
                     </p>
                   </div>
                   <button

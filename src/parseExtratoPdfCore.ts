@@ -46,13 +46,24 @@ function brDateToIso(dateBr: string) {
   return `${yyyy}-${mm}-${dd}`
 }
 
+function inserirMilharBr(intDigits: string) {
+  return intDigits.replace(/\B(?=(\d{3})+(?!\d))/g, '.')
+}
+
 function normalizeMoneyToken(raw: string) {
   const stripped = raw.replace(/^R\$\s?/i, '').trim()
   // CivilWeb / Crystal Reports usa espaço como milhar: "126 731,00"
   if (/^-?\d{1,3}(?:\s\d{3})+,\d{1,2}$/.test(stripped)) {
     return stripped.replace(/\s/g, '.')
   }
-  return stripped.replace(/\s/g, '')
+  const noSpace = stripped.replace(/\s/g, '')
+  // CivilWeb às vezes exporta en-US na tabela: "42,330.00" / "0.00" / "242.98"
+  const us = noSpace.match(/^(-?)(\d{1,3}(?:,\d{3})+|\d+)\.(\d{1,2})$/)
+  if (us) {
+    const [, sign, intPart, dec] = us
+    return `${sign}${inserirMilharBr(intPart.replace(/,/g, ''))},${dec}`
+  }
+  return noSpace
 }
 
 function isMoney(token: string) {

@@ -342,6 +342,60 @@ describe('parseExtratoFromRows — CivilWeb', () => {
       '2020-11-11',
     ])
   })
+
+  it('lê Relatório de Extrato do Cliente com valores em formato en-US', () => {
+    const resultado = parseExtratoFromRows(
+      rowsFromLines([
+        'Empreendimento: 001 - CONDOMINIO ARTE ARQUITETURA VILA MARIANA',
+        'Cliente: 7246 - ANA CRISTINE MARINHEIRO CENTENO Valor do Contrato: 1.929.330,00',
+        'Contrato: 4901 Valor Original do Contrato: 1,929,330.00',
+        'Data Base: 27/08/2026 Data Assinatura: 31/03/2021',
+        'Total Pago: 2.258.617,84 Total a Pagar: 0,00',
+        '001/001-S 212023 31/03/2021 01/04/2021 42,330.00 0.00 0.00 0,00 0.00 0.00 0.00 0.00 42,330.00 0.00 42,330.00',
+        '001/012-M 212027 30/04/2021 30/04/2021 12,000.00 0.00 226.80 0,00 0.00 0.00 0.00 0.00 12,226.80 0.00 12,226.80',
+        '011/012-M 222990 28/02/2022 02/03/2022 242.98 0.00 31.20 0,00 0.00 0.00 274.18 0.00 274.18 0.00 0.00',
+        '011/012-M 222989 28/02/2022 02/03/2022 11,757.02 0.00 1,509.62 0,00 265.34 8.84 0.00 0.00 13,266.64 0.00 13,540.82',
+        '001/001-I 226139 31/05/2022 14/09/2022 542,117.96 12,139.66 94,545.59 0,00 0.00 0.00 0.00 0.00 648,803.21 0.00 648,803.21',
+        'Total: 1,929,330.00 24,334.17 304,953.67 0,00 265.34 8.84 274.18 0.00 2,258,617.84 0.00 2,258,617.84',
+        'Valor para Quitação: 0.00',
+      ]),
+    )
+
+    expect(resultado.dataAssinatura).toBe('2021-03-31')
+    expect(resultado.lancamentos).toHaveLength(5)
+    expect(resultado.lancamentos[0]).toMatchObject({
+      parcela: '001/001-S',
+      dataPagamento: '2021-04-01',
+      valorContratual: '42.330,00',
+      valorPago: '42.330,00',
+      renegociacao: '0,00',
+      multa: '0,00',
+    })
+    expect(resultado.lancamentos[1]).toMatchObject({
+      parcela: '001/012-M',
+      dataPagamento: '2021-04-30',
+      valorContratual: '12.000,00',
+      valorPago: '12.226,80',
+    })
+    expect(
+      resultado.lancamentos.find((l) => l.valorContratual === '11.757,02'),
+    ).toMatchObject({
+      dataPagamento: '2022-03-02',
+      valorPago: '13.540,82',
+      multa: '265,34',
+      jurosMora: '8,84',
+    })
+    expect(
+      resultado.lancamentos.find((l) => l.parcela === '001/001-I'),
+    ).toMatchObject({
+      dataPagamento: '2022-09-14',
+      valorContratual: '542.117,96',
+      valorPago: '648.803,21',
+    })
+    expect(resultado.lancamentos.some((l) => l.valorPago === '2.258.617,84')).toBe(
+      false,
+    )
+  })
 })
 
 const RELACAO_LINHAS = [
