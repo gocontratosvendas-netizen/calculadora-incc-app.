@@ -97,6 +97,13 @@ export interface FinanceiroSessao {
 
 export type FinanceiroMountProps = {
   sessao: FinanceiroSessao
+  carregarClientes?: () => Promise<ClienteLancamentoOpcao[]>
+}
+
+export type ClienteLancamentoOpcao = {
+  casoId: string
+  nome: string
+  detalhe?: string
 }
 
 export interface LancamentoInput {

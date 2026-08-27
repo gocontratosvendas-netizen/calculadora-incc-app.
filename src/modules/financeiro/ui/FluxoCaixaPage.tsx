@@ -6,7 +6,7 @@ import { hojeISO } from '../engine/datas'
 import type { AtalhoPeriodo, FiltrosFinanceiro } from '../filtros'
 import { formatarMoeda } from '../format'
 import type { FormLancamentoValues } from '../formState'
-import type { Classificacao, Lancamento, LancamentoInput, SortCampo } from '../types'
+import type { Classificacao, ClienteLancamentoOpcao, Lancamento, LancamentoInput, SortCampo } from '../types'
 import { normalizarTexto } from '../data/csv'
 import { FormLancamento } from './FormLancamento'
 import { ImportCsvModal } from './ImportCsvModal'
@@ -19,6 +19,7 @@ type Props = {
   filtros: FiltrosFinanceiro
   lancamentos: Lancamento[]
   classificacoes: Classificacao[]
+  clientes: ClienteLancamentoOpcao[]
   tmpIds: Set<string>
   highlightId: string | null
   salvando: boolean
@@ -40,6 +41,7 @@ export function FluxoCaixaPage({
   filtros,
   lancamentos,
   classificacoes,
+  clientes,
   tmpIds,
   highlightId,
   salvando,
@@ -73,12 +75,20 @@ export function FluxoCaixaPage({
     }
     if (filtros.busca.trim()) {
       const q = normalizarTexto(filtros.busca)
-      lista = lista.filter((l) => normalizarTexto(l.historico).includes(q))
+      lista = lista.filter((l) => {
+        if (normalizarTexto(l.historico).includes(q)) return true
+        const cliente = clientes.find((c) => c.casoId === l.casoId)
+        if (!cliente) return false
+        return (
+          normalizarTexto(cliente.nome).includes(q) ||
+          normalizarTexto(cliente.detalhe ?? '').includes(q)
+        )
+      })
     }
     const dir = filtros.dir === 'asc' ? 1 : -1
     lista = [...lista].sort((a, b) => comparar(a, b, filtros.ord, classificacoes) * dir)
     return lista
-  }, [lancamentos, filtros, hoje, classificacoes])
+  }, [lancamentos, filtros, hoje, classificacoes, clientes])
 
   const resumo = calcularResumoCaixa(filtrados, filtros.regime)
   const inicio = (filtros.pagina - 1) * PAGE
@@ -122,6 +132,7 @@ export function FluxoCaixaPage({
       <FormLancamento
         key={formKey}
         classificacoes={classificacoes}
+        clientes={clientes}
         salvando={salvando}
         initial={formInitial}
         erroBanner={erroBanner}
@@ -282,7 +293,7 @@ export function FluxoCaixaPage({
             <span className="fin-ledger-label">Buscar</span>
             <input
               className="fin-input"
-              placeholder="Histórico do lançamento"
+              placeholder="Histórico ou cliente"
               value={filtros.busca}
               onChange={(e) => onFiltros({ busca: e.target.value, pagina: 1 })}
             />
@@ -292,6 +303,7 @@ export function FluxoCaixaPage({
         <TabelaLancamentos
           lancamentos={paginaItens}
           classificacoes={classificacoes}
+          clientes={clientes}
           hoje={hoje}
           ord={filtros.ord}
           dir={filtros.dir}

@@ -7,10 +7,12 @@ import {
   type ReactNode,
 } from 'react'
 import { AndamentoFormModal, IconTipoAndamento } from '../components/AndamentoFormModal'
+import { HonorariosCaso } from '../components/HonorariosCaso'
 import { MudarStatusModal } from '../components/MudarStatusModal'
 import {
   anexarDocumento,
   anexarDocumentoLivre,
+  atualizarPercentualExito,
   concluirPrazo,
   excluirDocumento,
   isDocumentoPadrao,
@@ -444,6 +446,7 @@ export default function CasoDetalhe({ id }: { id: string }) {
   const [criteriosAbertos, setCriteriosAbertos] = useState(false)
   const [docParaExcluir, setDocParaExcluir] = useState<DocumentoCaso | null>(null)
   const [excluindoDocumento, setExcluindoDocumento] = useState(false)
+  const [salvandoPercentual, setSalvandoPercentual] = useState(false)
   const tituloExcluirId = useId()
 
   if (id !== carregadoId) {
@@ -616,6 +619,22 @@ export default function CasoDetalhe({ id }: { id: string }) {
           </button>
         </div>
       </header>
+
+      <HonorariosCaso
+        caso={caso}
+        salvandoPercentual={salvandoPercentual}
+        onPercentual={(percentual) => {
+          void (async () => {
+            setSalvandoPercentual(true)
+            try {
+              await atualizarPercentualExito(caso.id, percentual)
+              setCaso((atual) => (atual ? { ...atual, percentualExito: percentual } : atual))
+            } finally {
+              setSalvandoPercentual(false)
+            }
+          })()
+        }}
+      />
 
       <section className="caso-kpis" aria-label="Indicadores do caso">
         <div className="caso-kpi">

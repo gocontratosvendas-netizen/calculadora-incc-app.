@@ -16,6 +16,8 @@ export interface Caso {
   valorContrato: number
   excessoApurado: number | null
   valorCausa: number | null
+  /** Percentual de honorários de êxito (10, 20, 30…). */
+  percentualExito: number
   anoAjuizamento: number | null
   status: CasoStatus
   responsavel: { nome: string; iniciais: string }
@@ -33,11 +35,25 @@ export interface CarteiraResumo {
 export interface CarteiraFinanceiro {
   /** Soma dos lançamentos de pró-labore da área financeira, em reais. */
   proLaboreRecebido: number
-  /** 30% do valor total de causa da carteira judicial. */
+  /** Soma dos honorários de êxito esperados (percentual de cada caso × valor da causa). */
   honorariosExitoEsperados: number
 }
 
-export const HONORARIOS_EXITO_PERCENTUAL = 0.3
+export const PERCENTUAIS_EXITO = [10, 20, 30] as const
+export const PERCENTUAL_EXITO_PADRAO = 30
+export const HONORARIOS_EXITO_PERCENTUAL = PERCENTUAL_EXITO_PADRAO / 100
+
+export function percentualExitoValido(valor: number): boolean {
+  return (PERCENTUAIS_EXITO as readonly number[]).includes(valor)
+}
+
+export function honorariosExitoDoCaso(
+  valorCausa: number | null,
+  percentualExito: number,
+): number | null {
+  if (valorCausa == null) return null
+  return valorCausa * (percentualExito / 100)
+}
 
 /** Fases em que o caso já segue para o Judiciário e entra nos gráficos da carteira. */
 export const STATUS_CARTEIRA_JUDICIAL: readonly CasoStatus[] = [
@@ -90,17 +106,16 @@ export function calcularResumoFinanceiro(
   proLaboreRecebido = 0,
 ): CarteiraFinanceiro {
   const base = casosDaCarteiraJudicial(casos)
-  let valorTotalCausa = 0
+  let honorariosExitoEsperados = 0
 
   for (const caso of base) {
-    if (caso.valorCausa != null) {
-      valorTotalCausa += caso.valorCausa
-    }
+    const esperado = honorariosExitoDoCaso(caso.valorCausa, caso.percentualExito)
+    if (esperado != null) honorariosExitoEsperados += esperado
   }
 
   return {
     proLaboreRecebido,
-    honorariosExitoEsperados: valorTotalCausa * HONORARIOS_EXITO_PERCENTUAL,
+    honorariosExitoEsperados,
   }
 }
 
@@ -120,6 +135,7 @@ type CasoRow = {
   data_chaves: string | null
   excesso_apurado: number | null
   valor_causa: number | null
+  percentual_exito: number | string | null
   prescricao_em: string | null
   status: CasoStatus
   numero_processo: string | null
@@ -156,6 +172,7 @@ function mapCasoLista(row: CasoRow): Caso {
     valorContrato: Number(row.valor_contrato),
     excessoApurado: num(row.excesso_apurado),
     valorCausa: num(row.valor_causa),
+    percentualExito: Math.round(num(row.percentual_exito) ?? PERCENTUAL_EXITO_PADRAO),
     anoAjuizamento: row.data_protocolo ? Number(row.data_protocolo.slice(0, 4)) : null,
     status: row.status,
     responsavel: {
@@ -210,7 +227,7 @@ export async function listarCasos(): Promise<Caso[]> {
   const { data, error } = await supabase
     .from('casos')
     .select(
-      'id, cliente_nome, empreendimento, incorporadora, valor_contrato, excesso_apurado, valor_causa, data_protocolo, status, atualizado_em, responsavel:profiles!casos_responsavel_id_fkey(id, nome, iniciais)',
+      'id, cliente_nome, empreendimento, incorporadora, valor_contrato, excesso_apurado, valor_causa, percentual_exito, data_protocolo, status, atualizado_em, responsavel:profiles!casos_responsavel_id_fkey(id, nome, iniciais)',
     )
     .order('atualizado_em', { ascending: false })
   if (error) throw error
@@ -220,6 +237,37 @@ export async function listarCasos(): Promise<Caso[]> {
 export async function obterResumoCarteira(): Promise<CarteiraResumo> {
   const casos = await listarCasos()
   return calcularResumoCarteira(casos)
+}
+
+export async function listarOpcoesClienteCaso(): Promise<
+  { id: string; nome: string; empreendimento: string }[]
+> {
+  const { data, error } = await supabase
+    .from('casos')
+    .select('id, cliente_nome, empreendimento')
+    .order('cliente_nome')
+  if (error) throw error
+  return ((data ?? []) as { id: string; cliente_nome: string; empreendimento: string }[]).map(
+    (row) => ({
+      id: row.id,
+      nome: row.cliente_nome,
+      empreendimento: row.empreendimento,
+    }),
+  )
+}
+
+export async function atualizarPercentualExito(
+  casoId: string,
+  percentual: number,
+): Promise<void> {
+  if (!percentualExitoValido(percentual)) {
+    throw new Error('Percentual de êxito inválido.')
+  }
+  const { error } = await supabase
+    .from('casos')
+    .update({ percentual_exito: percentual, atualizado_em: new Date().toISOString() })
+    .eq('id', casoId)
+  if (error) throw error
 }
 
 export async function cadastrarCaso(input: NovoCasoInput): Promise<Caso> {
@@ -246,7 +294,7 @@ export async function cadastrarCaso(input: NovoCasoInput): Promise<Caso> {
       atualizado_em: new Date().toISOString(),
     })
     .select(
-      'id, cliente_nome, empreendimento, incorporadora, valor_contrato, excesso_apurado, valor_causa, data_protocolo, status, atualizado_em, responsavel:profiles!casos_responsavel_id_fkey(id, nome, iniciais)',
+      'id, cliente_nome, empreendimento, incorporadora, valor_contrato, excesso_apurado, valor_causa, percentual_exito, data_protocolo, status, atualizado_em, responsavel:profiles!casos_responsavel_id_fkey(id, nome, iniciais)',
     )
     .single()
   if (error) throw error
@@ -380,6 +428,7 @@ export interface CasoDetalhe {
   dataChaves: string | null
   excessoApurado: number | null
   valorCausa: number | null
+  percentualExito: number
   prescricaoEm: string | null
   status: CasoStatus
   numeroProcesso: string | null
@@ -648,6 +697,7 @@ export async function obterCaso(id: string): Promise<CasoDetalhe> {
     dataChaves: caso.data_chaves,
     excessoApurado: num(caso.excesso_apurado),
     valorCausa: num(caso.valor_causa),
+    percentualExito: Math.round(num(caso.percentual_exito) ?? PERCENTUAL_EXITO_PADRAO),
     prescricaoEm: caso.prescricao_em,
     status: caso.status,
     numeroProcesso: caso.numero_processo,

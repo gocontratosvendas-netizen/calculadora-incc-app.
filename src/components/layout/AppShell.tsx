@@ -1,10 +1,11 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import App from '../../App'
 import CasoDetalhe from '../../pages/CasoDetalhe'
 import Casos from '../../pages/Casos'
 import Home from '../../pages/Home'
 import Materiais from '../../pages/Materiais'
 import Parcerias from '../../pages/Parcerias'
+import { listarOpcoesClienteCaso } from '../../lib/casos'
 import { useRouter } from '../../lib/router-context'
 import { theme } from '../../theme'
 import { Sidebar } from './Sidebar'
@@ -29,6 +30,15 @@ export function AppShell({ onSignOut }: AppShellProps) {
   const casoId = casoIdDe(pathname)
   const [showSettings, setShowSettings] = useState(false)
 
+  const carregarClientesFinanceiro = useCallback(async () => {
+    const lista = await listarOpcoesClienteCaso()
+    return lista.map((item) => ({
+      casoId: item.id,
+      nome: item.nome,
+      detalhe: item.empreendimento,
+    }))
+  }, [])
+
   useEffect(() => {
     void podeVerConfiguracoes().then(setShowSettings)
   }, [pathname])
@@ -46,7 +56,9 @@ export function AppShell({ onSignOut }: AppShellProps) {
         {casoId ? <CasoDetalhe id={casoId} /> : null}
         {pathname === '/parcerias' ? <Parcerias /> : null}
         {pathname === '/materiais' ? <Materiais /> : null}
-        {pathname === '/financeiro' || pathname.startsWith('/financeiro/') ? <FinanceiroApp /> : null}
+        {pathname === '/financeiro' || pathname.startsWith('/financeiro/') ? (
+          <FinanceiroApp carregarClientes={carregarClientesFinanceiro} />
+        ) : null}
         {pathname === '/configuracoes' || pathname.startsWith('/configuracoes/') ? <ConfiguracoesApp /> : null}
       </main>
     </div>

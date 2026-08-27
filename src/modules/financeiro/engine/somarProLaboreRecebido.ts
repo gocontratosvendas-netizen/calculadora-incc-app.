@@ -16,3 +16,20 @@ export function somarProLaboreRecebido(lancamentos: Lancamento[]): number {
 export function proLaboreCentavosParaReais(centavos: number): number {
   return centavos / 100
 }
+
+export type ProLaboreDoCaso = {
+  valorPago: number
+  valorPendente: number
+  status: 'pago' | 'nao_pago'
+}
+
+export function resumirProLaboreDoCaso(
+  pagoCentavos: number,
+  pendenteCentavos: number,
+): ProLaboreDoCaso {
+  return {
+    valorPago: proLaboreCentavosParaReais(pagoCentavos),
+    valorPendente: proLaboreCentavosParaReais(pendenteCentavos),
+    status: pagoCentavos > 0 && pendenteCentavos === 0 ? 'pago' : 'nao_pago',
+  }
+}

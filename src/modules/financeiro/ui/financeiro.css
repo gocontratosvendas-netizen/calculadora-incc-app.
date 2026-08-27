@@ -308,7 +308,7 @@
 }
 
 .fin-composer-main {
-  grid-template-columns: minmax(220px, 1.5fr) minmax(240px, 1.1fr);
+  grid-template-columns: minmax(200px, 1.4fr) minmax(180px, 1fr) minmax(200px, 1.1fr);
   margin-bottom: 10px;
 }
 

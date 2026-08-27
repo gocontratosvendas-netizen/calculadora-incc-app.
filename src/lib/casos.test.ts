@@ -3,7 +3,9 @@ import {
   calcularResumoCarteira,
   calcularResumoFinanceiro,
   casoEntraNaCarteiraJudicial,
+  honorariosExitoDoCaso,
   HONORARIOS_EXITO_PERCENTUAL,
+  PERCENTUAL_EXITO_PADRAO,
   type Caso,
   type CasoStatus,
 } from './casos'
@@ -17,6 +19,7 @@ function caso(parcial: Partial<Caso> & Pick<Caso, 'status'>): Caso {
     valorContrato: parcial.valorContrato ?? 100_000,
     excessoApurado: parcial.excessoApurado ?? null,
     valorCausa: parcial.valorCausa ?? null,
+    percentualExito: parcial.percentualExito ?? PERCENTUAL_EXITO_PADRAO,
     anoAjuizamento: parcial.anoAjuizamento ?? null,
     status: parcial.status,
     responsavel: parcial.responsavel ?? { nome: 'Ana', iniciais: 'AN' },
@@ -97,5 +100,18 @@ describe('carteira judicial', () => {
       proLaboreRecebido: 0,
       honorariosExitoEsperados: 0,
     })
+  })
+
+  it('calcula honorários de êxito pelo percentual de cada caso', () => {
+    expect(honorariosExitoDoCaso(100_000, 10)).toBe(10_000)
+    expect(honorariosExitoDoCaso(100_000, 20)).toBe(20_000)
+    expect(honorariosExitoDoCaso(100_000, PERCENTUAL_EXITO_PADRAO)).toBe(30_000)
+    expect(honorariosExitoDoCaso(null, 20)).toBeNull()
+
+    const casos = [
+      caso({ status: 'ajuizado', valorCausa: 100_000, percentualExito: 10 }),
+      caso({ id: 'outro', status: 'ajuizado', valorCausa: 50_000, percentualExito: 20 }),
+    ]
+    expect(calcularResumoFinanceiro(casos).honorariosExitoEsperados).toBe(20_000)
   })
 })

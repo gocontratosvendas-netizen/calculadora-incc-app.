@@ -10,6 +10,7 @@ export type FormLancamentoValues = {
   valorTexto: string
   vencimento: string
   dataPagamento: string
+  casoId: string
 }
 
 export function formInicial(hoje = hojeISO()): FormLancamentoValues {
@@ -21,6 +22,7 @@ export function formInicial(hoje = hojeISO()): FormLancamentoValues {
     valorTexto: '',
     vencimento: hoje,
     dataPagamento: '',
+    casoId: '',
   }
 }
 
@@ -34,5 +36,6 @@ export function valuesFromLancamento(l: Lancamento): FormLancamentoValues {
     valorTexto: mascararCentavos(l.valor),
     vencimento: l.vencimento,
     dataPagamento: '',
+    casoId: l.casoId ?? '',
   }
 }

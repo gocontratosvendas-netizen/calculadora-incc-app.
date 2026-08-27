@@ -3,12 +3,13 @@ import { parseMoedaParaCentavos, mascararCentavos } from '../data/moeda'
 import { validarLancamentoInput, type ErrosLancamento } from '../data/schemas'
 import { derivarStatus } from '../engine/derivarStatus'
 import { formatarDataTabela, formatarMoedaContabil } from '../format'
-import type { Classificacao, Lancamento, LancamentoInput, Movimentacao, SortCampo } from '../types'
+import type { Classificacao, ClienteLancamentoOpcao, Lancamento, LancamentoInput, Movimentacao, SortCampo } from '../types'
 import { OpcoesClassificacao } from './OpcoesClassificacao'
 
 type Props = {
   lancamentos: Lancamento[]
   classificacoes: Classificacao[]
+  clientes: ClienteLancamentoOpcao[]
   hoje: string
   ord: SortCampo
   dir: 'asc' | 'desc'
@@ -30,6 +31,7 @@ type Edicao = LancamentoInput & { valorTexto: string }
 export function TabelaLancamentos({
   lancamentos,
   classificacoes,
+  clientes,
   hoje,
   ord,
   dir,
@@ -91,6 +93,7 @@ export function TabelaLancamentos({
       valor,
       vencimento: edicao.vencimento,
       dataPagamento: edicao.dataPagamento,
+      casoId: edicao.casoId?.trim() || undefined,
     }
     const parsed = validarLancamentoInput(input)
     if (!parsed.ok) {
@@ -113,6 +116,12 @@ export function TabelaLancamentos({
 
   const paginas = Math.max(1, Math.ceil(total / pageSize))
   const nome = (id: string) => classificacoes.find((c) => c.id === id)?.nome ?? id
+  const rotuloCliente = (casoId: string | undefined) => {
+    if (!casoId) return '—'
+    const cliente = clientes.find((c) => c.casoId === casoId)
+    if (!cliente) return 'Cliente vinculado'
+    return cliente.detalhe ? `${cliente.nome} · ${cliente.detalhe}` : cliente.nome
+  }
 
   function cabecalho(campo: SortCampo, rotulo: string, num = false) {
     const ativo = ord === campo
@@ -135,6 +144,7 @@ export function TabelaLancamentos({
               {cabecalho('emissao', 'Emissão')}
               {cabecalho('movimentacao', 'Mov.')}
               {cabecalho('historico', 'Histórico')}
+              <th>Cliente</th>
               {cabecalho('classificacao', 'Classificação')}
               {cabecalho('valor', 'Valor (R$)', true)}
               {cabecalho('vencimento', 'Venc.')}
@@ -145,7 +155,7 @@ export function TabelaLancamentos({
           <tbody>
             {lancamentos.length === 0 ? (
               <tr>
-                <td colSpan={8}>
+                <td colSpan={9}>
                   <div className="fin-empty">Nenhum lançamento neste período. Cadastre o primeiro acima.</div>
                 </td>
               </tr>
@@ -196,6 +206,21 @@ export function TabelaLancamentos({
                             onChange={(e) => setEdicao({ ...edicao, historico: e.target.value })}
                           />
                           {erros.historico ? <div className="fin-field-erro">{erros.historico}</div> : null}
+                        </td>
+                        <td>
+                          <select
+                            className="fin-select"
+                            value={edicao.casoId ?? ''}
+                            onChange={(e) => setEdicao({ ...edicao, casoId: e.target.value || undefined })}
+                            aria-label="Cliente"
+                          >
+                            <option value="">Sem cliente</option>
+                            {clientes.map((cliente) => (
+                              <option key={cliente.casoId} value={cliente.casoId}>
+                                {cliente.detalhe ? `${cliente.nome} · ${cliente.detalhe}` : cliente.nome}
+                              </option>
+                            ))}
+                          </select>
                         </td>
                         <td>
                           <select
@@ -253,6 +278,7 @@ export function TabelaLancamentos({
                           </span>
                         </td>
                         <td>{l.historico}</td>
+                        <td>{rotuloCliente(l.casoId)}</td>
                         <td>{nome(l.classificacaoId)}</td>
                         <td className="is-num">{formatarMoedaContabil(l.valor)}</td>
                         <td className={atrasado ? 'fin-td-atrasado' : undefined}>

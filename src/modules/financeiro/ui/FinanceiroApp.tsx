@@ -13,25 +13,34 @@ import {
 import { formInicial, valuesFromLancamento, type FormLancamentoValues } from '../formState'
 import { planoContasSeed } from '../engine/planoContas'
 import { periodoDeAtalho, parseFiltros, pathFinanceiro, type FiltrosFinanceiro } from '../filtros'
-import type { Classificacao, Lancamento, LancamentoInput, Regime } from '../types'
+import type { Classificacao, ClienteLancamentoOpcao, Lancamento, LancamentoInput, Regime } from '../types'
 import { DrePage } from './DrePage'
 import { FinanceiroErrorBoundary } from './ErrorBoundary'
 import { FluxoCaixaPage } from './FluxoCaixaPage'
 import './financeiro.css'
 
-export function FinanceiroApp() {
+export function FinanceiroApp({
+  carregarClientes,
+}: {
+  carregarClientes?: () => Promise<ClienteLancamentoOpcao[]>
+}) {
   return (
     <FinanceiroErrorBoundary>
-      <FinanceiroInner />
+      <FinanceiroInner carregarClientes={carregarClientes} />
     </FinanceiroErrorBoundary>
   )
 }
 
-function FinanceiroInner() {
+function FinanceiroInner({
+  carregarClientes,
+}: {
+  carregarClientes?: () => Promise<ClienteLancamentoOpcao[]>
+}) {
   const { pathname, search, navigate } = useRouter()
   const [acesso, setAcesso] = useState<boolean | null>(null)
   const [lancamentos, setLancamentos] = useState<Lancamento[]>([])
   const [classificacoes, setClassificacoes] = useState<Classificacao[]>(() => planoContasSeed())
+  const [clientes, setClientes] = useState<ClienteLancamentoOpcao[]>([])
   const [highlightId, setHighlightId] = useState<string | null>(null)
   const [tmpIds, setTmpIds] = useState<Set<string>>(new Set())
   const [salvando, setSalvando] = useState(false)
@@ -56,18 +65,20 @@ function FinanceiroInner() {
       if (cancelled) return
       setAcesso(ok)
       if (!ok) return
-      const [ls, cs] = await Promise.all([
+      const [ls, cs, cl] = await Promise.all([
         listarLancamentos().catch(() => [] as Lancamento[]),
         listarClassificacoes().catch(() => planoContasSeed()),
+        carregarClientes?.().catch(() => [] as ClienteLancamentoOpcao[]) ?? Promise.resolve([]),
       ])
       if (cancelled) return
       setLancamentos(ls)
       setClassificacoes(cs)
+      setClientes(cl)
     })()
     return () => {
       cancelled = true
     }
-  }, [])
+  }, [carregarClientes])
 
   function aplicar(patch: Partial<FiltrosFinanceiro>) {
     const next: FiltrosFinanceiro = { ...filtros, ...patch }
@@ -214,6 +225,7 @@ function FinanceiroInner() {
           filtros={filtros}
           lancamentos={lancamentos}
           classificacoes={classificacoes}
+          clientes={clientes}
           tmpIds={tmpIds}
           highlightId={highlightId}
           salvando={salvando}

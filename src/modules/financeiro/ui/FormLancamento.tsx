@@ -1,8 +1,9 @@
 import { useRef, useState, type FormEvent, type KeyboardEvent } from 'react'
 import { parseMoedaParaCentavos } from '../data/moeda'
+import { CLASSIFICACAO_PRO_LABORE_RECEITA } from '../engine/planoContas'
 import { formInicial, type FormLancamentoValues } from '../formState'
 import { ORDEM_CAMPOS, validarLancamentoInput, type ErrosLancamento } from '../data/schemas'
-import type { Classificacao, LancamentoInput, Movimentacao } from '../types'
+import type { Classificacao, ClienteLancamentoOpcao, LancamentoInput, Movimentacao } from '../types'
 import { OpcoesClassificacao } from './OpcoesClassificacao'
 
 function montarInput(values: FormLancamentoValues): LancamentoInput | { errors: ErrosLancamento } {
@@ -19,6 +20,7 @@ function montarInput(values: FormLancamentoValues): LancamentoInput | { errors: 
     valor: valor && valor > 0 ? valor : 1,
     vencimento: values.vencimento,
     dataPagamento: values.dataPagamento.trim() ? values.dataPagamento : null,
+    casoId: values.casoId.trim() || undefined,
   }
   const parsed = validarLancamentoInput(rascunho)
   if (!parsed.ok || extra.valor) {
@@ -29,6 +31,7 @@ function montarInput(values: FormLancamentoValues): LancamentoInput | { errors: 
 
 type Props = {
   classificacoes: Classificacao[]
+  clientes: ClienteLancamentoOpcao[]
   salvando: boolean
   initial: FormLancamentoValues
   erroBanner: string | null
@@ -38,6 +41,7 @@ type Props = {
 
 export function FormLancamento({
   classificacoes,
+  clientes,
   salvando,
   initial,
   erroBanner,
@@ -75,6 +79,7 @@ export function FormLancamento({
       v.valorTexto !== '' ||
       v.dataPagamento !== '' ||
       v.classificacaoId !== '' ||
+      v.casoId !== '' ||
       v.vencimento !== v.dataEmissao
     )
   }
@@ -199,6 +204,30 @@ export function FormLancamento({
             {errors.classificacaoId ? (
               <span className="fin-field-erro">{errors.classificacaoId}</span>
             ) : null}
+          </div>
+
+          <div className="fin-field fin-field--cliente">
+            <label htmlFor="fin-cliente">Cliente</label>
+            <select
+              id="fin-cliente"
+              className="fin-select"
+              value={values.casoId}
+              onChange={(e) => patch('casoId', e.target.value)}
+            >
+              <option value="">Sem cliente vinculado</option>
+              {clientes.map((cliente) => (
+                <option key={cliente.casoId} value={cliente.casoId}>
+                  {cliente.detalhe ? `${cliente.nome} · ${cliente.detalhe}` : cliente.nome}
+                </option>
+              ))}
+            </select>
+            {values.classificacaoId === CLASSIFICACAO_PRO_LABORE_RECEITA && !values.casoId ? (
+              <span className="fin-field-hint">
+                Vincule o cliente para o caso mostrar se o pró-labore já foi pago.
+              </span>
+            ) : (
+              <span className="fin-field-hint">Opcional. Liga este recebimento à ficha do caso.</span>
+            )}
           </div>
         </div>
 

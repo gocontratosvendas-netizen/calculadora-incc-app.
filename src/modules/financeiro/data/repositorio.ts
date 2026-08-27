@@ -1,6 +1,6 @@
 import { supabase } from '../../../lib/supabase'
 import { CLASSIFICACAO_PRO_LABORE_RECEITA, mesclarPlanoContas, planoContasSeed } from '../engine/planoContas'
-import { proLaboreCentavosParaReais } from '../engine/somarProLaboreRecebido'
+import { proLaboreCentavosParaReais, resumirProLaboreDoCaso, type ProLaboreDoCaso } from '../engine/somarProLaboreRecebido'
 import type { Classificacao, GrupoDRE, Lancamento, LancamentoInput, Movimentacao } from '../types'
 
 export type RpcResult<T> =
@@ -85,6 +85,18 @@ export async function obterTotalProLaboreRecebido(): Promise<number> {
   if (error) return 0
   const centavos = (data ?? []).reduce((acc, row) => acc + Number(row.valor), 0)
   return proLaboreCentavosParaReais(centavos)
+}
+
+export type { ProLaboreDoCaso }
+
+/** Pró-labore vinculado ao caso, em reais. Falha devolve zeros / não pago. */
+export async function obterProLaboreDoCaso(casoId: string): Promise<ProLaboreDoCaso> {
+  const vazio = resumirProLaboreDoCaso(0, 0)
+  const { data, error } = await supabase.rpc('fin_pro_labore_do_caso', { p_caso_id: casoId })
+  if (error || !data) return vazio
+  const payload = data as { ok?: boolean; valorPago?: number; valorPendente?: number }
+  if (payload.ok === false) return vazio
+  return resumirProLaboreDoCaso(Number(payload.valorPago ?? 0), Number(payload.valorPendente ?? 0))
 }
 
 export async function listarLancamentos(): Promise<Lancamento[]> {

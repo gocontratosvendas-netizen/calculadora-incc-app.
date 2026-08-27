@@ -9,7 +9,7 @@ import { derivarStatus } from './derivarStatus'
 import { filtrarPorRegime } from './filtrarPorRegime'
 import { margem, montarLinhasDRE } from './montarLinhasDRE'
 import { classificacaoPorCodigo, mesclarPlanoContas, planoContasSeed } from './planoContas'
-import { proLaboreCentavosParaReais, somarProLaboreRecebido } from './somarProLaboreRecebido'
+import { proLaboreCentavosParaReais, resumirProLaboreDoCaso, somarProLaboreRecebido } from './somarProLaboreRecebido'
 
 const CLASSIFS = planoContasSeed()
 
@@ -510,6 +510,24 @@ describe('somarProLaboreRecebido', () => {
     ]
     expect(somarProLaboreRecebido(lancamentos)).toBe(500_000)
     expect(proLaboreCentavosParaReais(500_000)).toBe(5_000)
+  })
+
+  it('marca pró-labore do caso como pago só quando não há pendência', () => {
+    expect(resumirProLaboreDoCaso(0, 0)).toEqual({
+      valorPago: 0,
+      valorPendente: 0,
+      status: 'nao_pago',
+    })
+    expect(resumirProLaboreDoCaso(500_000, 0)).toEqual({
+      valorPago: 5_000,
+      valorPendente: 0,
+      status: 'pago',
+    })
+    expect(resumirProLaboreDoCaso(300_000, 200_000)).toEqual({
+      valorPago: 3_000,
+      valorPendente: 2_000,
+      status: 'nao_pago',
+    })
   })
 
   it('devolve zero quando não há pró-labore cadastrado', () => {

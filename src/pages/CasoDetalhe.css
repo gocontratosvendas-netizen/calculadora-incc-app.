@@ -332,6 +332,108 @@
   margin-bottom: 14px;
 }
 
+.caso-honorarios {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 9px;
+  margin-bottom: 12px;
+}
+
+.caso-honorarios-card {
+  border: 1px solid var(--c-borda-card);
+  border-radius: 10px;
+  padding: 11px 13px 12px;
+  background: var(--c-bg);
+}
+
+.caso-honorarios-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 2px;
+}
+
+.caso-honorarios-badge {
+  font-size: 10px;
+  color: var(--c-apoio);
+  letter-spacing: 0.01em;
+}
+
+.caso-honorarios-badge.is-muted {
+  color: var(--c-vazio);
+}
+
+.caso-honorarios-status {
+  display: inline-flex;
+  align-items: center;
+  height: 18px;
+  padding: 0 7px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.caso-honorarios-status.is-pago {
+  background: var(--c-verde-bg);
+  color: var(--c-verde);
+}
+
+.caso-honorarios-status.is-nao-pago {
+  background: var(--c-ambar-bg);
+  color: var(--c-ambar);
+}
+
+.caso-honorarios-status.is-loading {
+  background: var(--c-cinza-bg);
+  color: var(--c-meta);
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.caso-honorarios-pct {
+  display: flex;
+  gap: 6px;
+  margin-top: 9px;
+}
+
+.caso-honorarios-pct button {
+  height: 26px;
+  padding: 0 10px;
+  border: 1px solid var(--c-borda-campo);
+  border-radius: 999px;
+  background: #fff;
+  color: var(--c-apoio);
+  font-size: 11.5px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.caso-honorarios-pct button:hover:not(:disabled) {
+  border-color: #cfd5de;
+  color: var(--c-desc);
+}
+
+.caso-honorarios-pct button.is-active {
+  background: var(--c-azul);
+  border-color: var(--c-azul);
+  color: #fff;
+}
+
+.caso-honorarios-pct button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.caso-honorarios-hint {
+  margin: 6px 0 0;
+  font-size: 11px;
+  color: var(--c-rotulo);
+  line-height: 1.35;
+}
+
 .caso-kpi {
   border: 1px solid var(--c-borda-card);
   border-radius: 10px;
@@ -1391,6 +1493,10 @@
 @media (max-width: 640px) {
   .caso-kpis {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .caso-honorarios {
+    grid-template-columns: 1fr;
   }
 
   .caso-header {
