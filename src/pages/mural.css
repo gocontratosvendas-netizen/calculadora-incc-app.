@@ -924,10 +924,6 @@
   background: #ffffff;
 }
 
-.mural-card--carteira {
-  border-left: 2px solid var(--mural-dourado);
-}
-
 .mural-card-label {
   display: flex;
   align-items: center;
@@ -1021,46 +1017,6 @@
   outline: 2px solid var(--mural-azul);
   outline-offset: 2px;
   border-radius: 4px;
-}
-
-.mural-carteira-kicker {
-  margin: 8px 0 0;
-  font-size: 10px;
-  font-weight: 400;
-  color: var(--mural-meta);
-  text-transform: uppercase;
-}
-
-.mural-carteira-valor {
-  margin: 2px 0 8px;
-  font-size: 17px;
-  font-weight: 500;
-  color: var(--mural-azul);
-  font-variant-numeric: tabular-nums;
-  line-height: 1.2;
-}
-
-.mural-carteira-row {
-  display: flex;
-  justify-content: space-between;
-  gap: 8px;
-  font-size: 11px;
-  color: var(--mural-apoio);
-  font-weight: 400;
-}
-
-.mural-carteira-row + .mural-carteira-row {
-  margin-top: 4px;
-}
-
-.mural-carteira-num {
-  color: var(--mural-nome);
-  font-weight: 500;
-}
-
-.mural-carteira-rec {
-  color: var(--mural-verde);
-  font-weight: 500;
 }
 
 .mural-socios {

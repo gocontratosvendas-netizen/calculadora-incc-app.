@@ -10,7 +10,6 @@ import {
   type ReactNode,
 } from 'react'
 import { listarCasos, STATUS_CASO_ROTULO, type Caso } from '../lib/casos'
-import { getDashboardSummary, type DashboardSummary } from '../lib/dashboard'
 import {
   comentar,
   curtirPost,
@@ -63,16 +62,6 @@ const moeda = new Intl.NumberFormat('pt-BR', {
   minimumFractionDigits: 0,
   maximumFractionDigits: 0,
 })
-
-const EMPTY_SUMMARY: DashboardSummary = {
-  excessoTotalCarteira: 0,
-  contratosApurados: 0,
-  casosAtivos: 0,
-  casosEmCalculo: 0,
-  valoresRecuperados: 0,
-  casosLiquidados: 0,
-  casosAguardandoRevisao: 0,
-}
 
 function normalizar(texto: string) {
   return texto.normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase()
@@ -505,7 +494,6 @@ export default function Home() {
   const [hasMore, setHasMore] = useState(false)
   const [feedStatus, setFeedStatus] = useState<'loading' | 'ready' | 'error'>('loading')
   const [filtro, setFiltro] = useState<FiltroFeed>('tudo')
-  const [summary, setSummary] = useState<DashboardSummary>(EMPTY_SUMMARY)
   const [marcacoes, setMarcacoes] = useState<Marcacao[]>([])
   const [atencao, setAtencao] = useState<ItemAtencao[]>([])
   const [casos, setCasos] = useState<Caso[]>([])
@@ -597,9 +585,6 @@ export default function Home() {
 
   useEffect(() => {
     void carregarFeed()
-    getDashboardSummary()
-      .then(setSummary)
-      .catch(() => setSummary(EMPTY_SUMMARY))
     listarMarcacoesNaoLidas()
       .then(setMarcacoes)
       .catch(() => setMarcacoes([]))
@@ -1456,22 +1441,6 @@ export default function Home() {
           </section>
 
           <CartaoAtencao itens={atencao} />
-
-          <section className="mural-card mural-card--carteira" aria-labelledby="mural-carteira-label">
-            <div className="mural-card-label" id="mural-carteira-label">
-              Carteira
-            </div>
-            <p className="mural-carteira-kicker">Excesso total</p>
-            <p className="mural-carteira-valor">{moeda.format(summary.excessoTotalCarteira)}</p>
-            <div className="mural-carteira-row">
-              <span>Casos ativos</span>
-              <span className="mural-carteira-num">{summary.casosAtivos}</span>
-            </div>
-            <div className="mural-carteira-row">
-              <span>Recuperado</span>
-              <span className="mural-carteira-rec">{moeda.format(summary.valoresRecuperados)}</span>
-            </div>
-          </section>
 
           <section className="mural-card" aria-labelledby="mural-socios-label">
             <div className="mural-card-label" id="mural-socios-label">
