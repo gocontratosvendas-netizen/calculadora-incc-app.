@@ -82,6 +82,7 @@ export function precisaReautenticar(ultimaReauthIso: string | null, agora: Date 
   return agora.getTime() - new Date(ultimaReauthIso).getTime() > REAUTH_MS
 }
 
+const BLOQUEIO_2FA_ATIVO = false
 const PRAZO_2FA_MS = 7 * 24 * 60 * 60 * 1000
 
 export function acessoConfiguracoesBloqueadoPor2fa(input: {
@@ -90,6 +91,7 @@ export function acessoConfiguracoesBloqueadoPor2fa(input: {
   doisFatoresDesde: string | null
   agora?: Date
 }): boolean {
+  if (!BLOQUEIO_2FA_ATIVO) return false
   if (input.papelId !== 'socio') return false
   if (input.doisFatoresAtivo) return false
   if (!input.doisFatoresDesde) return false
@@ -101,6 +103,7 @@ export function aviso2faPendente(input: {
   papelId: string
   doisFatoresAtivo: boolean
 }): boolean {
+  if (!BLOQUEIO_2FA_ATIVO) return false
   return input.papelId === ('socio' satisfies PapelSistema) && !input.doisFatoresAtivo
 }
 

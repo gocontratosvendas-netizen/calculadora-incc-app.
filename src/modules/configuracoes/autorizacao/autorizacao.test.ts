@@ -346,7 +346,7 @@ describe('reautenticação, 2FA e papéis customizados', () => {
     expect(precisaReautenticar(null)).toBe(true)
   })
 
-  it('sócio sem 2FA após 7 dias perde Configurações', () => {
+  it('bloqueio de Configurações por 2FA está desativado por enquanto', () => {
     expect(
       acessoConfiguracoesBloqueadoPor2fa({
         papelId: 'socio',
@@ -354,7 +354,7 @@ describe('reautenticação, 2FA e papéis customizados', () => {
         doisFatoresDesde: '2026-08-01T00:00:00.000Z',
         agora: new Date('2026-08-16T00:00:00.000Z'),
       }),
-    ).toBe(true)
+    ).toBe(false)
     expect(
       acessoConfiguracoesBloqueadoPor2fa({
         papelId: 'socio',
