@@ -47,7 +47,12 @@ function brDateToIso(dateBr: string) {
 }
 
 function normalizeMoneyToken(raw: string) {
-  return raw.replace(/\s/g, '').replace(/^R\$\s?/i, '')
+  const stripped = raw.replace(/^R\$\s?/i, '').trim()
+  // CivilWeb / Crystal Reports usa espaço como milhar: "126 731,00"
+  if (/^-?\d{1,3}(?:\s\d{3})+,\d{1,2}$/.test(stripped)) {
+    return stripped.replace(/\s/g, '.')
+  }
+  return stripped.replace(/\s/g, '')
 }
 
 function isMoney(token: string) {
@@ -495,6 +500,8 @@ function parseCivilWebFromRows(rows: PdfTextRow[]): ExtratoParseResult {
 
   for (let i = 0; i < rows.length; i += 1) {
     const current = rows[i]
+    if (/total\s*:/i.test(current.text)) continue
+    if (/valor para quita/i.test(current.text)) continue
     const prev = rows[i - 1]
     const mergedTokens = [
       ...(prev && /^\d{3}\/\d{3}-[A-Z]$/i.test(prev.text.trim())

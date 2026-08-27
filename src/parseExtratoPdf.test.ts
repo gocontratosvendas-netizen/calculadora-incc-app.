@@ -174,6 +174,14 @@ describe('parseExtratoFromRows — Posição Financeira Benx', () => {
   })
 })
 
+function rowsFromCells(lines: string[][]): PdfTextRow[] {
+  return lines.map((cells, i) => ({
+    y: 500 - i * 16,
+    cells: cells.map((str) => ({ str })),
+    text: cells.join(' '),
+  }))
+}
+
 describe('parseExtratoFromRows — CivilWeb', () => {
   it('continua lendo extrato com duas datas e onze colunas monetárias', () => {
     const linha =
@@ -194,6 +202,78 @@ describe('parseExtratoFromRows — CivilWeb', () => {
       descontos: '5,00',
       taxasAdicionais: '0,00',
       valorPago: '2.575,00',
+    })
+  })
+
+  it('lê Extrato de Cliente com milhar em espaço (Crystal Reports)', () => {
+    const resultado = parseExtratoFromRows(
+      rowsFromCells([
+        ['Extrato de Cliente'],
+        ['Data Assinatura: 12/10/2020'],
+        [
+          '001/001-S',
+          '209551',
+          '12/10/2020',
+          '15/10/2020',
+          '126 731,00',
+          '0,00',
+          '0,00',
+          '0,00',
+          '0,00',
+          '0,00',
+          '0,00',
+          '0,00',
+          '126 731,00',
+          '0,00',
+          '126 731,00',
+        ],
+        [
+          '001/001-I',
+          '209552',
+          '15/11/2020',
+          '11/11/2020',
+          '11 521,00',
+          '0,00',
+          '133,64',
+          '0,00',
+          '0,00',
+          '0,00',
+          '0,00',
+          '0,00',
+          '11 654,64',
+          '0,00',
+          '11 654,64',
+        ],
+        [
+          'Total:',
+          '1 871 256,72',
+          '8 123,04',
+          '254 247,44',
+          '0,00',
+          '0,00',
+          '0,00',
+          '24 668,02',
+          '0,00',
+          '2 133 627,20',
+          '0,00',
+          '2 108 959,18',
+        ],
+      ]),
+    )
+
+    expect(resultado.dataAssinatura).toBe('2020-10-12')
+    expect(resultado.lancamentos).toHaveLength(2)
+    expect(resultado.lancamentos[0]).toMatchObject({
+      parcela: '001/001-S',
+      dataPagamento: '2020-10-15',
+      valorContratual: '126.731,00',
+      valorPago: '126.731,00',
+    })
+    expect(resultado.lancamentos[1]).toMatchObject({
+      parcela: '001/001-I',
+      dataPagamento: '2020-11-11',
+      valorContratual: '11.521,00',
+      valorPago: '11.654,64',
     })
   })
 })
