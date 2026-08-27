@@ -330,9 +330,13 @@ function App() {
         taxasAdicionais: parseMoney(l.taxasAdicionais),
       }))
       .filter((l) => l.data && l.vc > 0)
-      .sort((a, b) => a.data!.getTime() - b.data!.getTime())
 
-    const inicioEfetivo = parseDate(dataAniversarioManual) ?? (linhasValidas[0]?.data ?? null)
+    const maisAntiga = linhasValidas.reduce<Date | null>((acc, l) => {
+      const data = l.data!
+      if (!acc || data.getTime() < acc.getTime()) return data
+      return acc
+    }, null)
+    const inicioEfetivo = parseDate(dataAniversarioManual) ?? maisAntiga
 
     const rows = linhasValidas.map((l) => {
       const baseInicio = inicioEfetivo ?? l.data!
@@ -374,6 +378,12 @@ function App() {
     const totalDescontos = rows.reduce((acc, r) => acc + r.descontos, 0)
     const totalJurosMora = rows.reduce((acc, r) => acc + r.jurosMora, 0)
     const totalTaxasAdicionais = rows.reduce((acc, r) => acc + r.taxasAdicionais, 0)
+    const pagamentosIso = rows.map((r) => r.pagamento).slice().sort()
+    const ultimaComCorrecao = rows.reduce<(typeof rows)[number] | null>((acc, r) => {
+      if (r.n <= 0) return acc
+      if (!acc || r.pagamento.localeCompare(acc.pagamento) > 0) return r
+      return acc
+    }, null)
 
     return {
       inicioEfetivo,
@@ -382,6 +392,9 @@ function App() {
         : null,
       errosIndice: [...new Set(rows.map((r) => r.erroIndice).filter((e): e is string => Boolean(e)))],
       rows,
+      periodoInicio: pagamentosIso[0] ?? '',
+      periodoFim: pagamentosIso[pagamentosIso.length - 1] ?? '',
+      inccUltimaCorrecao: ultimaComCorrecao?.incc ?? null,
       totalDevido,
       totalPago,
       totalExcesso,
@@ -1015,10 +1028,8 @@ function App() {
                     {currencyFormatter.format(relatorio.totalExcesso)}
                   </span>{' '}
                   cobrados a maior em {relatorio.rows.length} pagamentos realizados entre{' '}
-                  {formatMesAnoExtenso(relatorio.rows[0]?.pagamento ?? '')} e{' '}
-                  {formatMesAnoExtenso(
-                    relatorio.rows[relatorio.rows.length - 1]?.pagamento ?? '',
-                  )}
+                  {formatMesAnoExtenso(relatorio.periodoInicio)} e{' '}
+                  {formatMesAnoExtenso(relatorio.periodoFim)}
                   .
                 </>
               ) : (
@@ -1085,17 +1096,9 @@ function App() {
                 <p>
                   A correção passou a incidir após o 1º aniversário, com INCC-DI de{' '}
                   <span className="report-em">
-                    {(() => {
-                      let fator: number | null = null
-                      for (let i = relatorio.rows.length - 1; i >= 0; i -= 1) {
-                        const row = relatorio.rows[i]
-                        if (row && row.n > 0) {
-                          fator = row.incc
-                          break
-                        }
-                      }
-                      return fator == null ? '—' : formatPercent4(fator)
-                    })()}
+                    {relatorio.inccUltimaCorrecao == null
+                      ? '—'
+                      : formatPercent4(relatorio.inccUltimaCorrecao)}
                   </span>
                   .
                 </p>

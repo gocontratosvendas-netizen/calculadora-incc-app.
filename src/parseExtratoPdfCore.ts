@@ -405,7 +405,6 @@ function parsePosicaoFinanceiraMacFromRows(rows: PdfTextRow[]): ExtratoParseResu
     lancamentos.push(parsed)
   }
 
-  lancamentos.sort((a, b) => a.dataPagamento.localeCompare(b.dataPagamento))
   return { dataAssinatura: dataAssinaturaPosicaoFinanceiraMac(fullText), lancamentos }
 }
 
@@ -489,7 +488,6 @@ function parseRelacaoValoresPagosFromRows(rows: PdfTextRow[]): ExtratoParseResul
     lancamentos.push(parsed)
   }
 
-  lancamentos.sort((a, b) => a.dataPagamento.localeCompare(b.dataPagamento))
   return { dataAssinatura: dataAssinaturaRelacaoValoresPagos(fullText), lancamentos }
 }
 
@@ -522,7 +520,6 @@ function parseCivilWebFromRows(rows: PdfTextRow[]): ExtratoParseResult {
     }
   }
 
-  lancamentos.sort((a, b) => a.dataPagamento.localeCompare(b.dataPagamento))
   return { dataAssinatura: dataAssinaturaCivilWeb(fullText), lancamentos }
 }
 
@@ -539,7 +536,6 @@ function parsePosicaoFinanceiraBenxFromRows(rows: PdfTextRow[]): ExtratoParseRes
     lancamentos.push(parsed)
   }
 
-  lancamentos.sort((a, b) => a.dataPagamento.localeCompare(b.dataPagamento))
   return { dataAssinatura: null, lancamentos }
 }
 
@@ -570,11 +566,11 @@ function parsePosicaoFinanceiraFromRows(rows: PdfTextRow[]): ExtratoParseResult 
     }
   }
 
-  lancamentos.sort((a, b) => a.dataPagamento.localeCompare(b.dataPagamento))
   return { dataAssinatura: dataAssinaturaPosicaoFinanceira(fullText), lancamentos }
 }
 
-/** Interpreta linhas já extraídas do PDF (CivilWeb, Posição Financeira, Benx, MAC ou Relação Valores Pagos). */
+/** Interpreta linhas já extraídas do PDF (CivilWeb, Posição Financeira, Benx, MAC ou Relação Valores Pagos).
+ *  Os lançamentos saem na ordem em que aparecem no documento. */
 export function parseExtratoFromRows(rows: PdfTextRow[]): ExtratoParseResult {
   const fullText = rows.map((r) => r.text).join('\n')
   if (parecePosicaoFinanceiraBenx(fullText)) {
