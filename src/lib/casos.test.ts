@@ -4,13 +4,17 @@ import {
   calcularResumoFinanceiro,
   casoEntraNaCarteiraJudicial,
   honorariosExitoDoCaso,
+  pessoasDoCaso,
+  rotuloResponsaveis,
   HONORARIOS_EXITO_PERCENTUAL,
   PERCENTUAL_EXITO_PADRAO,
   type Caso,
   type CasoStatus,
+  type PessoaCaso,
 } from './casos'
 
 function caso(parcial: Partial<Caso> & Pick<Caso, 'status'>): Caso {
+  const responsavel: PessoaCaso = parcial.responsavel ?? { id: 'ana', nome: 'Ana', iniciais: 'AN' }
   return {
     id: parcial.id ?? 'caso',
     cliente: parcial.cliente ?? 'Cliente',
@@ -22,7 +26,8 @@ function caso(parcial: Partial<Caso> & Pick<Caso, 'status'>): Caso {
     percentualExito: parcial.percentualExito ?? PERCENTUAL_EXITO_PADRAO,
     anoAjuizamento: parcial.anoAjuizamento ?? null,
     status: parcial.status,
-    responsavel: parcial.responsavel ?? { nome: 'Ana', iniciais: 'AN' },
+    responsavel,
+    responsaveis: parcial.responsaveis ?? [responsavel],
     atualizadoEm: parcial.atualizadoEm ?? '2026-08-24T12:00:00.000Z',
   }
 }
@@ -113,5 +118,28 @@ describe('carteira judicial', () => {
       caso({ id: 'outro', status: 'ajuizado', valorCausa: 50_000, percentualExito: 20 }),
     ]
     expect(calcularResumoFinanceiro(casos).honorariosExitoEsperados).toBe(20_000)
+  })
+})
+
+describe('responsáveis do caso', () => {
+  it('usa a lista quando há um ou mais responsáveis', () => {
+    const unico = caso({ status: 'ajuizado' })
+    expect(pessoasDoCaso(unico)).toEqual([unico.responsavel])
+    expect(rotuloResponsaveis(pessoasDoCaso(unico))).toBe('Ana')
+
+    const varios = caso({
+      status: 'ajuizado',
+      responsaveis: [
+        { id: 'vitor', nome: 'Vitor P.', iniciais: 'VP' },
+        { id: 'rafaela', nome: 'Rafaela Moura', iniciais: 'RM' },
+      ],
+    })
+    expect(pessoasDoCaso(varios)).toHaveLength(2)
+    expect(rotuloResponsaveis(pessoasDoCaso(varios))).toBe('Vitor P., Rafaela Moura')
+  })
+
+  it('cai no responsável principal quando a lista vem vazia', () => {
+    const semLista = caso({ status: 'ajuizado', responsaveis: [] })
+    expect(pessoasDoCaso(semLista)).toEqual([semLista.responsavel])
   })
 })

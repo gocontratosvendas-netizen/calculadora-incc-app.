@@ -12,6 +12,7 @@ const STATUS_META = {
 } as const
 
 function caso(parcial: Partial<Caso> = {}): Caso {
+  const responsavel = parcial.responsavel ?? { id: 'vitor', nome: 'Vitor Paludetto', iniciais: 'VP' }
   return {
     id: parcial.id ?? 'caso-1',
     cliente: parcial.cliente ?? 'Ana',
@@ -23,7 +24,8 @@ function caso(parcial: Partial<Caso> = {}): Caso {
     percentualExito: parcial.percentualExito ?? PERCENTUAL_EXITO_PADRAO,
     anoAjuizamento: parcial.anoAjuizamento ?? 2024,
     status: parcial.status ?? 'ajuizado',
-    responsavel: parcial.responsavel ?? { nome: 'Vitor Paludetto', iniciais: 'VP' },
+    responsavel,
+    responsaveis: parcial.responsaveis ?? [responsavel],
     atualizadoEm: parcial.atualizadoEm ?? '2026-08-27T12:00:00.000Z',
   }
 }
@@ -73,5 +75,21 @@ describe('exportação da carteira', () => {
       exitoEsperado: '',
       percentualExito: '',
     })
+  })
+
+  it('junta os nomes quando o caso tem mais de um responsável', () => {
+    const linhas = montarLinhasExportacaoCasos(
+      [
+        caso({
+          responsaveis: [
+            { id: 'vitor', nome: 'Vitor P.', iniciais: 'VP' },
+            { id: 'rafaela', nome: 'Rafaela Moura', iniciais: 'RM' },
+          ],
+        }),
+      ],
+      {},
+      STATUS_META,
+    )
+    expect(linhas[0].responsavel).toBe('Vitor P., Rafaela Moura')
   })
 })

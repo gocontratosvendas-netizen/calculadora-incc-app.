@@ -1,6 +1,8 @@
 import * as XLSX from 'xlsx'
 import {
   honorariosExitoDoCaso,
+  pessoasDoCaso,
+  rotuloResponsaveis,
   type Caso,
   type CasoStatus,
 } from './casos'
@@ -58,7 +60,7 @@ export function montarLinhasExportacaoCasos(
       exitoRecebido: exitoRecebido > 0 ? exitoRecebido : '',
       exitoEsperado: esperado ?? '',
       percentualExito: c.valorCausa == null ? '' : c.percentualExito,
-      responsavel: c.responsavel.nome,
+      responsavel: rotuloResponsaveis(pessoasDoCaso(c)),
       status: statusMeta[c.status].rotulo,
     }
   })

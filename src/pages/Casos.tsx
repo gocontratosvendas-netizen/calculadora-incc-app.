@@ -9,14 +9,19 @@ import {
   type MouseEvent as ReactMouseEvent,
   type ReactNode,
 } from 'react'
+import { createPortal } from 'react-dom'
 import {
+  atualizarResponsaveis,
   calcularResumoCarteira,
   calcularResumoFinanceiro,
   excluirCaso,
   honorariosExitoDoCaso,
   listarCasos,
+  pessoasDoCaso,
+  rotuloResponsaveis,
   type Caso,
   type CasoStatus,
+  type PessoaCaso,
 } from '../lib/casos'
 import { exportarCarteiraCasos } from '../lib/exportarCasos'
 import {
@@ -32,6 +37,7 @@ import {
   type HonorarioDoCaso,
 } from '../modules/financeiro/engine/honorariosCarteira'
 import { useRouter } from '../lib/router-context'
+import { listProfiles, mensagemErroSupabase } from '../lib/supabase'
 import './Casos.css'
 
 type StatusFiltro = 'todos' | CasoStatus
@@ -142,6 +148,198 @@ function HonorarioCell({
         <span className="casos-empty-dash">—</span>
       )}
     </span>
+  )
+}
+
+const RESP_MENU_LARGURA = 232
+const RESP_AVATARES_VISIVEIS = 2
+
+function IconCheck() {
+  return (
+    <svg width="10" height="10" viewBox="0 0 10 10" fill="none" aria-hidden="true">
+      <path d="M2 5.2 4.1 7.2 8 2.8" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  )
+}
+
+function ResponsavelCell({
+  caso,
+  equipe,
+  aberto,
+  onAbertoChange,
+  onSalvar,
+}: {
+  caso: Caso
+  equipe: PessoaCaso[]
+  aberto: boolean
+  onAbertoChange: (aberto: boolean) => void
+  onSalvar: (pessoas: PessoaCaso[]) => Promise<void>
+}) {
+  const btnRef = useRef<HTMLButtonElement>(null)
+  const menuRef = useRef<HTMLDivElement>(null)
+  const [posicao, setPosicao] = useState<{ top: number; left: number } | null>(null)
+  const [salvando, setSalvando] = useState(false)
+  const [erro, setErro] = useState<string | null>(null)
+
+  const selecionados = pessoasDoCaso(caso)
+  const rotulo = rotuloResponsaveis(selecionados)
+
+  const opcoes = useMemo(() => {
+    const map = new Map<string, PessoaCaso>()
+    for (const p of equipe) map.set(p.id, p)
+    for (const p of selecionados) {
+      if (!map.has(p.id)) map.set(p.id, p)
+    }
+    return [...map.values()].sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'))
+  }, [equipe, selecionados])
+
+  const posicionar = useCallback(() => {
+    const rect = btnRef.current?.getBoundingClientRect()
+    if (!rect) return
+    const alturaMenu = Math.min(8 + opcoes.length * 34, 280)
+    let top = rect.bottom + 4
+    let left = rect.right - RESP_MENU_LARGURA
+    if (left < 8) left = 8
+    if (left + RESP_MENU_LARGURA > window.innerWidth - 8) {
+      left = Math.max(8, window.innerWidth - RESP_MENU_LARGURA - 8)
+    }
+    if (top + alturaMenu > window.innerHeight - 8) {
+      top = Math.max(8, rect.top - alturaMenu - 4)
+    }
+    setPosicao({ top, left })
+  }, [opcoes.length])
+
+  function abrir(event: ReactMouseEvent<HTMLButtonElement>) {
+    event.stopPropagation()
+    event.preventDefault()
+    if (opcoes.length === 0) return
+    posicionar()
+    setErro(null)
+    onAbertoChange(true)
+  }
+
+  useEffect(() => {
+    if (!aberto) return
+    posicionar()
+
+    function onPointerDown(event: PointerEvent) {
+      const alvo = event.target as Node
+      if (btnRef.current?.contains(alvo) || menuRef.current?.contains(alvo)) return
+      onAbertoChange(false)
+    }
+    function onKey(event: KeyboardEvent) {
+      if (event.key === 'Escape') {
+        event.preventDefault()
+        onAbertoChange(false)
+        btnRef.current?.focus()
+      }
+    }
+    function onReposition() {
+      posicionar()
+    }
+
+    document.addEventListener('pointerdown', onPointerDown)
+    document.addEventListener('keydown', onKey)
+    window.addEventListener('resize', onReposition)
+    window.addEventListener('scroll', onReposition, true)
+    return () => {
+      document.removeEventListener('pointerdown', onPointerDown)
+      document.removeEventListener('keydown', onKey)
+      window.removeEventListener('resize', onReposition)
+      window.removeEventListener('scroll', onReposition, true)
+    }
+  }, [aberto, onAbertoChange, posicionar])
+
+  async function alternar(pessoa: PessoaCaso) {
+    if (salvando) return
+    const jaEsta = selecionados.some((p) => p.id === pessoa.id)
+    const proximo = jaEsta
+      ? selecionados.filter((p) => p.id !== pessoa.id)
+      : [...selecionados, pessoa]
+    if (proximo.length === 0) return
+    setSalvando(true)
+    setErro(null)
+    try {
+      await onSalvar(proximo)
+    } catch (error) {
+      setErro(mensagemErroSupabase(error, 'Não foi possível atualizar os responsáveis.'))
+    } finally {
+      setSalvando(false)
+    }
+  }
+
+  const visiveis = selecionados.slice(0, RESP_AVATARES_VISIVEIS)
+  const extras = Math.max(0, selecionados.length - visiveis.length)
+  const aria = erro
+    ? `${rotulo}. ${erro}`
+    : `Responsáveis: ${rotulo}. Clique para alterar.`
+
+  return (
+    <>
+      <button
+        ref={btnRef}
+        type="button"
+        className={`casos-resp${aberto ? ' is-open' : ''}${salvando ? ' is-busy' : ''}`}
+        aria-haspopup="listbox"
+        aria-expanded={aberto}
+        aria-label={aria}
+        title={erro ?? rotulo}
+        disabled={opcoes.length === 0}
+        onClick={abrir}
+        onKeyDown={(event) => event.stopPropagation()}
+      >
+        <span className="casos-resp-stack">
+          {visiveis.length === 0 ? (
+            <span className="casos-avatar casos-avatar--empty">?</span>
+          ) : (
+            visiveis.map((pessoa) => (
+              <span key={pessoa.id} className="casos-avatar" title={pessoa.nome}>
+                {pessoa.iniciais}
+              </span>
+            ))
+          )}
+        </span>
+        {extras > 0 ? <span className="casos-resp-more">+{extras}</span> : null}
+      </button>
+      {aberto && posicao
+        ? createPortal(
+            <div
+              ref={menuRef}
+              className="casos-resp-menu"
+              role="listbox"
+              aria-multiselectable="true"
+              aria-label={`Escolher responsáveis de ${caso.cliente}`}
+              style={{ top: posicao.top, left: posicao.left, width: RESP_MENU_LARGURA }}
+              onClick={(event) => event.stopPropagation()}
+              onMouseDown={(event) => event.stopPropagation()}
+            >
+              <p className="casos-resp-menu-hint">Um ou mais responsáveis</p>
+              {opcoes.map((pessoa) => {
+                const marcado = selecionados.some((p) => p.id === pessoa.id)
+                return (
+                  <button
+                    key={pessoa.id}
+                    type="button"
+                    role="option"
+                    aria-selected={marcado}
+                    className={`casos-resp-option${marcado ? ' is-selected' : ''}`}
+                    disabled={salvando || (marcado && selecionados.length === 1)}
+                    onClick={() => void alternar(pessoa)}
+                  >
+                    <span className={`casos-resp-check${marcado ? ' is-on' : ''}`}>
+                      {marcado ? <IconCheck /> : null}
+                    </span>
+                    <span className="casos-avatar">{pessoa.iniciais}</span>
+                    <span className="casos-resp-option-nome">{pessoa.nome}</span>
+                  </button>
+                )
+              })}
+              {erro ? <p className="casos-resp-erro">{erro}</p> : null}
+            </div>,
+            document.body,
+          )
+        : null}
+    </>
   )
 }
 
@@ -359,19 +557,23 @@ export default function Casos() {
   const [page, setPage] = useState(1)
   const [paraExcluir, setParaExcluir] = useState<Caso | null>(null)
   const [excluindo, setExcluindo] = useState(false)
+  const [equipe, setEquipe] = useState<PessoaCaso[]>([])
+  const [pickerCasoId, setPickerCasoId] = useState<string | null>(null)
 
   const carregar = useCallback(async () => {
     setLoading(true)
     setError(false)
     try {
-      const [lista, proLabore, honorariosCarteira] = await Promise.all([
+      const [lista, proLabore, honorariosCarteira, profiles] = await Promise.all([
         listarCasos(),
         obterTotalProLaboreRecebido(),
         obterHonorariosDaCarteira(),
+        listProfiles().catch(() => []),
       ])
       setCasos(lista)
       setProLaboreRecebido(proLabore)
       setHonorarios(honorariosCarteira)
+      setEquipe(profiles.map((p) => ({ id: p.id, nome: p.nome, iniciais: p.iniciais })))
     } catch {
       setError(true)
     } finally {
@@ -409,7 +611,8 @@ export default function Casos() {
       return (
         normalizar(c.cliente).includes(q) ||
         normalizar(c.empreendimento).includes(q) ||
-        normalizar(c.incorporadora).includes(q)
+        normalizar(c.incorporadora).includes(q) ||
+        pessoasDoCaso(c).some((p) => normalizar(p.nome).includes(q))
       )
     })
   }, [casos, statusFiltro, anoFiltro, buscaDebounced])
@@ -490,7 +693,46 @@ export default function Casos() {
 
   function pedirExclusao(caso: Caso, event: ReactMouseEvent<HTMLButtonElement>) {
     event.stopPropagation()
+    setPickerCasoId(null)
     setParaExcluir(caso)
+  }
+
+  async function salvarResponsaveis(casoId: string, pessoas: PessoaCaso[]) {
+    const anterior = casos.find((item) => item.id === casoId)
+    setCasos((atual) =>
+      atual.map((item) =>
+        item.id === casoId
+          ? {
+              ...item,
+              responsavel: pessoas[0] ?? item.responsavel,
+              responsaveis: pessoas,
+              atualizadoEm: new Date().toISOString(),
+            }
+          : item,
+      ),
+    )
+    try {
+      const gravadas = await atualizarResponsaveis(
+        casoId,
+        pessoas.map((p) => p.id),
+      )
+      setCasos((atual) =>
+        atual.map((item) =>
+          item.id === casoId
+            ? {
+                ...item,
+                responsavel: gravadas[0] ?? item.responsavel,
+                responsaveis: gravadas,
+              }
+            : item,
+        ),
+      )
+    } catch (error) {
+      if (anterior) {
+        setCasos((atual) => atual.map((item) => (item.id === casoId ? anterior : item)))
+      }
+      throw error
+    }
   }
 
   function cancelarExclusao() {
@@ -720,7 +962,7 @@ export default function Casos() {
                 <th scope="col" role="columnheader" className="is-right">
                   Honorários de êxito
                 </th>
-                <th scope="col" role="columnheader" className="is-center">
+                <th scope="col" role="columnheader" className="is-center" title="Responsáveis">
                   Resp.
                 </th>
                 <th scope="col" role="columnheader" className="is-right">
@@ -831,7 +1073,7 @@ export default function Casos() {
                   <br />
                   de êxito
                 </th>
-                <th scope="col" role="columnheader" className="is-center">
+                <th scope="col" role="columnheader" className="is-center" title="Responsáveis">
                   Resp.
                 </th>
                 <th scope="col" role="columnheader" className="is-right">
@@ -886,14 +1128,18 @@ export default function Casos() {
                     <td role="cell" className="is-num">
                       <HonorarioCell resumo={hon?.exito} fallback={esperado} mostrarEsperado />
                     </td>
-                    <td role="cell" className="is-center">
-                      <span
-                        className="casos-avatar"
-                        title={caso.responsavel.nome}
-                        aria-label={caso.responsavel.nome}
-                      >
-                        {caso.responsavel.iniciais}
-                      </span>
+                    <td
+                      role="cell"
+                      className="is-center"
+                      onClick={(event) => event.stopPropagation()}
+                    >
+                      <ResponsavelCell
+                        caso={caso}
+                        equipe={equipe}
+                        aberto={pickerCasoId === caso.id}
+                        onAbertoChange={(aberto) => setPickerCasoId(aberto ? caso.id : null)}
+                        onSalvar={(pessoas) => salvarResponsaveis(caso.id, pessoas)}
+                      />
                     </td>
                     <td role="cell" className="is-right">
                       <span className={`casos-badge ${status.className}`}>{status.rotuloTabela}</span>

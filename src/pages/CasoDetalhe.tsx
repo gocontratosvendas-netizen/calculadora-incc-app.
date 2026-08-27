@@ -950,7 +950,9 @@ export default function CasoDetalhe({ id }: { id: string }) {
           </section>
 
           <section className="caso-side-card">
-            <h2 className="caso-side-label">Origem e responsável</h2>
+            <h2 className="caso-side-label">
+              {caso.responsaveis.length > 1 ? 'Origem e responsáveis' : 'Origem e responsável'}
+            </h2>
             {caso.parceiro ? (
               <Link className="caso-person" to="/parcerias">
                 <span className="caso-person-sq">{caso.parceiro.iniciais}</span>
@@ -968,17 +970,23 @@ export default function CasoDetalhe({ id }: { id: string }) {
                 </span>
               </div>
             )}
-            <div className="caso-person caso-person--static">
-              <span
-                className={`caso-person-av${caso.responsavel.id === USUARIO_ATUAL_ID ? ' is-self' : ''}`}
-              >
-                {caso.responsavel.iniciais}
-              </span>
-              <span>
-                <span className="caso-person-name">{caso.responsavel.nome}</span>
-                <span className="caso-person-role">responsável</span>
-              </span>
-            </div>
+            {(caso.responsaveis.length > 0 ? caso.responsaveis : [caso.responsavel]).map(
+              (pessoa, indice, lista) => (
+                <div key={pessoa.id || pessoa.nome} className="caso-person caso-person--static">
+                  <span
+                    className={`caso-person-av${pessoa.id === USUARIO_ATUAL_ID ? ' is-self' : ''}`}
+                  >
+                    {pessoa.iniciais}
+                  </span>
+                  <span>
+                    <span className="caso-person-name">{pessoa.nome}</span>
+                    <span className="caso-person-role">
+                      {lista.length > 1 && indice === 0 ? 'responsável principal' : 'responsável'}
+                    </span>
+                  </span>
+                </div>
+              ),
+            )}
           </section>
 
           <section className={`caso-enq caso-enq--${veredito.classe}`}>

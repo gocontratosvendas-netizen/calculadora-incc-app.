@@ -1,5 +1,5 @@
 import { publicarPost } from './mural'
-import { getSessionUserId, supabase, uploadFile, type Profile } from './supabase'
+import { getSessionUserId, listProfiles, supabase, uploadFile, type Profile } from './supabase'
 
 export type CasoStatus =
   | 'stand_by'
@@ -7,6 +7,8 @@ export type CasoStatus =
   | 'confeccao_de_peticao_inicial'
   | 'ajuizado'
   | 'encerrado'
+
+export type PessoaCaso = { id: string; nome: string; iniciais: string }
 
 export interface Caso {
   id: string
@@ -20,8 +22,26 @@ export interface Caso {
   percentualExito: number
   anoAjuizamento: number | null
   status: CasoStatus
-  responsavel: { nome: string; iniciais: string }
+  /** Primeiro da lista — compatível com o modelo legado de um responsável. */
+  responsavel: PessoaCaso
+  responsaveis: PessoaCaso[]
   atualizadoEm: string
+}
+
+export function pessoasDoCaso(caso: {
+  responsavel: PessoaCaso
+  responsaveis?: PessoaCaso[]
+}): PessoaCaso[] {
+  if (caso.responsaveis && caso.responsaveis.length > 0) return caso.responsaveis
+  if (caso.responsavel.id || (caso.responsavel.nome && caso.responsavel.nome !== '—')) {
+    return [caso.responsavel]
+  }
+  return []
+}
+
+export function rotuloResponsaveis(pessoas: PessoaCaso[]): string {
+  const nomes = pessoas.map((p) => p.nome).filter((nome) => nome && nome !== '—')
+  return nomes.length > 0 ? nomes.join(', ') : '—'
 }
 
 export interface CarteiraResumo {
@@ -149,6 +169,7 @@ type CasoRow = {
   criterios: { rotulo: string; atendido: boolean }[] | null
   atualizado_em: string
   responsavel?: Profile | Profile[] | null
+  responsaveis?: { ordem: number; profile?: Profile | Profile[] | null }[] | null
   parceiro?: { id: string; nome: string; iniciais: string } | { id: string; nome: string; iniciais: string }[] | null
 }
 
@@ -162,8 +183,32 @@ function num(value: number | string | null | undefined): number | null {
   return typeof value === 'number' ? value : Number(value)
 }
 
+function mapPessoas(row: CasoRow): PessoaCaso[] {
+  const fromJunction = [...(row.responsaveis ?? [])]
+    .sort((a, b) => (a.ordem ?? 0) - (b.ordem ?? 0))
+    .flatMap((item) => {
+      const profile = one(item.profile)
+      if (!profile) return []
+      return [{ id: profile.id, nome: profile.nome, iniciais: profile.iniciais }]
+    })
+  if (fromJunction.length > 0) return fromJunction
+  const principal = one(row.responsavel)
+  return [
+    {
+      id: principal?.id ?? row.responsavel_id,
+      nome: principal?.nome ?? '—',
+      iniciais: principal?.iniciais ?? '—',
+    },
+  ]
+}
+
 function mapCasoLista(row: CasoRow): Caso {
-  const responsavel = one(row.responsavel)
+  const pessoas = mapPessoas(row)
+  const principal = pessoas[0] ?? {
+    id: row.responsavel_id,
+    nome: '—',
+    iniciais: '—',
+  }
   return {
     id: row.id,
     cliente: row.cliente_nome,
@@ -175,13 +220,14 @@ function mapCasoLista(row: CasoRow): Caso {
     percentualExito: Math.round(num(row.percentual_exito) ?? PERCENTUAL_EXITO_PADRAO),
     anoAjuizamento: row.data_protocolo ? Number(row.data_protocolo.slice(0, 4)) : null,
     status: row.status,
-    responsavel: {
-      nome: responsavel?.nome ?? '—',
-      iniciais: responsavel?.iniciais ?? '—',
-    },
+    responsavel: principal,
+    responsaveis: pessoas,
     atualizadoEm: row.atualizado_em,
   }
 }
+
+const CASOS_LISTA_SELECT =
+  'id, cliente_nome, empreendimento, incorporadora, valor_contrato, excesso_apurado, valor_causa, percentual_exito, data_protocolo, status, atualizado_em, responsavel_id, responsavel:profiles!casos_responsavel_id_fkey(id, nome, iniciais), responsaveis:casos_responsaveis(ordem, profile:profiles!casos_responsaveis_profile_id_fkey(id, nome, iniciais))'
 
 export type NovoCasoInput = {
   cliente: string
@@ -226,9 +272,7 @@ function criteriosPadrao(excesso: number | null, status: CasoStatus) {
 export async function listarCasos(): Promise<Caso[]> {
   const { data, error } = await supabase
     .from('casos')
-    .select(
-      'id, cliente_nome, empreendimento, incorporadora, valor_contrato, excesso_apurado, valor_causa, percentual_exito, data_protocolo, status, atualizado_em, responsavel:profiles!casos_responsavel_id_fkey(id, nome, iniciais)',
-    )
+    .select(CASOS_LISTA_SELECT)
     .order('atualizado_em', { ascending: false })
   if (error) throw error
   return (data as CasoRow[]).map(mapCasoLista)
@@ -270,6 +314,45 @@ export async function atualizarPercentualExito(
   if (error) throw error
 }
 
+export async function atualizarResponsaveis(
+  casoId: string,
+  profileIds: string[],
+): Promise<PessoaCaso[]> {
+  const ids = [...new Set(profileIds.map((id) => id.trim()).filter(Boolean))]
+  if (ids.length === 0) {
+    throw new Error('Informe ao menos um responsável.')
+  }
+
+  const profiles = await listProfiles()
+  const porId = new Map(profiles.map((p) => [p.id, p]))
+  const pessoas: PessoaCaso[] = ids.map((id) => {
+    const profile = porId.get(id)
+    if (!profile) throw new Error('Responsável inválido.')
+    return { id: profile.id, nome: profile.nome, iniciais: profile.iniciais }
+  })
+
+  const agora = new Date().toISOString()
+  const { error: updError } = await supabase
+    .from('casos')
+    .update({ responsavel_id: ids[0], atualizado_em: agora })
+    .eq('id', casoId)
+  if (updError) throw updError
+
+  const { error: delError } = await supabase.from('casos_responsaveis').delete().eq('caso_id', casoId)
+  if (delError) throw delError
+
+  const { error: insError } = await supabase.from('casos_responsaveis').insert(
+    ids.map((profile_id, ordem) => ({
+      caso_id: casoId,
+      profile_id,
+      ordem,
+    })),
+  )
+  if (insError) throw insError
+
+  return pessoas
+}
+
 export async function cadastrarCaso(input: NovoCasoInput): Promise<Caso> {
   const cliente = input.cliente.trim()
   if (!cliente) throw new Error('Informe o nome do cliente')
@@ -293,9 +376,7 @@ export async function cadastrarCaso(input: NovoCasoInput): Promise<Caso> {
       criterios,
       atualizado_em: new Date().toISOString(),
     })
-    .select(
-      'id, cliente_nome, empreendimento, incorporadora, valor_contrato, excesso_apurado, valor_causa, percentual_exito, data_protocolo, status, atualizado_em, responsavel:profiles!casos_responsavel_id_fkey(id, nome, iniciais)',
-    )
+    .select(CASOS_LISTA_SELECT)
     .single()
   if (error) throw error
 
@@ -438,7 +519,8 @@ export interface CasoDetalhe {
   valorRecuperado: number | null
   parceiro: { id: string; nome: string; iniciais: string } | null
   canalOrigem: string
-  responsavel: { id: string; nome: string; iniciais: string }
+  responsavel: PessoaCaso
+  responsaveis: PessoaCaso[]
   enquadramento: {
     criteriosAtendidos: number
     criterios: { rotulo: string; atendido: boolean }[]
@@ -656,6 +738,7 @@ export async function obterCaso(id: string): Promise<CasoDetalhe> {
     .select(
       `*,
       responsavel:profiles!casos_responsavel_id_fkey(id, nome, iniciais),
+      responsaveis:casos_responsaveis(ordem, profile:profiles!casos_responsaveis_profile_id_fkey(id, nome, iniciais)),
       parceiro:parceiros(id, nome, iniciais)`,
     )
     .eq('id', id)
@@ -663,7 +746,12 @@ export async function obterCaso(id: string): Promise<CasoDetalhe> {
   if (error) throw error
 
   const caso = row as CasoRow
-  const responsavel = one(caso.responsavel)
+  const pessoas = mapPessoas(caso)
+  const responsavel = pessoas[0] ?? {
+    id: caso.responsavel_id,
+    nome: '—',
+    iniciais: '—',
+  }
   const parceiro = one(caso.parceiro)
   const criterios = caso.criterios?.length
     ? caso.criterios
@@ -707,11 +795,8 @@ export async function obterCaso(id: string): Promise<CasoDetalhe> {
     valorRecuperado: num(caso.valor_recuperado),
     parceiro: parceiro ? { id: parceiro.id, nome: parceiro.nome, iniciais: parceiro.iniciais } : null,
     canalOrigem: caso.canal_origem,
-    responsavel: {
-      id: responsavel?.id ?? caso.responsavel_id,
-      nome: responsavel?.nome ?? '—',
-      iniciais: responsavel?.iniciais ?? '—',
-    },
+    responsavel,
+    responsaveis: pessoas,
     enquadramento: {
       criteriosAtendidos: criterios.filter((c) => c.atendido).length,
       criterios,

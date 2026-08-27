@@ -512,6 +512,16 @@ async function seed() {
     if (error) throw error
   }
 
+  {
+    const extras = [
+      { caso_id: 'caso-001', profile_id: IDS.rafaela, ordem: 1 },
+      { caso_id: 'caso-002', profile_id: IDS.lucas, ordem: 1 },
+      { caso_id: 'caso-007', profile_id: IDS.camila, ordem: 1 },
+    ]
+    const { error } = await admin.from('casos_responsaveis').insert(extras)
+    if (error) console.warn('casos_responsaveis extras:', error.message)
+  }
+
   console.log('Inserindo andamentos / prazos / documentos (caso-001)…')
   {
     const { error } = await admin.from('andamentos').insert([
