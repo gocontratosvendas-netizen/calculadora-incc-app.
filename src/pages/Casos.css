@@ -621,56 +621,85 @@
   line-height: 1;
 }
 
-.casos-resp-menu {
+.casos-resp-layer {
+  --casos-bg: #ffffff;
+  --casos-azul: #16346b;
+  --casos-borda-card: #e6e9ef;
+  --casos-borda-campo: #dde1e8;
+  --casos-header-bg: #f8f9fb;
+  --casos-texto: #101828;
+  --casos-texto-sec: #5b6474;
+  --casos-rotulo: #6b7686;
+  --casos-avatar-bg: #edf2fa;
+  --casos-erro: #a32d2d;
   position: fixed;
-  z-index: 30;
-  max-height: 280px;
+  inset: 0;
+  z-index: 80;
+}
+
+.casos-resp-backdrop {
+  position: absolute;
+  inset: 0;
+  border: none;
+  padding: 0;
+  margin: 0;
+  background: rgba(16, 24, 40, 0.28);
+  cursor: default;
+}
+
+.casos-resp-menu {
+  position: absolute;
+  z-index: 1;
+  max-height: 320px;
   overflow-y: auto;
-  background: var(--casos-bg);
-  border: 1px solid var(--casos-borda-card);
-  border-radius: 10px;
-  box-shadow: 0 10px 28px rgba(16, 24, 40, 0.12);
-  padding: 6px;
+  background: #ffffff;
+  border: 1px solid #d5dbe5;
+  border-radius: 12px;
+  box-shadow: 0 16px 40px rgba(16, 24, 40, 0.22);
+  padding: 8px;
 }
 
 .casos-resp-menu-hint {
   margin: 0;
-  padding: 4px 8px 6px;
-  font-size: 10px;
-  color: var(--casos-rotulo);
+  padding: 6px 10px 8px;
+  font-size: 11px;
+  font-weight: 500;
+  color: #5b6474;
 }
 
 .casos-resp-option {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
   width: 100%;
   border: none;
   background: none;
-  padding: 6px 8px;
-  border-radius: 7px;
+  padding: 8px 10px;
+  border-radius: 8px;
   cursor: pointer;
   text-align: left;
   font: inherit;
-  color: var(--casos-texto);
+  color: #101828;
 }
 
-.casos-resp-option:hover,
+.casos-resp-option:hover {
+  background: #f4f6f9;
+}
+
 .casos-resp-option.is-selected {
-  background: var(--casos-header-bg);
+  background: #edf2fa;
 }
 
 .casos-resp-option:disabled {
   cursor: default;
-  opacity: 0.55;
 }
 
 .casos-resp-check {
-  width: 14px;
-  height: 14px;
+  width: 16px;
+  height: 16px;
   border-radius: 4px;
-  border: 1px solid var(--casos-borda-campo);
-  background: var(--casos-bg);
+  border: 1.5px solid #c5ccd8;
+  background: #ffffff;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -679,22 +708,28 @@
 }
 
 .casos-resp-check.is-on {
-  background: var(--casos-azul);
-  border-color: var(--casos-azul);
+  background: #16346b;
+  border-color: #16346b;
 }
 
 .casos-resp-option-nome {
-  font-size: 12px;
+  font-size: 13px;
+  font-weight: 500;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
+.casos-resp-layer .casos-avatar {
+  background: #edf2fa;
+  color: #16346b;
+}
+
 .casos-resp-erro {
-  margin: 4px 8px 2px;
-  font-size: 10.5px;
-  color: var(--casos-erro);
+  margin: 6px 10px 4px;
+  font-size: 11px;
+  color: #a32d2d;
 }
 
 .casos-badge {

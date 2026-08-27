@@ -151,7 +151,7 @@ function HonorarioCell({
   )
 }
 
-const RESP_MENU_LARGURA = 232
+const RESP_MENU_LARGURA = 260
 const RESP_AVATARES_VISIVEIS = 2
 
 function IconCheck() {
@@ -196,7 +196,7 @@ function ResponsavelCell({
   const posicionar = useCallback(() => {
     const rect = btnRef.current?.getBoundingClientRect()
     if (!rect) return
-    const alturaMenu = Math.min(8 + opcoes.length * 34, 280)
+    const alturaMenu = Math.min(44 + opcoes.length * 40, 320)
     let top = rect.bottom + 4
     let left = rect.right - RESP_MENU_LARGURA
     if (left < 8) left = 8
@@ -303,38 +303,46 @@ function ResponsavelCell({
       </button>
       {aberto && posicao
         ? createPortal(
-            <div
-              ref={menuRef}
-              className="casos-resp-menu"
-              role="listbox"
-              aria-multiselectable="true"
-              aria-label={`Escolher responsáveis de ${caso.cliente}`}
-              style={{ top: posicao.top, left: posicao.left, width: RESP_MENU_LARGURA }}
-              onClick={(event) => event.stopPropagation()}
-              onMouseDown={(event) => event.stopPropagation()}
-            >
-              <p className="casos-resp-menu-hint">Um ou mais responsáveis</p>
-              {opcoes.map((pessoa) => {
-                const marcado = selecionados.some((p) => p.id === pessoa.id)
-                return (
-                  <button
-                    key={pessoa.id}
-                    type="button"
-                    role="option"
-                    aria-selected={marcado}
-                    className={`casos-resp-option${marcado ? ' is-selected' : ''}`}
-                    disabled={salvando || (marcado && selecionados.length === 1)}
-                    onClick={() => void alternar(pessoa)}
-                  >
-                    <span className={`casos-resp-check${marcado ? ' is-on' : ''}`}>
-                      {marcado ? <IconCheck /> : null}
-                    </span>
-                    <span className="casos-avatar">{pessoa.iniciais}</span>
-                    <span className="casos-resp-option-nome">{pessoa.nome}</span>
-                  </button>
-                )
-              })}
-              {erro ? <p className="casos-resp-erro">{erro}</p> : null}
+            <div className="casos-resp-layer">
+              <button
+                type="button"
+                className="casos-resp-backdrop"
+                aria-label="Fechar lista de responsáveis"
+                onClick={() => onAbertoChange(false)}
+              />
+              <div
+                ref={menuRef}
+                className="casos-resp-menu"
+                role="listbox"
+                aria-multiselectable="true"
+                aria-label={`Escolher responsáveis de ${caso.cliente}`}
+                style={{ top: posicao.top, left: posicao.left, width: RESP_MENU_LARGURA }}
+                onClick={(event) => event.stopPropagation()}
+                onMouseDown={(event) => event.stopPropagation()}
+              >
+                <p className="casos-resp-menu-hint">Um ou mais responsáveis</p>
+                {opcoes.map((pessoa) => {
+                  const marcado = selecionados.some((p) => p.id === pessoa.id)
+                  return (
+                    <button
+                      key={pessoa.id}
+                      type="button"
+                      role="option"
+                      aria-selected={marcado}
+                      className={`casos-resp-option${marcado ? ' is-selected' : ''}`}
+                      disabled={salvando || (marcado && selecionados.length === 1)}
+                      onClick={() => void alternar(pessoa)}
+                    >
+                      <span className={`casos-resp-check${marcado ? ' is-on' : ''}`}>
+                        {marcado ? <IconCheck /> : null}
+                      </span>
+                      <span className="casos-avatar">{pessoa.iniciais}</span>
+                      <span className="casos-resp-option-nome">{pessoa.nome}</span>
+                    </button>
+                  )
+                })}
+                {erro ? <p className="casos-resp-erro">{erro}</p> : null}
+              </div>
             </div>,
             document.body,
           )
