@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import {
+  creditoCompradoDoCaso,
   honorariosExitoDoCaso,
   PERCENTUAIS_EXITO,
   type CasoDetalhe,
@@ -14,14 +15,24 @@ const moeda = new Intl.NumberFormat('pt-BR', {
 })
 
 type Props = {
-  caso: Pick<CasoDetalhe, 'id' | 'valorCausa' | 'percentualExito'>
+  caso: Pick<CasoDetalhe, 'id' | 'valorCausa' | 'percentualExito' | 'creditoComprado'>
   salvandoPercentual: boolean
+  salvandoCreditoComprado: boolean
   onPercentual: (percentual: number) => void
+  onCreditoComprado: (creditoComprado: boolean) => void
 }
 
-export function HonorariosCaso({ caso, salvandoPercentual, onPercentual }: Props) {
+export function HonorariosCaso({
+  caso,
+  salvandoPercentual,
+  salvandoCreditoComprado,
+  onPercentual,
+  onCreditoComprado,
+}: Props) {
   const [proLabore, setProLabore] = useState<ProLaboreDoCaso | null>(null)
   const esperado = honorariosExitoDoCaso(caso.valorCausa, caso.percentualExito)
+  const diferencaCredito = creditoCompradoDoCaso(caso.valorCausa, caso.percentualExito)
+  const valorCredito = caso.creditoComprado ? diferencaCredito : null
 
   useEffect(() => {
     let cancelado = false
@@ -107,6 +118,35 @@ export function HonorariosCaso({ caso, salvandoPercentual, onPercentual }: Props
                 : proLabore.status === 'pago'
                   ? 'Recebimento liquidado na área financeira.'
                   : 'Lançado na área financeira, ainda sem data de pagamento.'}
+        </p>
+      </div>
+
+      <div className="caso-honorarios-card">
+        <div className="caso-honorarios-head">
+          <span className="caso-kpi-label">Créditos comprados</span>
+          <button
+            type="button"
+            className="caso-switch"
+            role="switch"
+            aria-checked={caso.creditoComprado}
+            aria-label="Crédito comprado"
+            disabled={salvandoCreditoComprado}
+            onClick={() => onCreditoComprado(!caso.creditoComprado)}
+          >
+            <span className="caso-switch-knob" />
+          </button>
+        </div>
+        <span
+          className={`caso-kpi-value caso-kpi-value--num${valorCredito == null ? ' is-empty' : ''}`}
+        >
+          {valorCredito == null ? '—' : moeda.format(valorCredito)}
+        </span>
+        <p className="caso-honorarios-hint">
+          {caso.creditoComprado
+            ? diferencaCredito == null
+              ? 'Informe o valor da causa para calcular a diferença além dos honorários.'
+              : 'Diferença do valor da causa, além dos honorários de êxito.'
+            : 'Marque se o crédito deste caso foi comprado.'}
         </p>
       </div>
     </section>

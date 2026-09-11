@@ -1391,6 +1391,18 @@
   color: #a32d2d;
 }
 
+.cadastro-check {
+  align-items: flex-start;
+  height: auto;
+  line-height: 1.4;
+  padding: 2px 0 4px;
+}
+
+.cadastro-check input {
+  margin-top: 2px;
+  flex-shrink: 0;
+}
+
 .visually-hidden {
   position: absolute;
   width: 1px;

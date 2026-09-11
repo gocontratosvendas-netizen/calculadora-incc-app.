@@ -85,6 +85,7 @@ const EMPTY_RESUMO = {
 const EMPTY_FINANCEIRO = {
   proLaboreRecebido: 0,
   honorariosExitoEsperados: 0,
+  creditosComprados: 0,
 }
 
 const moneyDecimal = new Intl.NumberFormat('pt-BR', {
@@ -766,6 +767,9 @@ export default function Casos() {
     honorariosExitoEsperados: carteiraVazia
       ? EMPTY_FINANCEIRO.honorariosExitoEsperados
       : financeiro.honorariosExitoEsperados,
+    creditosComprados: carteiraVazia
+      ? EMPTY_FINANCEIRO.creditosComprados
+      : financeiro.creditosComprados,
   }
 
   const kpis = [
@@ -811,6 +815,12 @@ export default function Casos() {
     {
       label: 'HONORÁRIOS DE ÊXITO ESPERADOS',
       value: formatMoneyCard(financeiroExibido.honorariosExitoEsperados),
+      className: 'casos-kpi-value--azul',
+      destaque: true,
+    },
+    {
+      label: 'CRÉDITOS COMPRADOS',
+      value: formatMoneyCard(financeiroExibido.creditosComprados),
       className: 'casos-kpi-value--azul',
       destaque: true,
     },
@@ -870,8 +880,8 @@ export default function Casos() {
 
       <section className="casos-kpis casos-kpis--financeiro" aria-label="Indicadores financeiros">
         {loading
-          ? Array.from({ length: 2 }, (_, i) => (
-              <div key={i} className={`casos-kpi${i === 1 ? ' casos-kpi--destaque' : ''}`}>
+          ? Array.from({ length: 3 }, (_, i) => (
+              <div key={i} className={`casos-kpi${i > 0 ? ' casos-kpi--destaque' : ''}`}>
                 <div className="casos-skeleton" />
                 <div className="casos-skeleton casos-skeleton--value" />
               </div>
@@ -1110,6 +1120,9 @@ export default function Casos() {
                     <td role="cell" className="casos-caso-cell">
                       <span className="casos-caso-nome">{caso.cliente}</span>
                       <span className="casos-caso-emp">{caso.empreendimento}</span>
+                      {caso.creditoComprado ? (
+                        <span className="casos-caso-tag">Crédito comprado</span>
+                      ) : null}
                     </td>
                     <td role="cell" className="casos-incorporadora">
                       {caso.incorporadora}

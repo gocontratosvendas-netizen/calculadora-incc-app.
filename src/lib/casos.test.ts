@@ -3,6 +3,7 @@ import {
   calcularResumoCarteira,
   calcularResumoFinanceiro,
   casoEntraNaCarteiraJudicial,
+  creditoCompradoDoCaso,
   honorariosExitoDoCaso,
   pessoasDoCaso,
   rotuloResponsaveis,
@@ -24,6 +25,7 @@ function caso(parcial: Partial<Caso> & Pick<Caso, 'status'>): Caso {
     excessoApurado: parcial.excessoApurado ?? null,
     valorCausa: parcial.valorCausa ?? null,
     percentualExito: parcial.percentualExito ?? PERCENTUAL_EXITO_PADRAO,
+    creditoComprado: parcial.creditoComprado ?? false,
     anoAjuizamento: parcial.anoAjuizamento ?? null,
     status: parcial.status,
     responsavel,
@@ -86,6 +88,7 @@ describe('carteira judicial', () => {
     expect(calcularResumoFinanceiro([standBy, venda, peticao, ajuizado, encerrado], 5_000)).toEqual({
       proLaboreRecebido: 5_000,
       honorariosExitoEsperados: 110_000 * HONORARIOS_EXITO_PERCENTUAL,
+      creditosComprados: 0,
     })
   })
 
@@ -104,6 +107,7 @@ describe('carteira judicial', () => {
     expect(calcularResumoFinanceiro(casos)).toEqual({
       proLaboreRecebido: 0,
       honorariosExitoEsperados: 0,
+      creditosComprados: 0,
     })
   })
 
@@ -118,6 +122,38 @@ describe('carteira judicial', () => {
       caso({ id: 'outro', status: 'ajuizado', valorCausa: 50_000, percentualExito: 20 }),
     ]
     expect(calcularResumoFinanceiro(casos).honorariosExitoEsperados).toBe(20_000)
+    expect(calcularResumoFinanceiro(casos).creditosComprados).toBe(0)
+  })
+
+  it('soma a diferença do valor da causa nos créditos comprados, sem tirar dos honorários', () => {
+    expect(creditoCompradoDoCaso(100_000, PERCENTUAL_EXITO_PADRAO)).toBe(70_000)
+    expect(creditoCompradoDoCaso(100_000, 20)).toBe(80_000)
+    expect(creditoCompradoDoCaso(null, 30)).toBeNull()
+
+    const comprado = caso({
+      status: 'ajuizado',
+      valorCausa: 100_000,
+      percentualExito: PERCENTUAL_EXITO_PADRAO,
+      creditoComprado: true,
+    })
+    const comum = caso({
+      id: 'comum',
+      status: 'ajuizado',
+      valorCausa: 50_000,
+      percentualExito: PERCENTUAL_EXITO_PADRAO,
+    })
+    const vendaComprada = caso({
+      id: 'venda',
+      status: 'processo_de_venda',
+      valorCausa: 200_000,
+      creditoComprado: true,
+    })
+
+    expect(calcularResumoFinanceiro([comprado, comum, vendaComprada])).toEqual({
+      proLaboreRecebido: 0,
+      honorariosExitoEsperados: 45_000,
+      creditosComprados: 70_000,
+    })
   })
 })
 

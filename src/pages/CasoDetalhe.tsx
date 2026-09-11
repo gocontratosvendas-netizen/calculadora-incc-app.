@@ -12,6 +12,7 @@ import { MudarStatusModal } from '../components/MudarStatusModal'
 import {
   anexarDocumento,
   anexarDocumentoLivre,
+  atualizarCreditoComprado,
   atualizarPercentualExito,
   concluirPrazo,
   excluirDocumento,
@@ -447,6 +448,7 @@ export default function CasoDetalhe({ id }: { id: string }) {
   const [docParaExcluir, setDocParaExcluir] = useState<DocumentoCaso | null>(null)
   const [excluindoDocumento, setExcluindoDocumento] = useState(false)
   const [salvandoPercentual, setSalvandoPercentual] = useState(false)
+  const [salvandoCreditoComprado, setSalvandoCreditoComprado] = useState(false)
   const tituloExcluirId = useId()
 
   if (id !== carregadoId) {
@@ -623,6 +625,7 @@ export default function CasoDetalhe({ id }: { id: string }) {
       <HonorariosCaso
         caso={caso}
         salvandoPercentual={salvandoPercentual}
+        salvandoCreditoComprado={salvandoCreditoComprado}
         onPercentual={(percentual) => {
           void (async () => {
             setSalvandoPercentual(true)
@@ -631,6 +634,17 @@ export default function CasoDetalhe({ id }: { id: string }) {
               setCaso((atual) => (atual ? { ...atual, percentualExito: percentual } : atual))
             } finally {
               setSalvandoPercentual(false)
+            }
+          })()
+        }}
+        onCreditoComprado={(creditoComprado) => {
+          void (async () => {
+            setSalvandoCreditoComprado(true)
+            try {
+              await atualizarCreditoComprado(caso.id, creditoComprado)
+              setCaso((atual) => (atual ? { ...atual, creditoComprado } : atual))
+            } finally {
+              setSalvandoCreditoComprado(false)
             }
           })()
         }}

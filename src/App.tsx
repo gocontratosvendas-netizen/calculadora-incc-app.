@@ -164,6 +164,7 @@ function App() {
   const [nomeClienteCaso, setNomeClienteCaso] = useState('')
   const [empreendimentoCaso, setEmpreendimentoCaso] = useState('')
   const [incorporadoraCaso, setIncorporadoraCaso] = useState('')
+  const [creditoCompradoCaso, setCreditoCompradoCaso] = useState(false)
   const [cadastrandoCliente, setCadastrandoCliente] = useState(false)
   const [erroCadastroCliente, setErroCadastroCliente] = useState<string | null>(null)
 
@@ -491,6 +492,7 @@ function App() {
     setNomeClienteCaso('')
     setEmpreendimentoCaso('')
     setIncorporadoraCaso('')
+    setCreditoCompradoCaso(false)
     setErroCadastroCliente(null)
     setPopupCadastrarClienteAberto(true)
   }
@@ -520,6 +522,7 @@ function App() {
         valorContrato,
         excessoApurado,
         valorCausa,
+        creditoComprado: creditoCompradoCaso,
         memoriaRevisaoIncc: arquivoMemoria,
       })
       setPopupCadastrarClienteAberto(false)
@@ -1531,6 +1534,15 @@ function App() {
                   disabled={cadastrandoCliente}
                 />
               </div>
+              <label className="param-check cadastro-check">
+                <input
+                  type="checkbox"
+                  checked={creditoCompradoCaso}
+                  onChange={(e) => setCreditoCompradoCaso(e.target.checked)}
+                  disabled={cadastrandoCliente}
+                />
+                Crédito comprado — o escritório fica com os honorários e com a diferença do valor da causa
+              </label>
               <div className="cadastro-resumo" aria-label="Dados puxados do relatório">
                 <p>
                   <span>Valor do contrato</span>

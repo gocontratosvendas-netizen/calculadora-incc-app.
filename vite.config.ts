@@ -9,6 +9,7 @@ export default defineConfig({
       'src/modules/financeiro/**/*.test.ts',
       'src/modules/configuracoes/**/*.test.ts',
       'src/lib/casos.test.ts',
+      'src/lib/exportarCasos.test.ts',
       'src/parseExtratoPdf.test.ts',
       'src/inccTable.test.ts',
     ],

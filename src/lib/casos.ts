@@ -20,6 +20,8 @@ export interface Caso {
   valorCausa: number | null
   /** Percentual de honorários de êxito (10, 20, 30…). */
   percentualExito: number
+  /** Quando o escritório compra o crédito, a diferença do valor da causa também é receita. */
+  creditoComprado: boolean
   anoAjuizamento: number | null
   status: CasoStatus
   /** Primeiro da lista — compatível com o modelo legado de um responsável. */
@@ -57,6 +59,8 @@ export interface CarteiraFinanceiro {
   proLaboreRecebido: number
   /** Soma dos honorários de êxito esperados (percentual de cada caso × valor da causa). */
   honorariosExitoEsperados: number
+  /** Soma da diferença (valor da causa − honorários) nos casos com crédito comprado. */
+  creditosComprados: number
 }
 
 export const PERCENTUAIS_EXITO = [10, 20, 30] as const
@@ -73,6 +77,16 @@ export function honorariosExitoDoCaso(
 ): number | null {
   if (valorCausa == null) return null
   return valorCausa * (percentualExito / 100)
+}
+
+/** Diferença do valor da causa após os honorários de êxito — receita da compra do crédito. */
+export function creditoCompradoDoCaso(
+  valorCausa: number | null,
+  percentualExito: number,
+): number | null {
+  const honorarios = honorariosExitoDoCaso(valorCausa, percentualExito)
+  if (valorCausa == null || honorarios == null) return null
+  return valorCausa - honorarios
 }
 
 /** Fases em que o caso já segue para o Judiciário e entra nos gráficos da carteira. */
@@ -127,15 +141,21 @@ export function calcularResumoFinanceiro(
 ): CarteiraFinanceiro {
   const base = casosDaCarteiraJudicial(casos)
   let honorariosExitoEsperados = 0
+  let creditosComprados = 0
 
   for (const caso of base) {
     const esperado = honorariosExitoDoCaso(caso.valorCausa, caso.percentualExito)
     if (esperado != null) honorariosExitoEsperados += esperado
+    if (caso.creditoComprado) {
+      const diferenca = creditoCompradoDoCaso(caso.valorCausa, caso.percentualExito)
+      if (diferenca != null) creditosComprados += diferenca
+    }
   }
 
   return {
     proLaboreRecebido,
     honorariosExitoEsperados,
+    creditosComprados,
   }
 }
 
@@ -156,6 +176,7 @@ type CasoRow = {
   excesso_apurado: number | null
   valor_causa: number | null
   percentual_exito: number | string | null
+  credito_comprado?: boolean | null
   prescricao_em: string | null
   status: CasoStatus
   numero_processo: string | null
@@ -218,6 +239,7 @@ function mapCasoLista(row: CasoRow): Caso {
     excessoApurado: num(row.excesso_apurado),
     valorCausa: num(row.valor_causa),
     percentualExito: Math.round(num(row.percentual_exito) ?? PERCENTUAL_EXITO_PADRAO),
+    creditoComprado: row.credito_comprado === true,
     anoAjuizamento: row.data_protocolo ? Number(row.data_protocolo.slice(0, 4)) : null,
     status: row.status,
     responsavel: principal,
@@ -227,7 +249,7 @@ function mapCasoLista(row: CasoRow): Caso {
 }
 
 const CASOS_LISTA_SELECT =
-  'id, cliente_nome, empreendimento, incorporadora, valor_contrato, excesso_apurado, valor_causa, percentual_exito, data_protocolo, status, atualizado_em, responsavel_id, responsavel:profiles!casos_responsavel_id_fkey(id, nome, iniciais), responsaveis:casos_responsaveis(ordem, profile:profiles!casos_responsaveis_profile_id_fkey(id, nome, iniciais))'
+  'id, cliente_nome, empreendimento, incorporadora, valor_contrato, excesso_apurado, valor_causa, percentual_exito, credito_comprado, data_protocolo, status, atualizado_em, responsavel_id, responsavel:profiles!casos_responsavel_id_fkey(id, nome, iniciais), responsaveis:casos_responsaveis(ordem, profile:profiles!casos_responsaveis_profile_id_fkey(id, nome, iniciais))'
 
 export type NovoCasoInput = {
   cliente: string
@@ -236,6 +258,7 @@ export type NovoCasoInput = {
   valorContrato: number
   excessoApurado: number | null
   valorCausa: number | null
+  creditoComprado?: boolean
   memoriaRevisaoIncc?: File | null
 }
 
@@ -314,6 +337,17 @@ export async function atualizarPercentualExito(
   if (error) throw error
 }
 
+export async function atualizarCreditoComprado(
+  casoId: string,
+  creditoComprado: boolean,
+): Promise<void> {
+  const { error } = await supabase
+    .from('casos')
+    .update({ credito_comprado: creditoComprado, atualizado_em: new Date().toISOString() })
+    .eq('id', casoId)
+  if (error) throw error
+}
+
 export async function atualizarResponsaveis(
   casoId: string,
   profileIds: string[],
@@ -371,6 +405,7 @@ export async function cadastrarCaso(input: NovoCasoInput): Promise<Caso> {
       valor_contrato: input.valorContrato,
       excesso_apurado: input.excessoApurado,
       valor_causa: input.valorCausa,
+      credito_comprado: input.creditoComprado === true,
       status: 'processo_de_venda',
       responsavel_id: userId,
       criterios,
@@ -510,6 +545,7 @@ export interface CasoDetalhe {
   excessoApurado: number | null
   valorCausa: number | null
   percentualExito: number
+  creditoComprado: boolean
   prescricaoEm: string | null
   status: CasoStatus
   numeroProcesso: string | null
@@ -786,6 +822,7 @@ export async function obterCaso(id: string): Promise<CasoDetalhe> {
     excessoApurado: num(caso.excesso_apurado),
     valorCausa: num(caso.valor_causa),
     percentualExito: Math.round(num(caso.percentual_exito) ?? PERCENTUAL_EXITO_PADRAO),
+    creditoComprado: caso.credito_comprado === true,
     prescricaoEm: caso.prescricao_em,
     status: caso.status,
     numeroProcesso: caso.numero_processo,

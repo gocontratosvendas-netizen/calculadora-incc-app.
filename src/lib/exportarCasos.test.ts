@@ -19,10 +19,11 @@ function caso(parcial: Partial<Caso> = {}): Caso {
     empreendimento: parcial.empreendimento ?? 'Residencial',
     incorporadora: parcial.incorporadora ?? 'Construtora',
     valorContrato: parcial.valorContrato ?? 200_000,
-    excessoApurado: parcial.excessoApurado ?? 80_000,
-    valorCausa: parcial.valorCausa ?? 100_000,
+    excessoApurado: 'excessoApurado' in parcial ? (parcial.excessoApurado ?? null) : 80_000,
+    valorCausa: 'valorCausa' in parcial ? (parcial.valorCausa ?? null) : 100_000,
     percentualExito: parcial.percentualExito ?? PERCENTUAL_EXITO_PADRAO,
-    anoAjuizamento: parcial.anoAjuizamento ?? 2024,
+    creditoComprado: parcial.creditoComprado ?? false,
+    anoAjuizamento: 'anoAjuizamento' in parcial ? (parcial.anoAjuizamento ?? null) : 2024,
     status: parcial.status ?? 'ajuizado',
     responsavel,
     responsaveis: parcial.responsaveis ?? [responsavel],
@@ -54,6 +55,8 @@ describe('exportação da carteira', () => {
       exitoRecebido: '',
       exitoEsperado: 30_000,
       percentualExito: 30,
+      creditoComprado: 'Não',
+      creditoCompradoValor: '',
       status: 'Ajuizado',
     })
   })
@@ -74,6 +77,8 @@ describe('exportação da carteira', () => {
       exitoRecebido: '',
       exitoEsperado: '',
       percentualExito: '',
+      creditoComprado: 'Não',
+      creditoCompradoValor: '',
     })
   })
 
@@ -91,5 +96,18 @@ describe('exportação da carteira', () => {
       STATUS_META,
     )
     expect(linhas[0].responsavel).toBe('Vitor P., Rafaela Moura')
+  })
+
+  it('exporta a diferença quando o crédito foi comprado', () => {
+    const linhas = montarLinhasExportacaoCasos(
+      [caso({ creditoComprado: true })],
+      {},
+      STATUS_META,
+    )
+    expect(linhas[0]).toMatchObject({
+      creditoComprado: 'Sim',
+      creditoCompradoValor: 70_000,
+      exitoEsperado: 30_000,
+    })
   })
 })

@@ -1,5 +1,6 @@
 import * as XLSX from 'xlsx'
 import {
+  creditoCompradoDoCaso,
   honorariosExitoDoCaso,
   pessoasDoCaso,
   rotuloResponsaveis,
@@ -32,6 +33,8 @@ export type LinhaExportacaoCaso = {
   exitoRecebido: number | ''
   exitoEsperado: number | ''
   percentualExito: number | ''
+  creditoComprado: string
+  creditoCompradoValor: number | ''
   responsavel: string
   status: string
 }
@@ -44,6 +47,9 @@ export function montarLinhasExportacaoCasos(
   return casos.map((c) => {
     const hon = honorarios[c.id]
     const esperado = honorariosExitoDoCaso(c.valorCausa, c.percentualExito)
+    const comprado = c.creditoComprado
+      ? creditoCompradoDoCaso(c.valorCausa, c.percentualExito)
+      : null
     const proLaboreValor = valorHonorarioExibido(hon?.proLabore)
     const exitoRecebido = valorHonorarioRecebido(hon?.exito)
     return {
@@ -60,6 +66,8 @@ export function montarLinhasExportacaoCasos(
       exitoRecebido: exitoRecebido > 0 ? exitoRecebido : '',
       exitoEsperado: esperado ?? '',
       percentualExito: c.valorCausa == null ? '' : c.percentualExito,
+      creditoComprado: c.creditoComprado ? 'Sim' : 'Não',
+      creditoCompradoValor: comprado ?? '',
       responsavel: rotuloResponsaveis(pessoasDoCaso(c)),
       status: statusMeta[c.status].rotulo,
     }
@@ -109,6 +117,7 @@ export function exportarCarteiraCasos(
   const totalProLabore = somarNumeros(linhas.map((l) => l.proLaboreValor))
   const totalExitoRecebido = somarNumeros(linhas.map((l) => l.exitoRecebido))
   const totalExitoEsperado = somarNumeros(linhas.map((l) => l.exitoEsperado))
+  const totalCreditosComprados = somarNumeros(linhas.map((l) => l.creditoCompradoValor))
 
   const resumoAoA: (string | number)[][] = [
     ['VERUM'],
@@ -124,6 +133,7 @@ export function exportarCarteiraCasos(
     ['Pró-labore recebido', totalProLabore],
     ['Honorários de êxito recebidos', totalExitoRecebido],
     ['Honorários de êxito esperados', totalExitoEsperado],
+    ['Créditos comprados', totalCreditosComprados],
   ]
 
   const cabecalho = [
@@ -140,6 +150,8 @@ export function exportarCarteiraCasos(
     'Êxito recebido',
     'Êxito esperado',
     '% êxito',
+    'Crédito comprado',
+    'Créditos comprados',
     'Responsável',
     'Status',
   ]
@@ -163,6 +175,8 @@ export function exportarCarteiraCasos(
       l.exitoRecebido,
       l.exitoEsperado,
       l.percentualExito,
+      l.creditoComprado,
+      l.creditoCompradoValor,
       l.responsavel,
       l.status,
     ]),
@@ -182,6 +196,8 @@ export function exportarCarteiraCasos(
       totalExitoEsperado,
       '',
       '',
+      totalCreditosComprados,
+      '',
       '',
     ],
   ]
@@ -189,7 +205,7 @@ export function exportarCarteiraCasos(
   const wsResumo = XLSX.utils.aoa_to_sheet(resumoAoA)
   wsResumo['!cols'] = [{ wch: 36 }, { wch: 22 }]
   wsResumo['!merges'] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 1 } }]
-  aplicarFormatoMoeda(wsResumo, [1], 7, 12)
+  aplicarFormatoMoeda(wsResumo, [1], 7, 13)
 
   const wsCasos = XLSX.utils.aoa_to_sheet(casosAoA)
   wsCasos['!cols'] = [
@@ -206,15 +222,17 @@ export function exportarCarteiraCasos(
     { wch: 16 },
     { wch: 16 },
     { wch: 10 },
+    { wch: 16 },
+    { wch: 18 },
     { wch: 22 },
     { wch: 26 },
   ]
-  wsCasos['!merges'] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 14 } }]
+  wsCasos['!merges'] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 16 } }]
   const ultimaLinhaDados = 3 + linhas.length
-  wsCasos['!autofilter'] = { ref: `A4:O${Math.max(4, ultimaLinhaDados)}` }
+  wsCasos['!autofilter'] = { ref: `A4:Q${Math.max(4, ultimaLinhaDados)}` }
   wsCasos['!freeze'] = { xSplit: 0, ySplit: 4, topLeftCell: 'A5', activeCell: 'A5' }
-  aplicarFormatoMoeda(wsCasos, [4, 5, 6, 8, 10, 11], 4, ultimaLinhaDados)
-  aplicarFormatoMoeda(wsCasos, [4, 5, 6, 8, 10, 11], ultimaLinhaDados + 2, ultimaLinhaDados + 2)
+  aplicarFormatoMoeda(wsCasos, [4, 5, 6, 8, 10, 11, 14], 4, ultimaLinhaDados)
+  aplicarFormatoMoeda(wsCasos, [4, 5, 6, 8, 10, 11, 14], ultimaLinhaDados + 2, ultimaLinhaDados + 2)
 
   const wb = XLSX.utils.book_new()
   wb.Props = {

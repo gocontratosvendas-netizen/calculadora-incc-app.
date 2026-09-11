@@ -334,7 +334,7 @@
 
 .caso-honorarios {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 9px;
   margin-bottom: 12px;
 }
@@ -1470,6 +1470,11 @@
   background: #ffffff;
 }
 
+.caso-switch:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
 @media (min-width: 1101px) {
   .caso-side {
     position: sticky;
@@ -1487,6 +1492,14 @@
     display: grid;
     grid-template-columns: 1fr 1fr;
     position: static;
+  }
+
+  .caso-honorarios {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .caso-honorarios-card:last-child {
+    grid-column: 1 / -1;
   }
 }
 
