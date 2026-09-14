@@ -18,7 +18,7 @@ export interface Caso {
   valorContrato: number
   excessoApurado: number | null
   valorCausa: number | null
-  /** Percentual de honorários de êxito (10, 20, 30…). */
+  /** Percentual de honorários de êxito (10, 20, 25, 30). */
   percentualExito: number
   /** Quando o escritório compra o crédito, a diferença do valor da causa também é receita. */
   creditoComprado: boolean
@@ -63,7 +63,7 @@ export interface CarteiraFinanceiro {
   creditosComprados: number
 }
 
-export const PERCENTUAIS_EXITO = [10, 20, 30] as const
+export const PERCENTUAIS_EXITO = [10, 20, 25, 30] as const
 export const PERCENTUAL_EXITO_PADRAO = 30
 export const HONORARIOS_EXITO_PERCENTUAL = PERCENTUAL_EXITO_PADRAO / 100
 

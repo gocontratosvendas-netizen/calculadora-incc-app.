@@ -8,7 +8,9 @@ import {
   pessoasDoCaso,
   rotuloResponsaveis,
   HONORARIOS_EXITO_PERCENTUAL,
+  PERCENTUAIS_EXITO,
   PERCENTUAL_EXITO_PADRAO,
+  percentualExitoValido,
   type Caso,
   type CasoStatus,
   type PessoaCaso,
@@ -112,22 +114,28 @@ describe('carteira judicial', () => {
   })
 
   it('calcula honorários de êxito pelo percentual de cada caso', () => {
+    expect(PERCENTUAIS_EXITO).toEqual([10, 20, 25, 30])
+    expect(percentualExitoValido(25)).toBe(true)
+    expect(percentualExitoValido(15)).toBe(false)
     expect(honorariosExitoDoCaso(100_000, 10)).toBe(10_000)
     expect(honorariosExitoDoCaso(100_000, 20)).toBe(20_000)
+    expect(honorariosExitoDoCaso(100_000, 25)).toBe(25_000)
     expect(honorariosExitoDoCaso(100_000, PERCENTUAL_EXITO_PADRAO)).toBe(30_000)
     expect(honorariosExitoDoCaso(null, 20)).toBeNull()
 
     const casos = [
       caso({ status: 'ajuizado', valorCausa: 100_000, percentualExito: 10 }),
       caso({ id: 'outro', status: 'ajuizado', valorCausa: 50_000, percentualExito: 20 }),
+      caso({ id: 'quarto', status: 'ajuizado', valorCausa: 80_000, percentualExito: 25 }),
     ]
-    expect(calcularResumoFinanceiro(casos).honorariosExitoEsperados).toBe(20_000)
+    expect(calcularResumoFinanceiro(casos).honorariosExitoEsperados).toBe(40_000)
     expect(calcularResumoFinanceiro(casos).creditosComprados).toBe(0)
   })
 
   it('soma a diferença do valor da causa nos créditos comprados, sem tirar dos honorários', () => {
     expect(creditoCompradoDoCaso(100_000, PERCENTUAL_EXITO_PADRAO)).toBe(70_000)
     expect(creditoCompradoDoCaso(100_000, 20)).toBe(80_000)
+    expect(creditoCompradoDoCaso(100_000, 25)).toBe(75_000)
     expect(creditoCompradoDoCaso(null, 30)).toBeNull()
 
     const comprado = caso({

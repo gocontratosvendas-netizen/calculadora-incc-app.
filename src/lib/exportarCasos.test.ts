@@ -110,4 +110,18 @@ describe('exportação da carteira', () => {
       exitoEsperado: 30_000,
     })
   })
+
+  it('exporta honorários e crédito comprado com 25% de êxito', () => {
+    const linhas = montarLinhasExportacaoCasos(
+      [caso({ percentualExito: 25, creditoComprado: true })],
+      {},
+      STATUS_META,
+    )
+    expect(linhas[0]).toMatchObject({
+      percentualExito: 25,
+      exitoEsperado: 25_000,
+      creditoComprado: 'Sim',
+      creditoCompradoValor: 75_000,
+    })
+  })
 })
