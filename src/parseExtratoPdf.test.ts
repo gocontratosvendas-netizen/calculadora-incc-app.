@@ -274,6 +274,116 @@ describe('parseExtratoFromRows — CivilWeb', () => {
       dataPagamento: '2020-11-11',
       valorContratual: '11.521,00',
       valorPago: '11.654,64',
+      descontos: '0,00',
+      jurosMora: '0,00',
+      multa: '0,00',
+    })
+  })
+
+  it('mapeia descontos, juros contratuais, multa e juros de mora do Extrato CivilWeb', () => {
+    const resultado = parseExtratoFromRows(
+      rowsFromCells([
+        ['Extrato de Cliente'],
+        ['Data Assinatura: 12/10/2020'],
+        [
+          '001/001-I',
+          '209568',
+          '15/07/2021',
+          '30/04/2021',
+          '115 210,00',
+          '0,00',
+          '9 092,79',
+          '0,00',
+          '0,00',
+          '0,00',
+          '915,17',
+          '0,00',
+          '124 302,79',
+          '0,00',
+          '123 387,62',
+        ],
+        [
+          '001/001-I',
+          '210463',
+          '15/05/2022',
+          '21/01/2021',
+          '398 607,67',
+          '0,00',
+          '16 850,41',
+          '0,00',
+          '0,00',
+          '0,00',
+          '15 458,08',
+          '0,00',
+          '415 458,08',
+          '0,00',
+          '400 000,00',
+        ],
+        [
+          '001/001-I',
+          '225933',
+          '31/05/2022',
+          '27/07/2022',
+          '200 694,29',
+          '2 049,17',
+          '47 256,54',
+          '0,00',
+          '0,00',
+          '0,00',
+          '0,00',
+          '0,00',
+          '250 000,00',
+          '0,00',
+          '250 000,00',
+        ],
+        [
+          '011/012-M',
+          '222989',
+          '28/02/2022',
+          '02/03/2022',
+          '11 757,02',
+          '0,00',
+          '1 509,62',
+          '0,00',
+          '265,34',
+          '8,84',
+          '0,00',
+          '0,00',
+          '13 266,64',
+          '0,00',
+          '13 540,82',
+        ],
+      ]),
+    )
+
+    expect(resultado.lancamentos).toHaveLength(4)
+    expect(resultado.lancamentos[0]).toMatchObject({
+      valorContratual: '115.210,00',
+      valorPago: '123.387,62',
+      descontos: '915,17',
+      jurosMora: '0,00',
+      multa: '0,00',
+    })
+    expect(resultado.lancamentos[1]).toMatchObject({
+      valorContratual: '398.607,67',
+      valorPago: '400.000,00',
+      descontos: '15.458,08',
+      jurosMora: '0,00',
+      multa: '0,00',
+    })
+    expect(resultado.lancamentos[2]).toMatchObject({
+      valorContratual: '200.694,29',
+      valorPago: '250.000,00',
+      descontos: '0,00',
+      jurosMora: '2.049,17',
+      multa: '0,00',
+    })
+    expect(resultado.lancamentos[3]).toMatchObject({
+      valorContratual: '11.757,02',
+      valorPago: '13.540,82',
+      multa: '265,34',
+      jurosMora: '8,84',
+      descontos: '0,00',
     })
   })
 
@@ -391,6 +501,9 @@ describe('parseExtratoFromRows — CivilWeb', () => {
       dataPagamento: '2022-09-14',
       valorContratual: '542.117,96',
       valorPago: '648.803,21',
+      jurosMora: '12.139,66',
+      multa: '0,00',
+      descontos: '0,00',
     })
     expect(resultado.lancamentos.some((l) => l.valorPago === '2.258.617,84')).toBe(
       false,

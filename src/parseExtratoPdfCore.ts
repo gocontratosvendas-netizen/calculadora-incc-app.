@@ -177,6 +177,9 @@ function chaveLancamento(l: LancamentoExtraido) {
  * Ordem monetária no Extrato CivilWeb (após as 2 datas), da esquerda p/ direita:
  * 0 Contratual, 1 Juros Contr., 2 Correção Monetária, 3 Renegociação, 4 Multa,
  * 5 Juros de Mora, 6 Descontos, 7 Taxas Adicionais, 8 Corrigido, 9 Presente, 10 Pago
+ *
+ * Correção Monetária é ignorada: a calculadora reaplica o INCC.
+ * Juros Contr. entra na coluna de juros (junto com Juros de Mora), senão some dos ajustes.
  */
 function parseLancamentoCivilWeb(tokens: string[]): LancamentoExtraido | null {
   const dates = tokens.filter(isDateBr)
@@ -194,7 +197,7 @@ function parseLancamentoCivilWeb(tokens: string[]): LancamentoExtraido | null {
       valorContratual: moneys[0],
       renegociacao: moneys[3] ?? ZERO,
       multa: moneys[4] ?? ZERO,
-      jurosMora: moneys[5] ?? ZERO,
+      jurosMora: somarMoedaBr(moneys[1] ?? ZERO, moneys[5] ?? ZERO),
       descontos: moneys[6] ?? ZERO,
       taxasAdicionais: moneys[7] ?? ZERO,
       valorPago: moneys[10] ?? moneys[moneys.length - 1],
