@@ -1,5 +1,6 @@
 export type LancamentoExtraido = {
   dataPagamento: string // yyyy-mm-dd
+  dataVencimento?: string // yyyy-mm-dd — Dt.Venc. da parcela, quando o extrato traz as duas datas
   valorContratual: string // pt-BR
   valorPago: string // pt-BR
   renegociacao: string
@@ -188,12 +189,14 @@ function parseLancamentoCivilWeb(tokens: string[]): LancamentoExtraido | null {
 
   const dataPagamento = brDateToIso(dates[1])
   if (!dataPagamento) return null
+  const dataVencimento = brDateToIso(dates[0]) ?? undefined
 
   const parcela = tokens.find((t) => /^\d{3}\/\d{3}-[A-Z]$/i.test(t))
 
   if (moneys.length >= 11) {
     return {
       dataPagamento,
+      dataVencimento,
       valorContratual: moneys[0],
       renegociacao: moneys[3] ?? ZERO,
       multa: moneys[4] ?? ZERO,
@@ -207,6 +210,7 @@ function parseLancamentoCivilWeb(tokens: string[]): LancamentoExtraido | null {
 
   return {
     dataPagamento,
+    dataVencimento,
     valorContratual: moneys[0],
     renegociacao: ZERO,
     multa: ZERO,
@@ -244,6 +248,7 @@ function parseLancamentoPosicaoFinanceiraBenx(text: string): LancamentoExtraido 
 
   const dataPagamento = brDateToIso(dates[1])
   if (!dataPagamento) return null
+  const dataVencimento = brDateToIso(dates[0]) ?? undefined
 
   const valor = moneys[0]
   const encargos = moneys[1]
@@ -255,6 +260,7 @@ function parseLancamentoPosicaoFinanceiraBenx(text: string): LancamentoExtraido 
 
   return {
     dataPagamento,
+    dataVencimento,
     valorPago: total,
     valorContratual,
     renegociacao: ZERO,
@@ -285,6 +291,11 @@ function parseLancamentoPosicaoFinanceira(text: string): LancamentoExtraido | nu
   const dataPagamento = brDateToIso(pagaEm[1])
   if (!dataPagamento) return null
 
+  const dates = extractDatesBr(compact)
+  const dataVencimento = dates
+    .map((d) => brDateToIso(d))
+    .find((iso): iso is string => Boolean(iso) && iso !== dataPagamento)
+
   const moneys = extractMoneys(compact)
   if (moneys.length < 2) return null
 
@@ -294,6 +305,7 @@ function parseLancamentoPosicaoFinanceira(text: string): LancamentoExtraido | nu
 
   return {
     dataPagamento,
+    dataVencimento,
     valorPago: moneys[0],
     valorContratual: moneys[1],
     renegociacao: ZERO,
@@ -364,6 +376,7 @@ function parseLancamentoPosicaoFinanceiraMac(
 
   const dataPagamento = brDateToIso(tokens[4])
   if (!dataPagamento) return null
+  const dataVencimento = brDateToIso(tokens[3]) ?? undefined
   if (!tokens.some(isStatusPago)) return null
 
   let rest = tokens.slice(5)
@@ -386,6 +399,7 @@ function parseLancamentoPosicaoFinanceiraMac(
 
   return {
     dataPagamento,
+    dataVencimento,
     valorContratual: original,
     valorPago,
     renegociacao: ZERO,
@@ -438,6 +452,7 @@ function parseLancamentoRelacaoValoresPagos(tokens: string[]): LancamentoExtraid
 
   const dataPagamento = brDateToIso(tokens[4])
   if (!dataPagamento) return null
+  const dataVencimento = brDateToIso(tokens[3]) ?? undefined
 
   let rest = tokens.slice(5)
   while (rest.length && isStatusPago(rest[rest.length - 1])) {
@@ -467,6 +482,7 @@ function parseLancamentoRelacaoValoresPagos(tokens: string[]): LancamentoExtraid
 
   return {
     dataPagamento,
+    dataVencimento,
     valorContratual: original,
     valorPago,
     renegociacao: ZERO,

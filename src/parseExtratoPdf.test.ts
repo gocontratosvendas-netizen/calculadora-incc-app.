@@ -101,6 +101,7 @@ describe('parseExtratoFromRows — Posição Financeira', () => {
       valorPago: '100.000,00',
       valorContratual: '100.000,00',
     })
+    expect(resultado.lancamentos[0].dataVencimento).toBeUndefined()
   })
 })
 
@@ -133,6 +134,7 @@ describe('parseExtratoFromRows — Posição Financeira Benx', () => {
     expect(resultado.lancamentos).toHaveLength(5)
     expect(resultado.lancamentos[0]).toMatchObject({
       dataPagamento: '2021-12-15',
+      dataVencimento: '2021-12-14',
       valorContratual: '16.370,00',
       valorPago: '16.370,00',
       jurosMora: '0,00',
@@ -195,6 +197,7 @@ describe('parseExtratoFromRows — CivilWeb', () => {
     expect(resultado.lancamentos[0]).toMatchObject({
       parcela: '001/048-A',
       dataPagamento: '2024-01-15',
+      dataVencimento: '2024-01-10',
       valorContratual: '2.500,00',
       renegociacao: '0,00',
       multa: '50,00',
@@ -543,6 +546,7 @@ describe('parseExtratoFromRows — Relação Valores Pagos', () => {
       resultado.lancamentos.find((l) => l.dataPagamento === '2014-05-13'),
     ).toMatchObject({
       parcela: '4-1',
+      dataVencimento: '2014-11-10',
       valorContratual: '30.000,00',
       valorPago: '30.080,49',
       jurosMora: '8,30',
@@ -647,6 +651,7 @@ describe('parseExtratoFromRows — Posição Financeira MAC', () => {
       resultado.lancamentos.find((l) => l.dataPagamento === '2014-08-20'),
     ).toMatchObject({
       parcela: '1-1',
+      dataVencimento: '2014-08-14',
       valorContratual: '7.000,00',
       valorPago: '7.000,00',
     })

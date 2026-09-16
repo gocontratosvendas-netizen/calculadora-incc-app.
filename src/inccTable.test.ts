@@ -3,6 +3,7 @@ import {
   aniversariosDecorridos,
   arredondarMoeda,
   calcularFatorCorrecaoPorAniversarios,
+  dataReferenciaDaParcela,
   formatarAnoMes,
   mesBaseDoIndice,
 } from './inccTable'
@@ -144,5 +145,20 @@ describe('regressão contrato 2023-05-15 com defasagem 2', () => {
     expect(r.janelaLabel).toBe('abr/2023 a mar/2024')
     expect(percentualExibido(r.fator)).toBe(3.3585)
     expect(arredondarMoeda(500_000 * r.fator)).toBe(516_792.56)
+  })
+})
+
+describe('data de referência da parcela', () => {
+  it('usa o pagamento quando o modo vencimento está desligado', () => {
+    expect(dataReferenciaDaParcela('2024-07-24', '2024-05-15', false)).toBe('2024-07-24')
+  })
+
+  it('usa o vencimento quando o modo está ligado e a parcela tem essa data', () => {
+    expect(dataReferenciaDaParcela('2024-07-24', '2024-05-15', true)).toBe('2024-05-15')
+  })
+
+  it('volta para o pagamento se o vencimento estiver vazio', () => {
+    expect(dataReferenciaDaParcela('2024-07-24', '', true)).toBe('2024-07-24')
+    expect(dataReferenciaDaParcela('2024-07-24', undefined, true)).toBe('2024-07-24')
   })
 })

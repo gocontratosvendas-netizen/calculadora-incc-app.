@@ -269,6 +269,16 @@ export function mesBaseDoIndice(dataContrato: Date, defasagemMeses: number) {
   return addMonths(toYearMonth(dataContrato), -lag)
 }
 
+/** Data usada para contar aniversários: vencimento da parcela, se o modo estiver ligado e houver valor. */
+export function dataReferenciaDaParcela(
+  dataPagamento: string,
+  dataVencimento: string | null | undefined,
+  usarDataVencimento: boolean,
+) {
+  if (usarDataVencimento && dataVencimento) return dataVencimento
+  return dataPagamento
+}
+
 export function aniversariosDecorridos(dataContrato: Date, dataPagamento: Date) {
   let n = dataPagamento.getFullYear() - dataContrato.getFullYear()
   const pagamentoMd = dataPagamento.getMonth() * 100 + dataPagamento.getDate()
@@ -365,7 +375,7 @@ export type FatorCorrecao = {
 
 /**
  * Correção anual no aniversário do contrato.
- * A faixa (n) vem só da data de pagamento vs. aniversários.
+ * A faixa (n) vem só da data de referência da parcela vs. aniversários.
  * A defasagem desloca a janela do índice, sem mudar n nem o tamanho da janela (12×n meses).
  */
 export function calcularFatorCorrecaoPorAniversarios(

@@ -1,6 +1,13 @@
 import { useMemo, useRef, useState } from 'react'
 import './App.css'
-import { arredondarMoeda, calcularFatorCorrecaoPorAniversarios, formatarAnoMes, mesBaseDoIndice, type DefasagemMeses } from './inccTable'
+import {
+  arredondarMoeda,
+  calcularFatorCorrecaoPorAniversarios,
+  dataReferenciaDaParcela,
+  formatarAnoMes,
+  mesBaseDoIndice,
+  type DefasagemMeses,
+} from './inccTable'
 import { cadastrarCaso } from './lib/casos'
 import { mensagemErroSupabase } from './lib/supabase'
 import {
@@ -70,6 +77,7 @@ function App() {
   type Linha = {
     id: string
     dataPagamento: string // yyyy-mm-dd
+    dataVencimento: string // yyyy-mm-dd
     valorContratual: string
     valorPago: string
     renegociacao: string
@@ -83,6 +91,7 @@ function App() {
     return {
       id: crypto.randomUUID(),
       dataPagamento: '',
+      dataVencimento: '',
       valorContratual: '',
       valorPago: '',
       renegociacao: '0,00',
@@ -104,6 +113,7 @@ function App() {
     ): Linha => ({
       id: crypto.randomUUID(),
       dataPagamento,
+      dataVencimento: '',
       valorContratual,
       valorPago,
       renegociacao: extras?.renegociacao ?? '0,00',
@@ -150,6 +160,7 @@ function App() {
   const [tela, setTela] = useState<'entrada' | 'resultado'>('entrada')
   const [dataAniversarioManual, setDataAniversarioManual] = useState('')
   const [defasagemMeses, setDefasagemMeses] = useState<DefasagemMeses>(0)
+  const [usarDataVencimento, setUsarDataVencimento] = useState(false)
   const [linhas, setLinhas] = useState<Linha[]>([criarLinhaVazia()])
   const [edicaoValorPago, setEdicaoValorPago] = useState<{
     linhaId: string
@@ -191,6 +202,7 @@ function App() {
       const novasLinhas: Linha[] = resultado.lancamentos.map((l) => ({
         id: crypto.randomUUID(),
         dataPagamento: l.dataPagamento,
+        dataVencimento: l.dataVencimento ?? '',
         valorContratual: l.valorContratual,
         valorPago: l.valorPago,
         renegociacao: l.renegociacao,
@@ -233,6 +245,7 @@ function App() {
       const pdf = gerarMemoriaCalculoPdf(relatorio, {
         incluirResumo: opcoes.incluirResumo,
         titulo: opcoes.incluirResumo ? 'Relatório completo' : 'Memória de Cálculo Revisão INCC',
+        rotuloData: usarDataVencimento ? 'Vencimento' : 'Pagamento',
       })
       pdf.save(nomeArquivo)
     } catch (err) {
@@ -251,7 +264,7 @@ function App() {
 
   function exportarMemoriaComoExcel(nomeArquivo: string) {
     const header = [
-      'Pagamento',
+      usarDataVencimento ? 'Vencimento' : 'Pagamento',
       'Valor contratual',
       'Renegociação',
       'Multa',
@@ -338,17 +351,25 @@ function App() {
 
   const relatorio = useMemo(() => {
     const linhasValidas = linhas
-      .map((l) => ({
-        ...l,
-        data: parseDate(l.dataPagamento),
-        vc: parseMoney(l.valorContratual),
-        vp: parseMoney(l.valorPago),
-        renegociacao: parseMoney(l.renegociacao),
-        multa: parseMoney(l.multa),
-        descontos: parseMoney(l.descontos),
-        jurosMora: parseMoney(l.jurosMora),
-        taxasAdicionais: parseMoney(l.taxasAdicionais),
-      }))
+      .map((l) => {
+        const iso = dataReferenciaDaParcela(
+          l.dataPagamento,
+          l.dataVencimento,
+          usarDataVencimento,
+        )
+        return {
+          ...l,
+          iso,
+          data: parseDate(iso),
+          vc: parseMoney(l.valorContratual),
+          vp: parseMoney(l.valorPago),
+          renegociacao: parseMoney(l.renegociacao),
+          multa: parseMoney(l.multa),
+          descontos: parseMoney(l.descontos),
+          jurosMora: parseMoney(l.jurosMora),
+          taxasAdicionais: parseMoney(l.taxasAdicionais),
+        }
+      })
       .filter((l) => l.data && l.vc > 0)
 
     const maisAntiga = linhasValidas.reduce<Date | null>((acc, l) => {
@@ -372,7 +393,7 @@ function App() {
       const excesso = l.vp - devido
       return {
         id: l.id,
-        pagamento: l.dataPagamento,
+        pagamento: l.iso,
         vc: l.vc,
         vp: l.vp,
         renegociacao: l.renegociacao,
@@ -424,7 +445,7 @@ function App() {
       totalJurosMora,
       totalTaxasAdicionais,
     }
-  }, [linhas, dataAniversarioManual, defasagemMeses])
+  }, [linhas, dataAniversarioManual, defasagemMeses, usarDataVencimento])
 
   const linhaEmEdicao = useMemo(() => {
     if (!edicaoValorPago) return null
@@ -466,6 +487,7 @@ function App() {
       return {
         ...base,
         dataPagamento,
+        dataVencimento: '',
         valorContratual: (cols[1] ?? '').trim(),
         renegociacao: full ? (cols[2] ?? '').trim() || '0,00' : '0,00',
         multa: full ? (cols[3] ?? '').trim() || '0,00' : '0,00',
@@ -511,7 +533,10 @@ function App() {
     setCadastrandoCliente(true)
     setErroCadastroCliente(null)
     try {
-      const blob = gerarMemoriaCalculoPdfBlob(relatorio, { incluirResumo: false })
+      const blob = gerarMemoriaCalculoPdfBlob(relatorio, {
+        incluirResumo: false,
+        rotuloData: usarDataVencimento ? 'Vencimento' : 'Pagamento',
+      })
       const arquivoMemoria = new File([blob], nomeArquivoMemoriaRevisaoIncc(nome), {
         type: 'application/pdf',
       })
@@ -754,6 +779,23 @@ function App() {
                 <option value={3}>3 meses</option>
               </select>
             </div>
+            <div className="param-field">
+              <span className="param-toggle-label" id="usarVencimentoLabel">
+                Data de vencimento
+              </span>
+              <button
+                type="button"
+                className="memoria-toggle param-toggle"
+                aria-pressed={usarDataVencimento}
+                aria-labelledby="usarVencimentoLabel"
+                onClick={() => setUsarDataVencimento((prev) => !prev)}
+              >
+                <span className="memoria-switch" aria-hidden="true">
+                  <span className="memoria-switch-knob" />
+                </span>
+                <span>{usarDataVencimento ? 'Ligada' : 'Desligada'}</span>
+              </button>
+            </div>
             <details className="method-pill">
               <summary>
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true">
@@ -771,7 +813,8 @@ function App() {
               </summary>
               <div className="method-panel">
                 No aniversário, aplicamos o INCC-DI acumulado em 12 meses. A defasagem só recua
-                o índice-base; a faixa continua vindo da data do pagamento.
+                o índice-base; a faixa vem da data de{' '}
+                {usarDataVencimento ? 'vencimento da parcela' : 'pagamento'}.
               </div>
             </details>
             </div>
@@ -794,11 +837,17 @@ function App() {
                 Nenhum lançamento ainda. Importe o extrato ou adicione uma linha.
               </p>
             ) : (
-              <table className="launch-table" role="table">
+              <table
+                className={
+                  usarDataVencimento ? 'launch-table launch-table--vencimento' : 'launch-table'
+                }
+                role="table"
+              >
                 <thead>
                   <tr className="launch-groups" role="row">
                     <th role="columnheader" />
                     <th role="columnheader" />
+                    {usarDataVencimento ? <th role="columnheader" /> : null}
                     <th scope="colgroup" role="columnheader">
                       Contrato
                     </th>
@@ -817,6 +866,13 @@ function App() {
                       <br />
                       pagamento
                     </th>
+                    {usarDataVencimento ? (
+                      <th scope="col" role="columnheader">
+                        Data
+                        <br />
+                        vencimento
+                      </th>
+                    ) : null}
                     <th scope="col" role="columnheader">
                       Valor
                       <br />
@@ -870,6 +926,31 @@ function App() {
                           }}
                         />
                       </td>
+                      {usarDataVencimento ? (
+                        <td
+                          role="cell"
+                          className={
+                            !parseDate(linha.dataVencimento || linha.dataPagamento)
+                              ? 'is-date-invalid'
+                              : undefined
+                          }
+                        >
+                          <input
+                            className="table-input"
+                            type="date"
+                            aria-label={`Data vencimento, linha ${index + 1}`}
+                            value={linha.dataVencimento}
+                            onChange={(e) => {
+                              const v = e.target.value
+                              setLinhas((prev) =>
+                                prev.map((p) =>
+                                  p.id === linha.id ? { ...p, dataVencimento: v } : p,
+                                ),
+                              )
+                            }}
+                          />
+                        </td>
+                      ) : null}
                       {(
                         [
                           ['valorContratual', 'ex: 2.500,00', 'Valor contratual'],
@@ -929,6 +1010,7 @@ function App() {
                   <tr className="launch-totals" role="row">
                     <td role="cell" />
                     <td role="cell">TOTAIS</td>
+                    {usarDataVencimento ? <td role="cell" /> : null}
                     <td
                       role="cell"
                       className={totalContratualEntrada === 0 ? 'is-zero' : undefined}
@@ -1049,7 +1131,8 @@ function App() {
                   <span className="report-em">
                     {currencyFormatter.format(relatorio.totalExcesso)}
                   </span>{' '}
-                  cobrados a maior em {relatorio.rows.length} pagamentos realizados entre{' '}
+                  cobrados a maior em {relatorio.rows.length} pagamentos{' '}
+                  {usarDataVencimento ? 'com vencimento' : 'realizados'} entre{' '}
                   {formatMesAnoExtenso(relatorio.periodoInicio)} e{' '}
                   {formatMesAnoExtenso(relatorio.periodoFim)}
                   .
@@ -1239,17 +1322,30 @@ function App() {
           <div className="memoria-card export-scope">
             <div className="memoria-toolbar">
               <h2 className="memoria-title">Memória de cálculo</h2>
-              <button
-                type="button"
-                className="memoria-toggle no-print"
-                aria-pressed={detalharAjustes}
-                onClick={() => setDetalharAjustes((prev) => !prev)}
-              >
-                <span>Detalhar ajustes</span>
-                <span className="memoria-switch" aria-hidden="true">
-                  <span className="memoria-switch-knob" />
-                </span>
-              </button>
+              <div className="memoria-toolbar-actions no-print">
+                <button
+                  type="button"
+                  className="memoria-toggle"
+                  aria-pressed={usarDataVencimento}
+                  onClick={() => setUsarDataVencimento((prev) => !prev)}
+                >
+                  <span>Data de vencimento</span>
+                  <span className="memoria-switch" aria-hidden="true">
+                    <span className="memoria-switch-knob" />
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  className="memoria-toggle"
+                  aria-pressed={detalharAjustes}
+                  onClick={() => setDetalharAjustes((prev) => !prev)}
+                >
+                  <span>Detalhar ajustes</span>
+                  <span className="memoria-switch" aria-hidden="true">
+                    <span className="memoria-switch-knob" />
+                  </span>
+                </button>
+              </div>
             </div>
 
             {relatorio.errosIndice.length > 0 ? (
@@ -1268,7 +1364,15 @@ function App() {
               <thead>
                 <tr>
                   <th scope="col" className="col-data">
-                    Data
+                    {usarDataVencimento ? (
+                      <>
+                        Data
+                        <br />
+                        vencimento
+                      </>
+                    ) : (
+                      'Data'
+                    )}
                   </th>
                   <th scope="col" className="col-vc col-divider">
                     Valor
@@ -1452,7 +1556,11 @@ function App() {
               <span className="memoria-note-label">Metodologia.</span> Valor devido = (Valor
               contratual × fator INCC) + Renegociação + Multa + Juros de mora + Taxas adicionais −
               Descontos. A correção INCC só começa após o 1º aniversário. A defasagem recua o
-              índice-base, sem alterar a faixa nem o tamanho da janela. Valores em reais.{' '}
+              índice-base, sem alterar a faixa nem o tamanho da janela
+              {usarDataVencimento
+                ? '. A faixa de cada parcela usa a data de vencimento.'
+                : '.'}{' '}
+              Valores em reais.{' '}
               {relatorio.rows.length} lançamentos apurados.
             </p>
           </div>

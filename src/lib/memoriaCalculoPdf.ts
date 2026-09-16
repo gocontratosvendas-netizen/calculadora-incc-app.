@@ -72,7 +72,7 @@ function drawPdfTextFit(
 
 export function gerarMemoriaCalculoPdf(
   relatorio: MemoriaCalculoRelatorio,
-  opcoes: { incluirResumo?: boolean; titulo?: string } = {},
+  opcoes: { incluirResumo?: boolean; titulo?: string; rotuloData?: string } = {},
 ): jsPDF {
   const incluirResumo = opcoes.incluirResumo ?? false
   const titulo = opcoes.titulo ?? 'Memória de Cálculo Revisão INCC'
@@ -90,7 +90,7 @@ export function gerarMemoriaCalculoPdf(
   const usableWidth = pageWidth - marginX * 2
 
   const headers = [
-    'Pagamento',
+    opcoes.rotuloData ?? 'Pagamento',
     'Contratual',
     'Renegociação',
     'Multa',
@@ -293,7 +293,7 @@ export function gerarMemoriaCalculoPdf(
 
 export function gerarMemoriaCalculoPdfBlob(
   relatorio: MemoriaCalculoRelatorio,
-  opcoes?: { incluirResumo?: boolean; titulo?: string },
+  opcoes?: { incluirResumo?: boolean; titulo?: string; rotuloData?: string },
 ): Blob {
   return gerarMemoriaCalculoPdf(relatorio, opcoes).output('blob')
 }
