@@ -1,4 +1,8 @@
+import { getIgpmMensal } from './igpmTable'
+
 export type YearMonth = `${number}-${string}`
+
+export type IndiceCorrecao = 'INCC-DI' | 'IGP-M'
 
 // Fonte: tabela INCC-DI (FGV / Ipeadata). Mantemos local para o app funcionar offline.
 const inccMensal: Record<YearMonth, number> = {
@@ -253,7 +257,7 @@ const MESES_PT = [
   'dez',
 ] as const
 
-function toYearMonth(date: Date): YearMonth {
+export function toYearMonth(date: Date): YearMonth {
   const y = date.getFullYear()
   const m = String(date.getMonth() + 1).padStart(2, '0')
   return `${y}-${m}` as YearMonth
@@ -307,6 +311,11 @@ export function getInccMensal(anoMes: YearMonth) {
   return typeof val === 'number' ? val : null
 }
 
+function taxaDoMes(anoMes: YearMonth, indice: IndiceCorrecao) {
+  const taxa = indice === 'IGP-M' ? getIgpmMensal(anoMes) : getInccMensal(anoMes)
+  return { taxa, indice }
+}
+
 /** Acumula INCC-DI mês a mês entre dois ano-mês (inclusive). */
 export function calcularInccAcumuladoEntre(anoMesInicio: YearMonth, anoMesFim: YearMonth) {
   if (compareYearMonth(anoMesFim, anoMesInicio) < 0) {
@@ -343,21 +352,59 @@ export function calcularInccAcumuladoEntre(anoMesInicio: YearMonth, anoMesFim: Y
   }
 }
 
-function acumularFatorNaJanela(anoMesInicio: YearMonth, anoMesFim: YearMonth) {
+function indiceDoMes(anoMes: YearMonth, mesCorteIgpm: YearMonth | null): IndiceCorrecao {
+  if (mesCorteIgpm && compareYearMonth(anoMes, mesCorteIgpm) >= 0) return 'IGP-M'
+  return 'INCC-DI'
+}
+
+type SegmentoIndice = { indice: IndiceCorrecao; inicio: YearMonth; fim: YearMonth }
+
+function rotuloJanela(segmentos: SegmentoIndice[], soIncc: boolean) {
+  if (segmentos.length === 0) return null
+  if (soIncc && segmentos.length === 1) {
+    return `${formatarAnoMes(segmentos[0].inicio)} a ${formatarAnoMes(segmentos[0].fim)}`
+  }
+  return segmentos
+    .map((s) => `${formatarAnoMes(s.inicio)} a ${formatarAnoMes(s.fim)} ${s.indice}`)
+    .join(' · ')
+}
+
+function acumularFatorNaJanela(
+  anoMesInicio: YearMonth,
+  anoMesFim: YearMonth,
+  mesCorteIgpm: YearMonth | null,
+) {
   let fator = 1
   let atual = anoMesInicio
+  const segmentos: SegmentoIndice[] = []
+  let segmentoAtual: SegmentoIndice | null = null
+
   while (compareYearMonth(atual, anoMesFim) <= 0) {
-    const taxa = getInccMensal(atual)
+    const indice = indiceDoMes(atual, mesCorteIgpm)
+    const { taxa } = taxaDoMes(atual, indice)
     if (taxa == null) {
       return {
         fator: 1,
-        erro: `Falta o índice INCC-DI de ${formatarAnoMes(atual)}.`,
+        erro: `Falta o índice ${indice} de ${formatarAnoMes(atual)}.`,
+        segmentos: [] as SegmentoIndice[],
+        usouIgpm: false,
       }
     }
     fator *= 1 + taxa / 100
+    if (!segmentoAtual || segmentoAtual.indice !== indice) {
+      segmentoAtual = { indice, inicio: atual, fim: atual }
+      segmentos.push(segmentoAtual)
+    } else {
+      segmentoAtual.fim = atual
+    }
     atual = addMonths(atual, 1)
   }
-  return { fator, erro: null as string | null }
+  return {
+    fator,
+    erro: null as string | null,
+    segmentos,
+    usouIgpm: segmentos.some((s) => s.indice === 'IGP-M'),
+  }
 }
 
 export type FatorCorrecao = {
@@ -371,17 +418,26 @@ export type FatorCorrecao = {
   ultimaTaxa: number | null
   aviso: string | null
   erro: string | null
+  usouIgpm: boolean
+}
+
+export type OpcoesCorrecao = {
+  dataHabiteSe?: Date | null
+  dataVencimentoParcela?: Date | null
 }
 
 /**
  * Correção anual no aniversário do contrato.
  * A faixa (n) vem só da data de referência da parcela vs. aniversários.
  * A defasagem desloca a janela do índice, sem mudar n nem o tamanho da janela (12×n meses).
+ * Com Habite-se, meses da janela a partir do mês do Habite-se usam IGP-M em vez de INCC-DI,
+ * somente nas parcelas que vencem a partir desse mês.
  */
 export function calcularFatorCorrecaoPorAniversarios(
   dataInicioContrato: Date,
   dataPagamento: Date,
   defasagemMeses: number = 0,
+  opcoes?: OpcoesCorrecao,
 ): FatorCorrecao {
   const mesBase = mesBaseDoIndice(dataInicioContrato, defasagemMeses)
   const vazio = (n: number, erro: string | null = null): FatorCorrecao => ({
@@ -395,6 +451,7 @@ export function calcularFatorCorrecaoPorAniversarios(
     ultimaTaxa: 0,
     aviso: null,
     erro,
+    usouIgpm: false,
   })
 
   if (dataPagamento.getTime() < dataInicioContrato.getTime()) {
@@ -406,7 +463,19 @@ export function calcularFatorCorrecaoPorAniversarios(
 
   const janelaInicio = addMonths(mesBase, 1)
   const janelaFim = addMonths(mesBase, 12 * n)
-  const { fator, erro } = acumularFatorNaJanela(janelaInicio, janelaFim)
+
+  const dataVencimento = opcoes?.dataVencimentoParcela ?? dataPagamento
+  const dataHabiteSe = opcoes?.dataHabiteSe ?? null
+  const mesHabiteSe = dataHabiteSe ? toYearMonth(dataHabiteSe) : null
+  const parcelaAPartirDoHabiteSe =
+    mesHabiteSe != null && compareYearMonth(toYearMonth(dataVencimento), mesHabiteSe) >= 0
+  const mesCorteIgpm = parcelaAPartirDoHabiteSe ? mesHabiteSe : null
+
+  const { fator, erro, segmentos, usouIgpm } = acumularFatorNaJanela(
+    janelaInicio,
+    janelaFim,
+    mesCorteIgpm,
+  )
   if (erro) return vazio(n, erro)
 
   const acumuladoPercentual = (fator - 1) * 100
@@ -416,10 +485,50 @@ export function calcularFatorCorrecaoPorAniversarios(
     mesBase,
     janelaInicio,
     janelaFim,
-    janelaLabel: `${formatarAnoMes(janelaInicio)} a ${formatarAnoMes(janelaFim)}`,
+    janelaLabel: rotuloJanela(segmentos, !usouIgpm),
     acumuladoPercentual,
     ultimaTaxa: acumuladoPercentual,
     aviso: null,
     erro: null,
+    usouIgpm,
   }
 }
+
+export const JUROS_COMPENSATORIOS_AA = 0.12
+export const JUROS_COMPENSATORIOS_AM = JUROS_COMPENSATORIOS_AA / 12
+
+/** Meses comerciais da Tabela Price: meses calendário + fração de 30 dias. */
+export function mesesComerciaisPrice(inicio: Date, fim: Date) {
+  const meses =
+    (fim.getFullYear() - inicio.getFullYear()) * 12 + (fim.getMonth() - inicio.getMonth())
+  const dias = fim.getDate() - inicio.getDate()
+  return meses + dias / 30
+}
+
+export type JurosCompensatorios = {
+  juros: number
+  mesesComerciais: number
+  fator: number
+}
+
+/**
+ * Juros compensatórios de 12% a.a. pela Tabela Price (1% a.m. compostos)
+ * sobre o valor corrigido, da data do Habite-se até o vencimento da parcela.
+ */
+export function calcularJurosCompensatoriosPrice(
+  valorCorrigido: number,
+  dataHabiteSe: Date,
+  dataVencimento: Date,
+): JurosCompensatorios {
+  const vazio = { juros: 0, mesesComerciais: 0, fator: 1 }
+  if (dataVencimento.getTime() < dataHabiteSe.getTime()) return vazio
+  const meses = mesesComerciaisPrice(dataHabiteSe, dataVencimento)
+  if (meses <= 0 || valorCorrigido === 0) return vazio
+  const fator = (1 + JUROS_COMPENSATORIOS_AM) ** meses
+  return {
+    juros: arredondarMoeda(valorCorrigido * (fator - 1)),
+    mesesComerciais: meses,
+    fator,
+  }
+}
+

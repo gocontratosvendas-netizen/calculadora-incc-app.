@@ -1327,6 +1327,19 @@
     26px;
 }
 
+.memoria-table--collapsed.memoria-table--habitese tr {
+  grid-template-columns:
+    62px
+    minmax(64px, 0.95fr)
+    minmax(54px, 0.8fr)
+    minmax(88px, 1.15fr)
+    minmax(64px, 0.9fr)
+    minmax(70px, 1fr)
+    minmax(70px, 1fr)
+    minmax(64px, 0.9fr)
+    26px;
+}
+
 .memoria-table--expanded tr {
   grid-template-columns:
     62px
@@ -1340,6 +1353,23 @@
     minmax(64px, 1fr)
     minmax(64px, 1fr)
     minmax(58px, 0.95fr)
+    26px;
+}
+
+.memoria-table--expanded.memoria-table--habitese tr {
+  grid-template-columns:
+    58px
+    minmax(58px, 0.9fr)
+    minmax(52px, 0.8fr)
+    minmax(44px, 0.7fr)
+    minmax(52px, 0.8fr)
+    minmax(52px, 0.8fr)
+    minmax(56px, 0.85fr)
+    minmax(96px, 1.15fr)
+    minmax(58px, 0.85fr)
+    minmax(58px, 0.9fr)
+    minmax(58px, 0.9fr)
+    minmax(54px, 0.85fr)
     26px;
 }
 
@@ -1753,6 +1783,24 @@
       minmax(64px, 1fr)
       minmax(64px, 1fr)
       minmax(58px, 0.95fr)
+      26px;
+  }
+
+  .memoria-table--collapsed.memoria-table--habitese tr,
+  .memoria-table--expanded.memoria-table--habitese tr {
+    grid-template-columns:
+      58px
+      minmax(58px, 0.9fr)
+      minmax(52px, 0.8fr)
+      minmax(44px, 0.7fr)
+      minmax(52px, 0.8fr)
+      minmax(52px, 0.8fr)
+      minmax(56px, 0.85fr)
+      minmax(96px, 1.15fr)
+      minmax(58px, 0.85fr)
+      minmax(58px, 0.9fr)
+      minmax(58px, 0.9fr)
+      minmax(54px, 0.85fr)
       26px;
   }
 }

@@ -1,11 +1,16 @@
 import { describe, expect, it } from 'vitest'
+import { getIgpmMensal } from './igpmTable'
 import {
   aniversariosDecorridos,
   arredondarMoeda,
   calcularFatorCorrecaoPorAniversarios,
+  calcularJurosCompensatoriosPrice,
   dataReferenciaDaParcela,
   formatarAnoMes,
+  getInccMensal,
   mesBaseDoIndice,
+  mesesComerciaisPrice,
+  type YearMonth,
 } from './inccTable'
 
 function data(iso: string) {
@@ -160,5 +165,122 @@ describe('data de referência da parcela', () => {
   it('volta para o pagamento se o vencimento estiver vazio', () => {
     expect(dataReferenciaDaParcela('2024-07-24', '', true)).toBe('2024-07-24')
     expect(dataReferenciaDaParcela('2024-07-24', undefined, true)).toBe('2024-07-24')
+  })
+})
+
+function addMonthsYm(ym: YearMonth, delta: number): YearMonth {
+  const [yRaw, mRaw] = ym.split('-').map(Number)
+  const date = new Date(yRaw, mRaw - 1 + delta, 1)
+  const y = date.getFullYear()
+  const m = String(date.getMonth() + 1).padStart(2, '0')
+  return `${y}-${m}` as YearMonth
+}
+
+function fatorMisto(janelaInicio: YearMonth, janelaFim: YearMonth, mesCorteIgpm: YearMonth) {
+  let fator = 1
+  let atual = janelaInicio
+  while (atual <= janelaFim) {
+    const taxa = atual >= mesCorteIgpm ? getIgpmMensal(atual) : getInccMensal(atual)
+    if (taxa == null) throw new Error(`sem índice ${atual}`)
+    fator *= 1 + taxa / 100
+    atual = addMonthsYm(atual, 1)
+  }
+  return fator
+}
+
+describe('Habite-se: troca INCC → IGP-M na mesma janela de competência', () => {
+  it('parcela que vence antes do mês do Habite-se permanece só no INCC-DI', () => {
+    const semHabite = calcularFatorCorrecaoPorAniversarios(CONTRATO, data('2024-07-24'), 0)
+    const comHabite = calcularFatorCorrecaoPorAniversarios(CONTRATO, data('2024-07-24'), 0, {
+      dataHabiteSe: data('2024-08-10'),
+      dataVencimentoParcela: data('2024-07-24'),
+    })
+    expect(comHabite.usouIgpm).toBe(false)
+    expect(comHabite.janelaLabel).toBe(semHabite.janelaLabel)
+    expect(percentualExibido(comHabite.fator)).toBe(percentualExibido(semHabite.fator))
+  })
+
+  it('parcela que vence a partir do mês do Habite-se usa IGP-M a partir desse mês', () => {
+    const habiteSe = data('2023-08-10')
+    const r = calcularFatorCorrecaoPorAniversarios(CONTRATO, data('2024-07-24'), 0, {
+      dataHabiteSe: habiteSe,
+      dataVencimentoParcela: data('2024-07-24'),
+    })
+    expect(r.erro).toBeNull()
+    expect(r.n).toBe(1)
+    expect(r.usouIgpm).toBe(true)
+    expect(r.janelaLabel).toBe('jun/2023 a jul/2023 INCC-DI · ago/2023 a mai/2024 IGP-M')
+    expect(percentualExibido(r.fator)).toBe(
+      percentualExibido(fatorMisto('2023-06', '2024-05', '2023-08')),
+    )
+  })
+
+  it('no mês do Habite-se já usa IGP-M, mesmo com vencimento em dia anterior', () => {
+    const r = calcularFatorCorrecaoPorAniversarios(CONTRATO, data('2024-05-16'), 0, {
+      dataHabiteSe: data('2024-05-20'),
+      dataVencimentoParcela: data('2024-05-16'),
+    })
+    expect(r.n).toBe(1)
+    expect(r.usouIgpm).toBe(true)
+    expect(r.janelaLabel).toBe('jun/2023 a abr/2024 INCC-DI · mai/2024 a mai/2024 IGP-M')
+    expect(percentualExibido(r.fator)).toBe(
+      percentualExibido(fatorMisto('2023-06', '2024-05', '2024-05')),
+    )
+  })
+
+  it('parcela que vence no mês anterior ao Habite-se fica só no INCC mesmo com janela longa', () => {
+    const r = calcularFatorCorrecaoPorAniversarios(CONTRATO, data('2025-07-10'), 0, {
+      dataHabiteSe: data('2024-08-10'),
+      dataVencimentoParcela: data('2024-07-20'),
+    })
+    expect(r.n).toBe(2)
+    expect(r.usouIgpm).toBe(false)
+    expect(r.janelaLabel).toBe('jun/2023 a mai/2025')
+  })
+
+  it('defasagem continua deslocando a janela; o corte do IGP-M é o mês do Habite-se', () => {
+    const r = calcularFatorCorrecaoPorAniversarios(CONTRATO, data('2024-07-24'), 2, {
+      dataHabiteSe: data('2023-08-10'),
+      dataVencimentoParcela: data('2024-07-24'),
+    })
+    expect(r.n).toBe(1)
+    expect(r.janelaLabel).toBe('abr/2023 a jul/2023 INCC-DI · ago/2023 a mar/2024 IGP-M')
+    expect(percentualExibido(r.fator)).toBe(
+      percentualExibido(fatorMisto('2023-04', '2024-03', '2023-08')),
+    )
+  })
+
+  it('aborta se faltar IGP-M na parte da janela após o Habite-se', () => {
+    const r = calcularFatorCorrecaoPorAniversarios(data('2026-01-15'), data('2027-02-01'), 0, {
+      dataHabiteSe: data('2026-08-01'),
+      dataVencimentoParcela: data('2027-02-01'),
+    })
+    expect(r.erro).toMatch(/Falta o índice IGP-M de set\/2026/)
+    expect(r.fator).toBe(1)
+  })
+})
+
+describe('juros compensatórios Tabela Price 12% a.a.', () => {
+  it('compõe 1% ao mês em período de meses cheios', () => {
+    const r = calcularJurosCompensatoriosPrice(10_000, data('2023-08-10'), data('2023-11-10'))
+    expect(r.mesesComerciais).toBe(3)
+    expect(r.juros).toBe(arredondarMoeda(10_000 * (1.01 ** 3 - 1)))
+  })
+
+  it('usa fração de 30 dias quando o dia do vencimento não coincide', () => {
+    expect(mesesComerciaisPrice(data('2023-08-10'), data('2023-11-25'))).toBe(3 + 15 / 30)
+    const r = calcularJurosCompensatoriosPrice(10_000, data('2023-08-10'), data('2023-11-25'))
+    expect(r.juros).toBe(arredondarMoeda(10_000 * (1.01 ** 3.5 - 1)))
+  })
+
+  it('não incide se o vencimento for anterior à data do Habite-se', () => {
+    const r = calcularJurosCompensatoriosPrice(10_000, data('2023-08-10'), data('2023-08-05'))
+    expect(r.juros).toBe(0)
+    expect(r.mesesComerciais).toBe(0)
+  })
+
+  it('não incide no próprio dia do Habite-se', () => {
+    const r = calcularJurosCompensatoriosPrice(10_000, data('2023-08-10'), data('2023-08-10'))
+    expect(r.juros).toBe(0)
   })
 })

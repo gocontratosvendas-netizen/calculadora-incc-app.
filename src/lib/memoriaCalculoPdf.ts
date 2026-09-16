@@ -22,6 +22,7 @@ export type MemoriaCalculoRow = {
   incc: number | null
   janela: string | null
   erroIndice: string | null
+  jurosCompensatorios?: number
   devido: number
   excesso: number
 }
@@ -36,6 +37,8 @@ export type MemoriaCalculoRelatorio = {
   totalDescontos: number
   totalJurosMora: number
   totalTaxasAdicionais: number
+  totalJurosCompensatorios?: number
+  temHabiteSe?: boolean
 }
 
 function formatPdfMoney(value: number) {
@@ -89,6 +92,8 @@ export function gerarMemoriaCalculoPdf(
   const marginY = 22
   const usableWidth = pageWidth - marginX * 2
 
+  const incluirJuros = Boolean(relatorio.temHabiteSe)
+
   const headers = [
     opcoes.rotuloData ?? 'Pagamento',
     'Contratual',
@@ -97,13 +102,16 @@ export function gerarMemoriaCalculoPdf(
     'Juros mora',
     'Descontos',
     'Taxas',
-    'INCC %',
+    incluirJuros ? 'Índice %' : 'INCC %',
+    ...(incluirJuros ? ['Juros Price'] : []),
     'Devido',
     'Pago',
     'Excesso',
   ]
 
-  const colWeights = [1.15, 1.35, 1.15, 0.95, 1.15, 1.1, 1.0, 1.55, 1.35, 1.35, 1.25]
+  const colWeights = incluirJuros
+    ? [1.1, 1.25, 1.05, 0.9, 1.05, 1.0, 0.9, 1.45, 1.1, 1.25, 1.25, 1.15]
+    : [1.15, 1.35, 1.15, 0.95, 1.15, 1.1, 1.0, 1.55, 1.35, 1.35, 1.25]
   const weightSum = colWeights.reduce((a, b) => a + b, 0)
   const colWidths = colWeights.map((w) => (w / weightSum) * usableWidth)
   const colXs: number[] = []
@@ -263,6 +271,7 @@ export function gerarMemoriaCalculoPdf(
         r.erroIndice
           ? r.erroIndice
           : `${formatPercent4(r.incc)}${r.janela ? ` ${r.janela}` : ''}`,
+        ...(incluirJuros ? [formatPdfMoney(r.jurosCompensatorios ?? 0)] : []),
         formatPdfMoney(r.devido),
         formatPdfMoney(r.vp),
         formatPdfMoney(r.excesso),
@@ -281,6 +290,7 @@ export function gerarMemoriaCalculoPdf(
       formatPdfMoney(relatorio.totalDescontos),
       formatPdfMoney(relatorio.totalTaxasAdicionais),
       '',
+      ...(incluirJuros ? [formatPdfMoney(relatorio.totalJurosCompensatorios ?? 0)] : []),
       formatPdfMoney(relatorio.totalDevido),
       formatPdfMoney(relatorio.totalPago),
       formatPdfMoney(relatorio.totalExcesso),

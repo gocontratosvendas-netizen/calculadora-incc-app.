@@ -3,6 +3,7 @@ import './App.css'
 import {
   arredondarMoeda,
   calcularFatorCorrecaoPorAniversarios,
+  calcularJurosCompensatoriosPrice,
   dataReferenciaDaParcela,
   formatarAnoMes,
   mesBaseDoIndice,
@@ -159,6 +160,7 @@ function App() {
 
   const [tela, setTela] = useState<'entrada' | 'resultado'>('entrada')
   const [dataAniversarioManual, setDataAniversarioManual] = useState('')
+  const [dataHabiteSe, setDataHabiteSe] = useState('')
   const [defasagemMeses, setDefasagemMeses] = useState<DefasagemMeses>(0)
   const [usarDataVencimento, setUsarDataVencimento] = useState(false)
   const [linhas, setLinhas] = useState<Linha[]>([criarLinhaVazia()])
@@ -278,6 +280,7 @@ function App() {
       'Taxas adicionais',
       'INCC acumulado',
       'Janela do índice',
+      ...(relatorio.temHabiteSe ? ['Juros compensatórios'] : []),
       'Valor devido',
       'Valor pago',
       'Valor cobrado em excesso',
@@ -293,6 +296,7 @@ function App() {
       r.taxasAdicionais,
       r.incc == null ? null : Number(r.incc.toFixed(4)),
       r.janela,
+      ...(relatorio.temHabiteSe ? [r.jurosCompensatorios] : []),
       r.devido,
       r.vp,
       r.excesso,
@@ -308,6 +312,7 @@ function App() {
       relatorio.totalTaxasAdicionais,
       null,
       null,
+      ...(relatorio.temHabiteSe ? [relatorio.totalJurosCompensatorios] : []),
       relatorio.totalDevido,
       relatorio.totalPago,
       relatorio.totalExcesso,
@@ -324,7 +329,8 @@ function App() {
       { wch: 12 },
       { wch: 16 },
       { wch: 14 },
-      { wch: 22 },
+      { wch: 28 },
+      ...(relatorio.temHabiteSe ? [{ wch: 20 }] : []),
       { wch: 14 },
       { wch: 14 },
       { wch: 22 },
@@ -384,17 +390,29 @@ function App() {
     }, null)
     const inicioEfetivo = parseDate(dataAniversarioManual) ?? maisAntiga
 
+    const habiteSeDate = parseDate(dataHabiteSe)
     const rows = linhasValidas.map((l) => {
       const baseInicio = inicioEfetivo ?? l.data!
+      const dataVencimentoParcela = parseDate(l.dataVencimento) ?? l.data!
       const correcao = calcularFatorCorrecaoPorAniversarios(
         baseInicio,
         l.data!,
         defasagemMeses,
+        {
+          dataHabiteSe: habiteSeDate,
+          dataVencimentoParcela,
+        },
       )
       const encargos =
         l.renegociacao + l.multa + l.jurosMora + l.taxasAdicionais - l.descontos
       const baseCorrigida = correcao.erro ? l.vc : arredondarMoeda(l.vc * correcao.fator)
-      const devido = correcao.erro ? l.vc + encargos : arredondarMoeda(baseCorrigida + encargos)
+      const jurosCompensatorios = habiteSeDate
+        ? calcularJurosCompensatoriosPrice(baseCorrigida, habiteSeDate, dataVencimentoParcela)
+            .juros
+        : 0
+      const devido = correcao.erro
+        ? arredondarMoeda(l.vc + encargos + jurosCompensatorios)
+        : arredondarMoeda(baseCorrigida + encargos + jurosCompensatorios)
       const excesso = l.vp - devido
       return {
         id: l.id,
@@ -410,6 +428,7 @@ function App() {
         incc: correcao.acumuladoPercentual,
         janela: correcao.janelaLabel,
         erroIndice: correcao.erro,
+        jurosCompensatorios,
         baseCorrigida,
         devido,
         excesso,
@@ -424,6 +443,9 @@ function App() {
     const totalDescontos = rows.reduce((acc, r) => acc + r.descontos, 0)
     const totalJurosMora = rows.reduce((acc, r) => acc + r.jurosMora, 0)
     const totalTaxasAdicionais = rows.reduce((acc, r) => acc + r.taxasAdicionais, 0)
+    const totalJurosCompensatorios = arredondarMoeda(
+      rows.reduce((acc, r) => acc + r.jurosCompensatorios, 0),
+    )
     const pagamentosIso = rows.map((r) => r.pagamento).slice().sort()
     const ultimaComCorrecao = rows.reduce<(typeof rows)[number] | null>((acc, r) => {
       if (r.n <= 0) return acc
@@ -441,6 +463,7 @@ function App() {
       periodoInicio: pagamentosIso[0] ?? '',
       periodoFim: pagamentosIso[pagamentosIso.length - 1] ?? '',
       inccUltimaCorrecao: ultimaComCorrecao?.incc ?? null,
+      temHabiteSe: Boolean(habiteSeDate),
       totalDevido,
       totalPago,
       totalExcesso,
@@ -449,8 +472,9 @@ function App() {
       totalDescontos,
       totalJurosMora,
       totalTaxasAdicionais,
+      totalJurosCompensatorios,
     }
-  }, [linhas, dataAniversarioManual, defasagemMeses, usarDataVencimento])
+  }, [linhas, dataAniversarioManual, dataHabiteSe, defasagemMeses, usarDataVencimento])
 
   const linhaEmEdicao = useMemo(() => {
     if (!edicaoValorPago) return null
@@ -571,7 +595,8 @@ function App() {
           <header className="app-header">
             <h1>Calculadora INCC</h1>
             <p className="app-subtitle">
-              Lançamento de pagamentos e apuração da correção no aniversário do contrato.
+              Lançamento de pagamentos e apuração da correção no aniversário do contrato. Com
+              Habite-se, a correção passa ao IGP-M e incidem juros Price de 12% a.a.
             </p>
           </header>
 
@@ -777,6 +802,35 @@ function App() {
               Usar a data da 1ª linha
             </label>
             <div className="param-field">
+              <label htmlFor="dataHabiteSe">Data do Habite-se</label>
+              <div className="param-date-wrap">
+                <input
+                  id="dataHabiteSe"
+                  type="date"
+                  className="table-input aniversario-input"
+                  value={dataHabiteSe}
+                  onChange={(e) => setDataHabiteSe(e.target.value)}
+                />
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                  <rect
+                    x="3"
+                    y="5"
+                    width="18"
+                    height="16"
+                    rx="2"
+                    stroke="#8794A8"
+                    strokeWidth="1.6"
+                  />
+                  <path
+                    d="M3 10h18M8 3v4M16 3v4"
+                    stroke="#8794A8"
+                    strokeWidth="1.6"
+                    strokeLinecap="round"
+                  />
+                </svg>
+              </div>
+            </div>
+            <div className="param-field">
               <label htmlFor="defasagemIndice">Defasagem do índice</label>
               <select
                 id="defasagemIndice"
@@ -821,13 +875,25 @@ function App() {
                   />
                 </svg>
                 <span>
-                  INCC-DI acumulado 12 meses · <em>metodologia</em>
+                  {dataHabiteSe
+                    ? 'INCC até o Habite-se · IGP-M depois · juros Price'
+                    : 'INCC-DI acumulado 12 meses'}{' '}
+                  · <em>metodologia</em>
                 </span>
               </summary>
               <div className="method-panel">
-                No aniversário, aplicamos o INCC-DI acumulado em 12 meses. A defasagem só recua
+                No aniversário, aplicamos o índice acumulado em 12 meses. A defasagem só recua
                 o índice-base; a faixa vem da data de{' '}
                 {usarDataVencimento ? 'vencimento da parcela' : 'pagamento'}.
+                {dataHabiteSe ? (
+                  <>
+                    {' '}
+                    Parcelas que vencem antes do mês do Habite-se seguem no INCC-DI. A partir
+                    desse mês, a janela passa a usar IGP-M. Parcelas com vencimento a partir da
+                    data do Habite-se recebem juros compensatórios de 12% a.a. pela Tabela Price
+                    sobre o valor já corrigido.
+                  </>
+                ) : null}
               </div>
             </details>
             </div>
@@ -1092,12 +1158,17 @@ function App() {
           <header className="report-header">
             <div className="report-header-left">
               <p className="report-eyebrow">Relatório de apuração</p>
-              <h1 className="report-title">Correção monetária pelo INCC</h1>
+              <h1 className="report-title">
+                {relatorio.temHabiteSe
+                  ? 'Correção monetária INCC / IGP-M'
+                  : 'Correção monetária pelo INCC'}
+              </h1>
               <div className="report-gold-rule" aria-hidden="true" />
               <p className="report-id">
                 {dataAniversarioManual
                   ? `Contrato de ${formatDataBase(dataAniversarioManual)}`
                   : 'Contrato'}
+                {dataHabiteSe ? ` · Habite-se em ${formatDataBase(dataHabiteSe)}` : ''}
               </p>
             </div>
             <div className="report-header-actions no-print">
@@ -1212,13 +1283,19 @@ function App() {
                   />
                 </svg>
                 <p>
-                  A correção passou a incidir após o 1º aniversário, com INCC-DI de{' '}
+                  A correção passou a incidir após o 1º aniversário
+                  {relatorio.temHabiteSe
+                    ? ', com INCC-DI até o mês do Habite-se e IGP-M a partir dele'
+                    : ''}
+                  , acumulando{' '}
                   <span className="report-em">
                     {relatorio.inccUltimaCorrecao == null
                       ? '—'
                       : formatPercent4(relatorio.inccUltimaCorrecao)}
                   </span>
-                  .
+                  {relatorio.temHabiteSe
+                    ? '. Juros compensatórios de 12% a.a. (Tabela Price) sobre o valor corrigido, da data do Habite-se ao vencimento.'
+                    : '.'}
                 </p>
               </div>
               <div className="report-finding">
@@ -1368,11 +1445,13 @@ function App() {
             ) : null}
 
             <table
-              className={
-                detalharAjustes
-                  ? 'memoria-table memoria-table--expanded'
-                  : 'memoria-table memoria-table--collapsed'
-              }
+              className={[
+                'memoria-table',
+                detalharAjustes ? 'memoria-table--expanded' : 'memoria-table--collapsed',
+                relatorio.temHabiteSe ? 'memoria-table--habitese' : '',
+              ]
+                .filter(Boolean)
+                .join(' ')}
             >
               <thead>
                 <tr>
@@ -1411,10 +1490,27 @@ function App() {
                     Taxas adicionais
                   </th>
                   <th scope="col" className="col-incc">
-                    INCC
-                    <br />
-                    / janela
+                    {relatorio.temHabiteSe ? (
+                      <>
+                        Índice
+                        <br />
+                        / janela
+                      </>
+                    ) : (
+                      <>
+                        INCC
+                        <br />
+                        / janela
+                      </>
+                    )}
                   </th>
+                  {relatorio.temHabiteSe ? (
+                    <th scope="col" className="col-juros-price">
+                      Juros
+                      <br />
+                      Price
+                    </th>
+                  ) : null}
                   <th scope="col" className="col-devido col-divider">
                     Valor
                     <br />
@@ -1465,6 +1561,11 @@ function App() {
                           </>
                         )}
                       </td>
+                      {relatorio.temHabiteSe ? (
+                        <td className="col-juros-price col-num">
+                          {formatCelulaNumero(r.jurosCompensatorios)}
+                        </td>
+                      ) : null}
                       <td className="col-devido col-divider col-num">
                         {formatCelulaNumero(r.devido)}
                       </td>
@@ -1543,6 +1644,11 @@ function App() {
                     {formatCelulaNumero(relatorio.totalTaxasAdicionais)}
                   </td>
                   <td className="col-incc" />
+                  {relatorio.temHabiteSe ? (
+                    <td className="col-juros-price col-num">
+                      {formatCelulaNumero(relatorio.totalJurosCompensatorios)}
+                    </td>
+                  ) : null}
                   <td className="col-devido col-divider col-num">
                     {formatCelulaNumero(relatorio.totalDevido)}
                   </td>
@@ -1567,14 +1673,18 @@ function App() {
 
             <p className="memoria-note">
               <span className="memoria-note-label">Metodologia.</span> Valor devido = (Valor
-              contratual × fator INCC) + Renegociação + Multa + Juros de mora + Taxas adicionais −
-              Descontos. A correção INCC só começa após o 1º aniversário. A defasagem recua o
-              índice-base, sem alterar a faixa nem o tamanho da janela
+              contratual × fator de correção)
+              {relatorio.temHabiteSe ? ' + Juros compensatórios (Tabela Price, 12% a.a.)' : ''} +
+              Renegociação + Multa + Juros de mora + Taxas adicionais − Descontos. A correção só
+              começa após o 1º aniversário. A defasagem recua o índice-base, sem alterar a faixa
+              nem o tamanho da janela
               {usarDataVencimento
                 ? '. A faixa de cada parcela usa a data de vencimento.'
-                : '.'}{' '}
-              Valores em reais.{' '}
-              {relatorio.rows.length} lançamentos apurados.
+                : '.'}
+              {relatorio.temHabiteSe
+                ? ' Parcelas que vencem antes do mês do Habite-se usam INCC-DI; a partir desse mês, a janela usa IGP-M. Juros Price incidem da data do Habite-se até o vencimento, sobre o valor já corrigido.'
+                : ''}{' '}
+              Valores em reais. {relatorio.rows.length} lançamentos apurados.
             </p>
           </div>
 
