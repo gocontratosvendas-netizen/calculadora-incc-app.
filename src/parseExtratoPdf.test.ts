@@ -735,3 +735,134 @@ describe('parseExtratoFromRows — Posição Financeira MAC', () => {
     expect(resultado.lancamentos).toHaveLength(1)
   })
 })
+
+const BOULEVARD_ORIGENS_33 = [
+  'Cliente: GABRIEL LUIZ CHILITANO GOUVEA',
+  'Projeto: Boulevard Lapa',
+  'Bloco: Origens Data da Compra: 06/11/2013',
+  'Unidade: 33',
+  'S P Original Dt.Venc. Dt.Pagto Atualizado Atr. At.Pago P.Rata Multa Mora Desc.TP Pago Status',
+  '1 1 4.524,00 06/11/2013 07/11/2013 4.524,00 1 4.524,00 0 0 0 0 4.524,00 Pago',
+  '2 1 4.524,00 06/12/2013 06/12/2013 4.535,89 0 4.535,89 0 0 0 0 4.535,89 Pago',
+  '3 1 2.000,00 06/01/2014 06/01/2014 2.012,25 0 2.012,25 0 0 0 0 2.012,25 Pago',
+  '4 1 2.000,00 06/02/2014 06/02/2014 2.014,26 0 2.014,26 0 0 0 0 2.014,26 Pago',
+  '5 1 1.600,00 01/03/2014 05/03/2014 1.625,55 4 1.625,55 0 0 0 0 1.625,55 Pago',
+  '5 2 1.600,00 01/04/2014 01/04/2014 1.630,84 0 1.630,84 0 0 0 0 1.630,84 Pago',
+  '5 3 1.600,00 01/05/2014 02/05/2014 1.635,35 1 1.635,35 0 0 0 0 1.635,35 Pago',
+  '5 4 1.600,00 01/06/2014 02/06/2014 1.649,81 1 1.649,81 0 0 0 0 1.649,81 Pago',
+  '5 5 1.600,00 01/07/2014 01/07/2014 1.683,69 0 1.683,69 0 0 0 0 1.683,69 Pago',
+  '5 6 1.600,00 01/08/2014 01/08/2014 1.694,86 0 1.694,86 0 0 0 0 1.694,86 Pago',
+  '5 7 1.600,00 01/09/2014 01/09/2014 1.707,49 0 1.707,49 0 0 0 0 1.707,49 Pago',
+  '5 8 1.600,00 01/10/2014 01/10/2014 1.708,80 0 1.708,80 0 0 0 0 1.708,80 Pago',
+  '5 9 1.600,00 01/11/2014 03/11/2014 1.711,44 2 1.711,44 0 0 0 0 1.711,44 Pago',
+  '5 10 1.600,00 01/12/2014 01/12/2014 1.714,41 0 1.714,41 0 0 0 0 1.714,41 Pago',
+  '6 1 500 01/12/2014 01/12/2014 535,75 0 535,75 0 0 0 0 535,75 Pago',
+  '5 11 1.600,00 01/01/2015 05/01/2015 1.722,00 4 1.722,00 0 0 0 0 1.722,00 Pago',
+  '5 12 1.600,00 01/02/2015 02/02/2015 1.723,43 1 1.723,43 0 0 0 0 1.723,43 Pago',
+  '5 13 1.600,00 01/03/2015 02/03/2015 1.739,24 1 1.739,24 0 0 0 0 1.739,24 Pago',
+  '5 14 1.600,00 01/04/2015 01/04/2015 1.744,60 0 1.744,60 0 0 0 0 1.744,60 Pago',
+  '5 15 1.600,00 01/05/2015 04/05/2015 1.755,45 3 1.755,45 0 0 0 0 1.755,45 Pago',
+  '5 16 1.600,00 01/06/2015 01/06/2015 1.763,47 0 1.763,47 0 0 0 0 1.763,47 Pago',
+  '5 17 1.600,00 01/07/2015 01/07/2015 1.780,28 0 1.780,28 0 0 0 0 1.780,28 Pago',
+  '5 18 1.600,00 01/08/2015 03/08/2015 1.812,95 2 1.812,95 0 0 0 0 1.812,95 Pago',
+  '5 19 1.600,00 01/09/2015 01/09/2015 1.822,87 0 1.822,87 0 0 0 0 1.822,87 Pago',
+  '5 20 1.600,00 01/10/2015 01/10/2015 1.833,61 0 1.833,61 0 0 0 0 1.833,61 Pago',
+  'Posição Financeira',
+  '5 21 1.600,00 01/11/2015 03/11/2015 1.837,61 2 1.837,61 0 0 0 0 1.837,61 Pago',
+  '5 22 1.600,00 01/12/2015 01/12/2015 1.844,20 0 1.844,20 0 0 0 0 1.844,20 Pago',
+  '7 1 11.500,00 01/12/2015 01/12/2015 13.255,21 0 13.255,21 0 0 0 0 13.255,21 Pago',
+  '5 23 1.600,00 01/01/2016 04/01/2016 1.850,44 3 1.850,44 0 0 0 0 1.850,44 Pago',
+  '5 24 1.600,00 01/02/2016 10/02/2016 1.852,37 9 1.852,37 0,58 37,05 5,46 0 1.895,46 Pago',
+  '5 25 1.600,00 01/03/2016 01/03/2016 1.859,62 0 1.859,62 0 0 0 0 1.859,62 Pago',
+  '5 26 1.600,00 01/04/2016 01/04/2016 1.869,62 0 1.869,62 0 0 0 0 1.869,62 Pago',
+  '5 27 1.600,00 01/05/2016 02/05/2016 1.881,55 1 1.881,55 0 0 0 0 1.881,55 Pago',
+  '5 28 1.600,00 01/06/2016 01/06/2016 1.891,86 0 1.891,86 0 0 0 0 1.891,86 Pago',
+  '5 29 1.600,00 01/07/2016 01/07/2016 1.893,44 0 1.893,44 0 0 0 0 1.893,44 Pago',
+  '8 1 49.600,00 01/08/2016 01/08/2016 59.829,54 0 59.829,54 0 0 0 0 59.829,54 Pago',
+  '9 1 1.478,62 01/11/2016 28/10/2016 1.789,33 0 1.789,33 2,37 0 0 2,22 1.789,48 Pago',
+  '9 1 311.977,64 01/11/2016 29/11/2016 378.276,90 28 378.276,90 695,73 1.567,42 0 0 380.540,05 Pago',
+  '10 1 104,83 01/12/2016 29/11/2016 127,11 0 127,11 0,23 0 0 0,08 127,26 Pago',
+  '10 2 104,83 01/01/2017 29/11/2016 127,11 0 127,11 0,23 0 0 1,3 126,04 Pago',
+  '10 3 104,83 01/02/2017 29/11/2016 127,1 0 127,1 0,23 0 0 2,5 124,83 Pago',
+  '520.698,50',
+]
+
+describe('parseExtratoFromRows — Boulevard Origens 33 (Relação com At.Pago)', () => {
+  it('lê as 41 parcelas, inclusive o original 500 sem centavos', () => {
+    const resultado = parseExtratoFromRows(rowsFromLines(BOULEVARD_ORIGENS_33))
+
+    expect(resultado.dataAssinatura).toBe('2013-11-06')
+    expect(resultado.lancamentos).toHaveLength(41)
+    expect(resultado.verificacao).toMatchObject({
+      ok: true,
+      linhasEsperadas: 41,
+      linhasLidas: 41,
+    })
+    expect(
+      resultado.lancamentos.find((l) => l.parcela === '6-1'),
+    ).toMatchObject({
+      valorContratual: '500,00',
+      valorPago: '535,75',
+      dataPagamento: '2014-12-01',
+      dataVencimento: '2014-12-01',
+      jurosMora: '0,00',
+    })
+  })
+
+  it('soma P.Rata e Mora como juros e não desloca multa/desconto quando o zero vem sem centavos', () => {
+    const resultado = parseExtratoFromRows(rowsFromLines(BOULEVARD_ORIGENS_33))
+
+    expect(
+      resultado.lancamentos.find((l) => l.parcela === '5-24'),
+    ).toMatchObject({
+      valorContratual: '1.600,00',
+      valorPago: '1.895,46',
+      jurosMora: '6,04',
+      multa: '37,05',
+      descontos: '0,00',
+    })
+
+    expect(
+      resultado.lancamentos.find(
+        (l) => l.parcela === '9-1' && l.valorContratual === '1.478,62',
+      ),
+    ).toMatchObject({
+      jurosMora: '2,37',
+      multa: '0,00',
+      descontos: '2,22',
+    })
+
+    expect(
+      resultado.lancamentos.find((l) => l.valorContratual === '311.977,64'),
+    ).toMatchObject({
+      jurosMora: '695,73',
+      multa: '1.567,42',
+      descontos: '0,00',
+      valorPago: '380.540,05',
+    })
+
+    expect(
+      resultado.lancamentos.find((l) => l.parcela === '10-3'),
+    ).toMatchObject({
+      jurosMora: '0,23',
+      multa: '0,00',
+      descontos: '2,50',
+      valorPago: '124,83',
+    })
+  })
+
+  it('avisa quando uma linha Pago do PDF não entra na importação', () => {
+    const resultado = parseExtratoFromRows(
+      rowsFromLines([
+        'S P Original Dt.Venc. Dt.Pagto Atualizado Atr. At.Pago P.Rata Multa Mora Desc.TP Pago Status',
+        '1 1 7.000,00 14/08/2014 20/08/2014 7.000,00 6 7.000,00 0 0 0 0 7.000,00 Pago',
+        '2 1 ??? 14/09/2014 25/09/2014 7.052,18 11 7.052,18 0 0 0 0 7.096,83 Pago',
+      ]),
+    )
+
+    expect(resultado.lancamentos).toHaveLength(1)
+    expect(resultado.verificacao?.ok).toBe(false)
+    expect(resultado.verificacao?.linhasEsperadas).toBe(2)
+    expect(resultado.verificacao?.avisos.join(' ')).toMatch(/2-1/)
+  })
+})

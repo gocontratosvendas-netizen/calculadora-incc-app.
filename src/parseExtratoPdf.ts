@@ -1,7 +1,12 @@
 import { getDocument, GlobalWorkerOptions } from 'pdfjs-dist'
 import { parseExtratoFromRows, type ExtratoParseResult, type PdfTextRow } from './parseExtratoPdfCore'
 
-export type { ExtratoParseResult, LancamentoExtraido, PdfTextRow } from './parseExtratoPdfCore'
+export type {
+  ExtratoParseResult,
+  ExtratoVerificacao,
+  LancamentoExtraido,
+  PdfTextRow,
+} from './parseExtratoPdfCore'
 export { parseExtratoFromRows } from './parseExtratoPdfCore'
 
 // Worker do pdf.js para rodar no browser (Vite)

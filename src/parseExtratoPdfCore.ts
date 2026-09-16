@@ -11,9 +11,17 @@ export type LancamentoExtraido = {
   parcela?: string
 }
 
+export type ExtratoVerificacao = {
+  ok: boolean
+  linhasEsperadas: number
+  linhasLidas: number
+  avisos: string[]
+}
+
 export type ExtratoParseResult = {
   dataAssinatura: string | null // yyyy-mm-dd
   lancamentos: LancamentoExtraido[]
+  verificacao?: ExtratoVerificacao
 }
 
 export type PdfTextRow = {
@@ -71,14 +79,24 @@ function isMoney(token: string) {
   return /^-?\d{1,3}(?:\.\d{3})*,\d{2}$/.test(normalizeMoneyToken(token))
 }
 
-/** Aceita valores com 1 ou 2 casas decimais (ex.: 8,3 e 590,6 no Boulevard). */
+/** Inteiro sem casas (ex.: Original 500). Documentos MAC têm 7+ dígitos. */
+function isIntegerMoneyToken(token: string) {
+  return /^-?\d{1,6}$/.test(normalizeMoneyToken(token))
+}
+
+/** Aceita valores com 1 ou 2 casas decimais (ex.: 8,3 e 590,6 no Boulevard) ou inteiros. */
 function isFlexibleMoney(token: string) {
   const t = normalizeMoneyToken(token)
-  return /^-?\d{1,3}(?:\.\d{3})*,\d{1,2}$/.test(t)
+  return /^-?\d{1,3}(?:\.\d{3})*,\d{1,2}$/.test(t) || isIntegerMoneyToken(t)
 }
 
 function normalizeFlexibleMoney(token: string): string | null {
   const t = normalizeMoneyToken(token)
+  if (isIntegerMoneyToken(t)) {
+    const sign = t.startsWith('-') ? '-' : ''
+    const intPart = t.replace(/^-/, '')
+    return `${sign}${inserirMilharBr(intPart)},00`
+  }
   if (!isFlexibleMoney(t)) return null
   const m = t.match(/^(-?\d{1,3}(?:\.\d{3})*,)(\d{1,2})$/)
   if (!m) return null
@@ -132,7 +150,7 @@ function parecePosicaoFinanceiraBenx(fullText: string) {
 
 function parecePosicaoFinanceiraMac(fullText: string) {
   const t = semAcento(fullText).toLowerCase()
-  return t.includes('dt.pagto') && t.includes('at.pago')
+  return t.includes('dt.pagto') && (t.includes('at.pago') || t.includes('at. pago'))
 }
 
 function parecePosicaoFinanceira(fullText: string) {
@@ -168,6 +186,52 @@ function isStatusPago(token: string) {
 
 function isIntegerToken(token: string) {
   return /^\d+$/.test(token.trim())
+}
+
+function isDocReciboToken(token: string) {
+  return /^\d{7,}$/.test(token.trim())
+}
+
+function linhaPagaTabelaSp(tokens: string[]) {
+  if (tokens.length < 8) return false
+  if (!isSerieParcela(tokens[0]) || !isSerieParcela(tokens[1])) return false
+  if (tokens.filter(isDateBr).length < 2) return false
+  return tokens.some(isStatusPago)
+}
+
+function verificarTabelaSp(
+  rows: PdfTextRow[],
+  lancamentos: LancamentoExtraido[],
+  parseLinha: (tokens: string[]) => LancamentoExtraido | null,
+): ExtratoVerificacao {
+  const ignoradas: string[] = []
+  let esperadas = 0
+
+  for (const row of rows) {
+    const tokens = tokensFromRow(row)
+    if (!linhaPagaTabelaSp(tokens)) continue
+    esperadas += 1
+    if (!parseLinha(tokens)) {
+      ignoradas.push(`${tokens[0]}-${tokens[1]}`)
+    }
+  }
+
+  const avisos: string[] = []
+  if (esperadas !== lancamentos.length) {
+    const detalhe = ignoradas.length
+      ? ` Não lidas: ${ignoradas.slice(0, 8).join(', ')}${ignoradas.length > 8 ? '…' : ''}.`
+      : ''
+    avisos.push(
+      `O PDF tem ${esperadas} parcela(s) paga(s) e a importação trouxe ${lancamentos.length}.${detalhe}`,
+    )
+  }
+
+  return {
+    ok: avisos.length === 0,
+    linhasEsperadas: esperadas,
+    linhasLidas: lancamentos.length,
+    avisos,
+  }
 }
 
 function chaveLancamento(l: LancamentoExtraido) {
@@ -337,6 +401,8 @@ function dataAssinaturaPosicaoFinanceiraMac(fullText: string) {
   if (pcv) return brDateToIso(pcv[1])
   const labeled = dataAssinaturaPosicaoFinanceira(fullText)
   if (labeled) return labeled
+  const compra = dataAssinaturaRelacaoValoresPagos(fullText)
+  if (compra) return compra
   const header = fullText.match(
     /\b\d{1,6}\s+(\d{2}\/\d{2}\/\d{4})\s+\d{2}\/\d{2}\/\d{4}\s+\d{2}\/\d{2}\/\d{4}[\s\S]{0,80}\bQuitado\b/i,
   )
@@ -382,11 +448,18 @@ function parseLancamentoPosicaoFinanceiraMac(
   let rest = tokens.slice(5)
   while (rest.length) {
     const last = rest[rest.length - 1]
-    if (isStatusPago(last) || isIntegerToken(last)) {
+    if (isStatusPago(last) || isDocReciboToken(last)) {
       rest = rest.slice(0, -1)
       continue
     }
     break
+  }
+
+  // Atualizado | Atr. | At.Pago | P.Rata | Multa | Mora | Desc... | Pago
+  // Atr. é dias (inteiro). Zeros sem centavos nas colunas de dinheiro são juros/multa/desc.
+  if (!normalizeFlexibleMoney(rest[0] ?? '')) return null
+  if (rest[1] && isIntegerToken(rest[1]) && !rest[1].includes(',')) {
+    rest = [rest[0], ...rest.slice(2)]
   }
 
   const moneys = rest
@@ -433,13 +506,20 @@ function parsePosicaoFinanceiraMacFromRows(rows: PdfTextRow[]): ExtratoParseResu
     lancamentos.push(parsed)
   }
 
-  return { dataAssinatura: dataAssinaturaPosicaoFinanceiraMac(fullText), lancamentos }
+  const verificacao = verificarTabelaSp(rows, lancamentos, parseLancamentoPosicaoFinanceiraMac)
+  return {
+    dataAssinatura: dataAssinaturaPosicaoFinanceiraMac(fullText),
+    lancamentos,
+    verificacao,
+  }
 }
 
 /**
  * Relação Valores Pagos (Boulevard / Tecnisa):
- * S | P | Original | Dt.Venc. | Dt.Pagto | Atualizado | Atr. | P.Rata | Mora | Desc. | Adic. | Pago
+ * Curta: S | P | Original | Dt.Venc. | Dt.Pagto | Atualizado | Atr. | P.Rata | Mora | Desc. | Adic. | Pago
+ * Larga (com At.Pago/Multa): ... | Atualizado | Atr. | At.Pago | P.Rata | Multa | Mora | Desc. | Pago
  *
+ * P.Rata entra em juros de mora junto com Mora.
  * A coluna Atualizado é ignorada: a calculadora reaplica o INCC sobre o Original.
  */
 function parseLancamentoRelacaoValoresPagos(tokens: string[]): LancamentoExtraido | null {
@@ -466,19 +546,17 @@ function parseLancamentoRelacaoValoresPagos(tokens: string[]): LancamentoExtraid
   const tail = rest.slice(0, -1)
   if (tail.length < 5) return null
 
-  const prata = normalizeFlexibleMoney(tail[2]) ?? ZERO
-  const mora = normalizeFlexibleMoney(tail[3]) ?? ZERO
-
-  let descontos = ZERO
-  let taxasAdicionais = ZERO
-  if (tail.length === 5) {
-    descontos = normalizeFlexibleMoney(tail[4]) ?? ZERO
-  } else if (tail.length >= 6) {
-    descontos = normalizeFlexibleMoney(tail[4]) ?? ZERO
-    taxasAdicionais = normalizeFlexibleMoney(tail[5]) ?? ZERO
-  }
-
-  const jurosMora = somarMoedaBr(prata, mora)
+  // Layout largo: Atualizado, Atr, At.Pago, P.Rata, Multa, Mora, Desc
+  const layoutLargo = tail.length >= 7
+  const prata = normalizeFlexibleMoney(tail[layoutLargo ? 3 : 2]) ?? ZERO
+  const multa = layoutLargo ? (normalizeFlexibleMoney(tail[4]) ?? ZERO) : ZERO
+  const mora = normalizeFlexibleMoney(tail[layoutLargo ? 5 : 3]) ?? ZERO
+  const descontos = normalizeFlexibleMoney(tail[layoutLargo ? 6 : 4]) ?? ZERO
+  const taxasAdicionais = layoutLargo
+    ? (normalizeFlexibleMoney(tail[7]) ?? ZERO)
+    : tail.length >= 6
+      ? (normalizeFlexibleMoney(tail[5]) ?? ZERO)
+      : ZERO
 
   return {
     dataPagamento,
@@ -486,8 +564,8 @@ function parseLancamentoRelacaoValoresPagos(tokens: string[]): LancamentoExtraid
     valorContratual: original,
     valorPago,
     renegociacao: ZERO,
-    multa: ZERO,
-    jurosMora,
+    multa,
+    jurosMora: somarMoedaBr(prata, mora),
     descontos,
     taxasAdicionais,
     parcela: `${tokens[0]}-${tokens[1]}`,
@@ -508,8 +586,7 @@ function parseRelacaoValoresPagosFromRows(rows: PdfTextRow[]): ExtratoParseResul
     }
     if (text.startsWith('bloco:')) continue
 
-    const tokens = row.cells.map((c) => c.str.trim()).filter(Boolean)
-    const parsed = parseLancamentoRelacaoValoresPagos(tokens)
+    const parsed = parseLancamentoRelacaoValoresPagos(tokensFromRow(row))
     if (!parsed) continue
 
     const key = chaveLancamento(parsed)
@@ -518,7 +595,12 @@ function parseRelacaoValoresPagosFromRows(rows: PdfTextRow[]): ExtratoParseResul
     lancamentos.push(parsed)
   }
 
-  return { dataAssinatura: dataAssinaturaRelacaoValoresPagos(fullText), lancamentos }
+  const verificacao = verificarTabelaSp(rows, lancamentos, parseLancamentoRelacaoValoresPagos)
+  return {
+    dataAssinatura: dataAssinaturaRelacaoValoresPagos(fullText),
+    lancamentos,
+    verificacao,
+  }
 }
 
 function parseCivilWebFromRows(rows: PdfTextRow[]): ExtratoParseResult {

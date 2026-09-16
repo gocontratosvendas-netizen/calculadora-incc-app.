@@ -170,6 +170,7 @@ function App() {
   const [exportando, setExportando] = useState(false)
   const [importandoPdf, setImportandoPdf] = useState(false)
   const [mensagemImportacao, setMensagemImportacao] = useState<string | null>(null)
+  const [avisoImportacao, setAvisoImportacao] = useState<string | null>(null)
   const [detalharAjustes, setDetalharAjustes] = useState(false)
   const [popupCadastrarClienteAberto, setPopupCadastrarClienteAberto] = useState(false)
   const [nomeClienteCaso, setNomeClienteCaso] = useState('')
@@ -184,12 +185,14 @@ function App() {
   async function handleImportarPdf(file: File) {
     if (ehImagemExtrato(file)) {
       setMensagemImportacao(MENSAGEM_IMAGEM_EXTRATO)
+      setAvisoImportacao(null)
       if (pdfInputRef.current) pdfInputRef.current.value = ''
       return
     }
 
     setImportandoPdf(true)
     setMensagemImportacao(null)
+    setAvisoImportacao(null)
     try {
       const resultado = await parseExtratoFinanceiroPdf(file)
       if (!resultado.lancamentos.length) {
@@ -216,6 +219,8 @@ function App() {
       setDataAniversarioManual(
         resultado.dataAssinatura ?? novasLinhas[0]?.dataPagamento ?? '',
       )
+      const avisos = resultado.verificacao?.avisos ?? []
+      setAvisoImportacao(avisos.length ? avisos.join(' ') : null)
       setMensagemImportacao(
         `PDF importado: ${novasLinhas.length} lançamento(s)${
           resultado.dataAssinatura
@@ -573,7 +578,12 @@ function App() {
           <div
             className={[
               'import-card',
-              importacaoOk && !importandoPdf && !importacaoErro ? 'import-card--compact' : '',
+              importacaoOk && !importandoPdf && !importacaoErro && !avisoImportacao
+                ? 'import-card--compact'
+                : '',
+              importacaoOk && !importandoPdf && !importacaoErro && avisoImportacao
+                ? 'import-card--compact import-card--with-warning'
+                : '',
               importandoPdf ? 'is-disabled' : '',
             ]
               .filter(Boolean)
@@ -617,7 +627,8 @@ function App() {
                 Lendo o extrato…
               </div>
             ) : importacaoOk && !importacaoErro ? (
-              <div className="import-compact-row">
+              <div className="import-compact-wrap">
+                <div className="import-compact-row">
                 <span>
                   {ultimoNomePdfImportado || 'PDF'} · {resumoLancamentos.totalLinhas}{' '}
                   lançamentos importados
@@ -629,6 +640,8 @@ function App() {
                 >
                   Trocar arquivo
                 </button>
+                </div>
+                {avisoImportacao ? <p className="import-warning">{avisoImportacao}</p> : null}
               </div>
             ) : (
               <>
