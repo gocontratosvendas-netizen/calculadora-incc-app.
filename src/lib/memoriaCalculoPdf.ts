@@ -268,9 +268,7 @@ export function gerarMemoriaCalculoPdf(
         formatPdfMoney(r.jurosMora),
         formatPdfMoney(r.descontos),
         formatPdfMoney(r.taxasAdicionais),
-        r.erroIndice
-          ? r.erroIndice
-          : `${formatPercent4(r.incc)}${r.janela ? ` ${r.janela}` : ''}`,
+        r.erroIndice ? r.erroIndice : formatPercent4(r.incc),
         ...(incluirJuros ? [formatPdfMoney(r.jurosCompensatorios ?? 0)] : []),
         formatPdfMoney(r.devido),
         formatPdfMoney(r.vp),
