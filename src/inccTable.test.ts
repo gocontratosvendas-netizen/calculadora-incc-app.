@@ -213,6 +213,10 @@ describe('Habite-se: troca INCC → IGP-M na mesma janela de competência', () =
     expect(percentualExibido(r.fator)).toBe(
       percentualExibido(fatorMisto('2023-06', '2024-05', '2023-08')),
     )
+    expect(r.fatorIncc).toBeGreaterThan(1)
+    expect(r.fatorIgpm).toBeGreaterThan(1)
+    expect(r.acumuladoInccPercentual).toBeGreaterThan(0)
+    expect(r.acumuladoIgpmPercentual).toBeGreaterThan(0)
   })
 
   it('no mês do Habite-se já usa IGP-M, mesmo com vencimento em dia anterior', () => {

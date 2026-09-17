@@ -10,6 +10,7 @@ export default defineConfig({
       'src/modules/configuracoes/**/*.test.ts',
       'src/lib/casos.test.ts',
       'src/lib/exportarCasos.test.ts',
+      'src/lib/memoriaCalculo.test.ts',
       'src/parseExtratoPdf.test.ts',
       'src/inccTable.test.ts',
     ],

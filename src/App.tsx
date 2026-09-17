@@ -1,15 +1,13 @@
 import { useMemo, useRef, useState } from 'react'
 import './App.css'
-import {
-  arredondarMoeda,
-  calcularFatorCorrecaoPorAniversarios,
-  calcularJurosCompensatoriosPrice,
-  dataReferenciaDaParcela,
-  formatarAnoMes,
-  mesBaseDoIndice,
-  type DefasagemMeses,
-} from './inccTable'
+import { type DefasagemMeses } from './inccTable'
 import { cadastrarCaso } from './lib/casos'
+import {
+  montarRelatorioMemoria,
+  parseMoneyBr,
+  type LancamentoMemoria,
+  type MemoriaCalculoInput,
+} from './lib/memoriaCalculo'
 import { mensagemErroSupabase } from './lib/supabase'
 import {
   gerarMemoriaCalculoPdf,
@@ -342,17 +340,10 @@ function App() {
   }
 
   function parseMoney(value: string) {
-    const normalized = value
-      .replace(/\s/g, '')
-      .replace('R$', '')
-      .replace(/\./g, '')
-      .replace(',', '.')
-    const num = Number(normalized)
-    return Number.isFinite(num) ? num : 0
+    return parseMoneyBr(value)
   }
 
   function parseDate(value: string) {
-    // yyyy-mm-dd
     const [y, m, d] = value.split('-').map(Number)
     if (!y || !m || !d) return null
     const date = new Date(y, m - 1, d)
@@ -360,121 +351,56 @@ function App() {
     return date
   }
 
-  const relatorio = useMemo(() => {
-    const linhasValidas = linhas
-      .map((l) => {
-        const iso = dataReferenciaDaParcela(
-          l.dataPagamento,
-          l.dataVencimento,
-          usarDataVencimento,
-        )
-        return {
-          ...l,
-          iso,
-          data: parseDate(iso),
-          vc: parseMoney(l.valorContratual),
-          vp: parseMoney(l.valorPago),
-          renegociacao: parseMoney(l.renegociacao),
-          multa: parseMoney(l.multa),
-          descontos: parseMoney(l.descontos),
-          jurosMora: parseMoney(l.jurosMora),
-          taxasAdicionais: parseMoney(l.taxasAdicionais),
-        }
-      })
-      .filter((l) => l.data && l.vc > 0)
+  function lancamentosDaEntrada(): LancamentoMemoria[] {
+    return linhas.map((l) => ({
+      id: l.id,
+      dataPagamento: l.dataPagamento,
+      dataVencimento: l.dataVencimento,
+      valorContratual: parseMoney(l.valorContratual),
+      valorPago: parseMoney(l.valorPago),
+      renegociacao: parseMoney(l.renegociacao),
+      multa: parseMoney(l.multa),
+      descontos: parseMoney(l.descontos),
+      jurosMora: parseMoney(l.jurosMora),
+      taxasAdicionais: parseMoney(l.taxasAdicionais),
+    }))
+  }
 
-    const maisAntiga = linhasValidas.reduce<Date | null>((acc, l) => {
-      const data = l.data!
-      if (!acc || data.getTime() < acc.getTime()) return data
-      return acc
-    }, null)
-    const inicioEfetivo = parseDate(dataAniversarioManual) ?? maisAntiga
-
-    const habiteSeDate = parseDate(dataHabiteSe)
-    const rows = linhasValidas.map((l) => {
-      const baseInicio = inicioEfetivo ?? l.data!
-      const dataVencimentoParcela = parseDate(l.dataVencimento) ?? l.data!
-      const correcao = calcularFatorCorrecaoPorAniversarios(
-        baseInicio,
-        l.data!,
-        defasagemMeses,
-        {
-          dataHabiteSe: habiteSeDate,
-          dataVencimentoParcela,
-        },
-      )
-      const encargos =
-        l.renegociacao + l.multa + l.jurosMora + l.taxasAdicionais - l.descontos
-      const baseCorrigida = correcao.erro ? l.vc : arredondarMoeda(l.vc * correcao.fator)
-      const jurosCompensatorios = habiteSeDate
-        ? calcularJurosCompensatoriosPrice(baseCorrigida, habiteSeDate, dataVencimentoParcela)
-            .juros
-        : 0
-      const devido = correcao.erro
-        ? arredondarMoeda(l.vc + encargos + jurosCompensatorios)
-        : arredondarMoeda(baseCorrigida + encargos + jurosCompensatorios)
-      const excesso = l.vp - devido
-      return {
-        id: l.id,
-        pagamento: l.iso,
-        vc: l.vc,
-        vp: l.vp,
-        renegociacao: l.renegociacao,
-        multa: l.multa,
-        descontos: l.descontos,
-        jurosMora: l.jurosMora,
-        taxasAdicionais: l.taxasAdicionais,
-        n: correcao.n,
-        incc: correcao.acumuladoPercentual,
-        janela: correcao.janelaLabel,
-        erroIndice: correcao.erro,
-        jurosCompensatorios,
-        baseCorrigida,
-        devido,
-        excesso,
-      }
-    })
-
-    const totalDevido = arredondarMoeda(rows.reduce((acc, r) => acc + r.devido, 0))
-    const totalPago = arredondarMoeda(rows.reduce((acc, r) => acc + r.vp, 0))
-    const totalExcesso = arredondarMoeda(rows.reduce((acc, r) => acc + r.excesso, 0))
-    const totalRenegociacao = rows.reduce((acc, r) => acc + r.renegociacao, 0)
-    const totalMulta = rows.reduce((acc, r) => acc + r.multa, 0)
-    const totalDescontos = rows.reduce((acc, r) => acc + r.descontos, 0)
-    const totalJurosMora = rows.reduce((acc, r) => acc + r.jurosMora, 0)
-    const totalTaxasAdicionais = rows.reduce((acc, r) => acc + r.taxasAdicionais, 0)
-    const totalJurosCompensatorios = arredondarMoeda(
-      rows.reduce((acc, r) => acc + r.jurosCompensatorios, 0),
-    )
-    const pagamentosIso = rows.map((r) => r.pagamento).slice().sort()
-    const ultimaComCorrecao = rows.reduce<(typeof rows)[number] | null>((acc, r) => {
-      if (r.n <= 0) return acc
-      if (!acc || r.pagamento.localeCompare(acc.pagamento) > 0) return r
-      return acc
-    }, null)
-
+  function payloadMemoriaCalculo(): MemoriaCalculoInput {
     return {
-      inicioEfetivo,
-      indiceBaseLabel: inicioEfetivo
-        ? formatarAnoMes(mesBaseDoIndice(inicioEfetivo, defasagemMeses))
-        : null,
-      errosIndice: [...new Set(rows.map((r) => r.erroIndice).filter((e): e is string => Boolean(e)))],
-      rows,
-      periodoInicio: pagamentosIso[0] ?? '',
-      periodoFim: pagamentosIso[pagamentosIso.length - 1] ?? '',
-      inccUltimaCorrecao: ultimaComCorrecao?.incc ?? null,
-      temHabiteSe: Boolean(habiteSeDate),
-      totalDevido,
-      totalPago,
-      totalExcesso,
-      totalRenegociacao,
-      totalMulta,
-      totalDescontos,
-      totalJurosMora,
-      totalTaxasAdicionais,
-      totalJurosCompensatorios,
+      versao: 1,
+      dataAniversario: dataAniversarioManual,
+      dataHabiteSe,
+      defasagemMeses,
+      linhas: lancamentosDaEntrada(),
     }
-  }, [linhas, dataAniversarioManual, dataHabiteSe, defasagemMeses, usarDataVencimento])
+  }
+
+  const relatorio = useMemo(
+    () =>
+      montarRelatorioMemoria(
+        {
+          versao: 1,
+          dataAniversario: dataAniversarioManual,
+          dataHabiteSe,
+          defasagemMeses,
+          linhas: linhas.map((l) => ({
+            id: l.id,
+            dataPagamento: l.dataPagamento,
+            dataVencimento: l.dataVencimento,
+            valorContratual: parseMoneyBr(l.valorContratual),
+            valorPago: parseMoneyBr(l.valorPago),
+            renegociacao: parseMoneyBr(l.renegociacao),
+            multa: parseMoneyBr(l.multa),
+            descontos: parseMoneyBr(l.descontos),
+            jurosMora: parseMoneyBr(l.jurosMora),
+            taxasAdicionais: parseMoneyBr(l.taxasAdicionais),
+          })),
+        },
+        { usarDataVencimento, defasagemMeses },
+      ),
+    [linhas, dataAniversarioManual, dataHabiteSe, defasagemMeses, usarDataVencimento],
+  )
 
   const linhaEmEdicao = useMemo(() => {
     if (!edicaoValorPago) return null
@@ -578,6 +504,8 @@ function App() {
         valorCausa,
         creditoComprado: creditoCompradoCaso,
         memoriaRevisaoIncc: arquivoMemoria,
+        dataAssinatura: dataAniversarioManual || relatorio.periodoInicio || null,
+        memoriaCalculo: payloadMemoriaCalculo(),
       })
       setPopupCadastrarClienteAberto(false)
       navigate(`/casos/${caso.id}`)

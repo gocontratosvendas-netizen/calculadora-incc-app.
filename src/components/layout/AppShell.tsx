@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import App from '../../App'
 import CasoDetalhe from '../../pages/CasoDetalhe'
+import AuditoriaFinanceira from '../../pages/AuditoriaFinanceira'
 import Casos from '../../pages/Casos'
 import Home from '../../pages/Home'
 import Materiais from '../../pages/Materiais'
@@ -13,11 +14,14 @@ import { FinanceiroApp } from '../../modules/financeiro'
 import { ConfiguracoesApp, podeVerConfiguracoes } from '../../modules/configuracoes'
 import './layout.css'
 
-function casoIdDe(pathname: string): string | null {
-  const match = /^\/casos\/([^/]+)$/.exec(pathname)
+function casoRotaDe(pathname: string): { id: string; pagina: 'detalhe' | 'auditoria' } | null {
+  const match = /^\/casos\/([^/]+)(?:\/(auditoria))?$/.exec(pathname)
   const id = match?.[1]
   if (!id || id === 'novo') return null
-  return decodeURIComponent(id)
+  return {
+    id: decodeURIComponent(id),
+    pagina: match?.[2] === 'auditoria' ? 'auditoria' : 'detalhe',
+  }
 }
 
 type AppShellProps = {
@@ -27,7 +31,8 @@ type AppShellProps = {
 export function AppShell({ onSignOut }: AppShellProps) {
   const { pathname } = useRouter()
   const isCalculator = pathname === '/calculadora'
-  const casoId = casoIdDe(pathname)
+  const casoRota = casoRotaDe(pathname)
+  const isWide = isCalculator || casoRota?.pagina === 'auditoria'
   const [showSettings, setShowSettings] = useState(false)
 
   const carregarClientesFinanceiro = useCallback(async () => {
@@ -47,13 +52,14 @@ export function AppShell({ onSignOut }: AppShellProps) {
     <div className="app-shell">
       <Sidebar onSignOut={onSignOut} showSettings={showSettings} />
       <main
-        className={isCalculator ? 'shell-main shell-main--calculator' : 'shell-main'}
+        className={isWide ? 'shell-main shell-main--calculator' : 'shell-main'}
         style={{ background: theme.contentBg }}
       >
         {pathname === '/' ? <Home /> : null}
         {isCalculator ? <App /> : null}
         {pathname === '/casos' ? <Casos /> : null}
-        {casoId ? <CasoDetalhe id={casoId} /> : null}
+        {casoRota?.pagina === 'detalhe' ? <CasoDetalhe id={casoRota.id} /> : null}
+        {casoRota?.pagina === 'auditoria' ? <AuditoriaFinanceira id={casoRota.id} /> : null}
         {pathname === '/parcerias' ? <Parcerias /> : null}
         {pathname === '/materiais' ? <Materiais /> : null}
         {pathname === '/financeiro' || pathname.startsWith('/financeiro/') ? (

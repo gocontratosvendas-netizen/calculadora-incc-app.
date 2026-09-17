@@ -375,6 +375,8 @@ function acumularFatorNaJanela(
   mesCorteIgpm: YearMonth | null,
 ) {
   let fator = 1
+  let fatorIncc = 1
+  let fatorIgpm = 1
   let atual = anoMesInicio
   const segmentos: SegmentoIndice[] = []
   let segmentoAtual: SegmentoIndice | null = null
@@ -385,12 +387,17 @@ function acumularFatorNaJanela(
     if (taxa == null) {
       return {
         fator: 1,
+        fatorIncc: 1,
+        fatorIgpm: 1,
         erro: `Falta o índice ${indice} de ${formatarAnoMes(atual)}.`,
         segmentos: [] as SegmentoIndice[],
         usouIgpm: false,
       }
     }
-    fator *= 1 + taxa / 100
+    const multiplicador = 1 + taxa / 100
+    fator *= multiplicador
+    if (indice === 'IGP-M') fatorIgpm *= multiplicador
+    else fatorIncc *= multiplicador
     if (!segmentoAtual || segmentoAtual.indice !== indice) {
       segmentoAtual = { indice, inicio: atual, fim: atual }
       segmentos.push(segmentoAtual)
@@ -401,6 +408,8 @@ function acumularFatorNaJanela(
   }
   return {
     fator,
+    fatorIncc,
+    fatorIgpm,
     erro: null as string | null,
     segmentos,
     usouIgpm: segmentos.some((s) => s.indice === 'IGP-M'),
@@ -409,12 +418,16 @@ function acumularFatorNaJanela(
 
 export type FatorCorrecao = {
   fator: number
+  fatorIncc: number
+  fatorIgpm: number
   n: number
   mesBase: YearMonth
   janelaInicio: YearMonth | null
   janelaFim: YearMonth | null
   janelaLabel: string | null
   acumuladoPercentual: number
+  acumuladoInccPercentual: number
+  acumuladoIgpmPercentual: number
   ultimaTaxa: number | null
   aviso: string | null
   erro: string | null
@@ -442,12 +455,16 @@ export function calcularFatorCorrecaoPorAniversarios(
   const mesBase = mesBaseDoIndice(dataInicioContrato, defasagemMeses)
   const vazio = (n: number, erro: string | null = null): FatorCorrecao => ({
     fator: 1,
+    fatorIncc: 1,
+    fatorIgpm: 1,
     n,
     mesBase,
     janelaInicio: null,
     janelaFim: null,
     janelaLabel: null,
     acumuladoPercentual: 0,
+    acumuladoInccPercentual: 0,
+    acumuladoIgpmPercentual: 0,
     ultimaTaxa: 0,
     aviso: null,
     erro,
@@ -471,7 +488,7 @@ export function calcularFatorCorrecaoPorAniversarios(
     mesHabiteSe != null && compareYearMonth(toYearMonth(dataVencimento), mesHabiteSe) >= 0
   const mesCorteIgpm = parcelaAPartirDoHabiteSe ? mesHabiteSe : null
 
-  const { fator, erro, segmentos, usouIgpm } = acumularFatorNaJanela(
+  const { fator, fatorIncc, fatorIgpm, erro, segmentos, usouIgpm } = acumularFatorNaJanela(
     janelaInicio,
     janelaFim,
     mesCorteIgpm,
@@ -481,12 +498,16 @@ export function calcularFatorCorrecaoPorAniversarios(
   const acumuladoPercentual = (fator - 1) * 100
   return {
     fator,
+    fatorIncc,
+    fatorIgpm,
     n,
     mesBase,
     janelaInicio,
     janelaFim,
     janelaLabel: rotuloJanela(segmentos, !usouIgpm),
     acumuladoPercentual,
+    acumuladoInccPercentual: (fatorIncc - 1) * 100,
+    acumuladoIgpmPercentual: (fatorIgpm - 1) * 100,
     ultimaTaxa: acumuladoPercentual,
     aviso: null,
     erro: null,

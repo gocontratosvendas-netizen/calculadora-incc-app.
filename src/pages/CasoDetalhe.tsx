@@ -143,6 +143,20 @@ function IconCalc() {
   )
 }
 
+function IconAudit() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+      <rect x="3" y="2.2" width="10" height="11.6" rx="1.2" stroke="currentColor" strokeWidth="1.2" />
+      <path
+        d="M5.4 5.3h5.2M5.4 8h5.2M5.4 10.7h3.2"
+        stroke="currentColor"
+        strokeWidth="1.2"
+        strokeLinecap="round"
+      />
+    </svg>
+  )
+}
+
 function IconPencil() {
   return (
     <svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden="true">
@@ -607,6 +621,14 @@ export default function CasoDetalhe({ id }: { id: string }) {
           </p>
         </div>
         <div className="caso-header-actions">
+          <button
+            type="button"
+            className="caso-btn caso-btn--secondary"
+            onClick={() => navigate(`/casos/${caso.id}/auditoria`)}
+          >
+            <IconAudit />
+            Auditoria financeira
+          </button>
           <button type="button" className="caso-btn caso-btn--secondary" onClick={() => navigate('/calculadora')}>
             <IconCalc />
             Calculadora

@@ -1,3 +1,4 @@
+import { normalizarMemoriaCalculo, type MemoriaCalculoInput } from './memoriaCalculo'
 import { publicarPost } from './mural'
 import { getSessionUserId, listProfiles, supabase, uploadFile, type Profile } from './supabase'
 
@@ -188,6 +189,7 @@ type CasoRow = {
   canal_origem: string
   responsavel_id: string
   criterios: { rotulo: string; atendido: boolean }[] | null
+  memoria_calculo?: unknown
   atualizado_em: string
   responsavel?: Profile | Profile[] | null
   responsaveis?: { ordem: number; profile?: Profile | Profile[] | null }[] | null
@@ -260,6 +262,8 @@ export type NovoCasoInput = {
   valorCausa: number | null
   creditoComprado?: boolean
   memoriaRevisaoIncc?: File | null
+  dataAssinatura?: string | null
+  memoriaCalculo?: MemoriaCalculoInput | null
 }
 
 export const ROTULO_MEMORIA_REVISAO_INCC = 'Memória de Cálculo Revisão INCC'
@@ -406,6 +410,8 @@ export async function cadastrarCaso(input: NovoCasoInput): Promise<Caso> {
       excesso_apurado: input.excessoApurado,
       valor_causa: input.valorCausa,
       credito_comprado: input.creditoComprado === true,
+      data_assinatura: input.dataAssinatura || null,
+      memoria_calculo: input.memoriaCalculo ?? null,
       status: 'processo_de_venda',
       responsavel_id: userId,
       criterios,
@@ -555,6 +561,7 @@ export interface CasoDetalhe {
   valorRecuperado: number | null
   parceiro: { id: string; nome: string; iniciais: string } | null
   canalOrigem: string
+  memoriaCalculo: MemoriaCalculoInput | null
   responsavel: PessoaCaso
   responsaveis: PessoaCaso[]
   enquadramento: {
@@ -832,6 +839,7 @@ export async function obterCaso(id: string): Promise<CasoDetalhe> {
     valorRecuperado: num(caso.valor_recuperado),
     parceiro: parceiro ? { id: parceiro.id, nome: parceiro.nome, iniciais: parceiro.iniciais } : null,
     canalOrigem: caso.canal_origem,
+    memoriaCalculo: normalizarMemoriaCalculo(caso.memoria_calculo),
     responsavel,
     responsaveis: pessoas,
     enquadramento: {
