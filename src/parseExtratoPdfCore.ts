@@ -681,10 +681,149 @@ function parsePosicaoFinanceiraFromRows(rows: PdfTextRow[]): ExtratoParseResult 
   return { dataAssinatura: dataAssinaturaPosicaoFinanceira(fullText), lancamentos }
 }
 
-/** Interpreta linhas já extraídas do PDF (CivilWeb, Posição Financeira, Benx, MAC ou Relação Valores Pagos).
+const MESES_DEMONSTRATIVO: Record<string, number> = {
+  janeiro: 1,
+  fevereiro: 2,
+  marco: 3,
+  abril: 4,
+  maio: 5,
+  junho: 6,
+  julho: 7,
+  agosto: 8,
+  setembro: 9,
+  outubro: 10,
+  novembro: 11,
+  dezembro: 12,
+}
+
+function mesDemonstrativo(token: string) {
+  const key = semAcento(token).toLowerCase().replace(/\.$/, '')
+  return MESES_DEMONSTRATIVO[key] ?? null
+}
+
+function pareceDemonstrativoValoresPagos(fullText: string) {
+  const t = semAcento(fullText).toLowerCase()
+  return (
+    t.includes('demonstrativos de valores pagos') ||
+    t.includes('demonstrativo de valores pagos')
+  )
+}
+
+function anoBaseDemonstrativo(fullText: string) {
+  const labeled = fullText.match(/ano\s+base:\s*(\d{4})/i)
+  if (labeled) return Number(labeled[1])
+  const contrato = fullText.match(/data\s+contrato:\s*\d{2}\/\d{2}\/(\d{4})/i)
+  return contrato ? Number(contrato[1]) : null
+}
+
+function dataAssinaturaDemonstrativo(fullText: string) {
+  const m = fullText.match(/data\s+contrato:\s*(\d{2}\/\d{2}\/\d{4})/i)
+  return m ? brDateToIso(m[1]) : null
+}
+
+function dataFimDoMesIso(ano: number, mes: number) {
+  const ultimo = new Date(Date.UTC(ano, mes, 0)).getUTCDate()
+  return `${ano}-${String(mes).padStart(2, '0')}-${String(ultimo).padStart(2, '0')}`
+}
+
+/**
+ * CivilWeb — Demonstrativo de Valores Pagos (R_CAR_WDemonstrativo):
+ * Mês | Valor Principal | Correção Monetária | Juros Contratuais | Encargos | Desconto |
+ * Resíduo | Pagamento a maior | Amortização | Juros TP | VM Atraso | Juros de Renegociação |
+ * Taxas Adicionais | Total
+ *
+ * O relatório não traz o dia: cada mês vira o último dia daquele mês, a partir do Ano Base.
+ * Correção Monetária é ignorada: a calculadora reaplica o INCC sobre o principal.
+ * Amortização, Juros TP, VM Atraso, renegociação e taxas da direita só detalham o principal.
+ */
+function parseLancamentoDemonstrativoValoresPagos(
+  tokens: string[],
+  ano: number,
+  mes: number,
+): LancamentoExtraido | null {
+  if (tokens.length < 14) return null
+  const moneys = tokens.slice(1, 14).map((token) => normalizeFlexibleMoney(token))
+  if (moneys.some((value) => value == null)) return null
+  const valores = moneys as string[]
+
+  return {
+    dataPagamento: dataFimDoMesIso(ano, mes),
+    valorContratual: valores[0],
+    valorPago: valores[12],
+    renegociacao: ZERO,
+    multa: ZERO,
+    descontos: valores[4],
+    jurosMora: somarMoedaBr(valores[2], valores[3]),
+    taxasAdicionais: ZERO,
+    parcela: `${semAcento(tokens[0]).toLowerCase()}/${ano}`,
+  }
+}
+
+function parseDemonstrativoValoresPagosFromRows(rows: PdfTextRow[]): ExtratoParseResult {
+  const fullText = rows.map((r) => r.text).join('\n')
+  const anoBase = anoBaseDemonstrativo(fullText)
+  const lancamentos: LancamentoExtraido[] = []
+  const seen = new Set<string>()
+  const ignoradas: string[] = []
+  let esperadas = 0
+  let ano = anoBase ?? 0
+  let mesAnterior = 0
+
+  for (const row of rows) {
+    const tokens = row.text.split(/\s+/).filter(Boolean)
+    const mes = mesDemonstrativo(tokens[0] ?? '')
+    if (!mes) continue
+    esperadas += 1
+    if (!anoBase) {
+      ignoradas.push(tokens[0])
+      continue
+    }
+    if (mesAnterior && mes < mesAnterior) ano += 1
+    mesAnterior = mes
+
+    const parsed = parseLancamentoDemonstrativoValoresPagos(tokens, ano, mes)
+    if (!parsed) {
+      ignoradas.push(`${tokens[0]}/${ano}`)
+      continue
+    }
+    const key = chaveLancamento(parsed)
+    if (seen.has(key)) continue
+    seen.add(key)
+    lancamentos.push(parsed)
+  }
+
+  const avisos: string[] = []
+  if (!anoBase) {
+    avisos.push('O demonstrativo não informa o ano-base, então os meses não viraram datas.')
+  } else if (esperadas !== lancamentos.length) {
+    avisos.push(
+      `O PDF tem ${esperadas} mês(es) pago(s) e a importação trouxe ${lancamentos.length}. Não lidas: ${ignoradas.slice(0, 8).join(', ')}.`,
+    )
+  } else {
+    avisos.push(
+      'O demonstrativo não traz o dia do pagamento. Cada mês foi lançado no último dia daquele mês.',
+    )
+  }
+
+  return {
+    dataAssinatura: dataAssinaturaDemonstrativo(fullText),
+    lancamentos,
+    verificacao: {
+      ok: Boolean(anoBase) && esperadas === lancamentos.length,
+      linhasEsperadas: esperadas,
+      linhasLidas: lancamentos.length,
+      avisos,
+    },
+  }
+}
+
+/** Interpreta linhas já extraídas do PDF (CivilWeb, Posição Financeira, Benx, MAC, Relação ou Demonstrativo de Valores Pagos).
  *  Os lançamentos saem na ordem em que aparecem no documento. */
 export function parseExtratoFromRows(rows: PdfTextRow[]): ExtratoParseResult {
   const fullText = rows.map((r) => r.text).join('\n')
+  if (pareceDemonstrativoValoresPagos(fullText)) {
+    return parseDemonstrativoValoresPagosFromRows(rows)
+  }
   if (parecePosicaoFinanceiraBenx(fullText)) {
     return parsePosicaoFinanceiraBenxFromRows(rows)
   }

@@ -105,8 +105,8 @@ export class PdfSemCamadaDeTextoError extends Error {
 }
 
 /**
- * Lê um PDF de Extrato CivilWeb, Posição Financeira (incl. Portal Benx ou MAC)
- * ou Relação Valores Pagos e extrai pagamento, valores e encargos/descontos.
+ * Lê um PDF de Extrato CivilWeb, Posição Financeira (incl. Portal Benx ou MAC),
+ * Relação Valores Pagos ou Demonstrativo de Valores Pagos e extrai pagamento, valores e encargos/descontos.
  */
 export async function parseExtratoFinanceiroPdf(file: File): Promise<ExtratoParseResult> {
   const items = await extractTextItems(file)

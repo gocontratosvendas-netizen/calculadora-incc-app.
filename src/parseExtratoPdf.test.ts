@@ -866,3 +866,106 @@ describe('parseExtratoFromRows — Boulevard Origens 33 (Relação com At.Pago)'
     expect(resultado.verificacao?.avisos.join(' ')).toMatch(/2-1/)
   })
 })
+
+const DEMONSTRATIVO_WELCONX_2023 = [
+  '00626 - CEIRY X - WELCONX VILA OLIMPIA - CARDOSO DE MELO',
+  'Demonstrativos de Valores Pagos',
+  'Investidor (Filial): CEIRY X WELCONX VILA OLIMPIA EMPREENDIMENTOS IMOBILIARIOS SPE LTDA.',
+  'Empreendimento: WELCONX VILA OLÍMPIA Cliente: GERSON SANTAROSA',
+  'Unidade: 1509 Data Contrato: 14/04/2023',
+  'Contrato: 10452 Ano Base: 2023',
+  'Participação: 100,00%',
+  'Mês Valor Correção Juros Encargos Desconto Resíduo Pagamento Amortização Juros TP VM Juros de Taxas Total',
+  'Principal Monetária Contratuais a maior Atraso Renegociação Adicionais',
+  'abril 73.629,50 0,00 0,00 0,00 0,00 0,00 0,00 73.629,50 0,00 0,00 0,00 0,00 73.629,50',
+  'maio 2.900,00 8,70 0,00 0,00 0,00 0,00 0,00 2.900,00 0,00 0,00 0,00 0,00 2.908,70',
+  'junho 2.900,00 12,77 0,00 0,00 0,00 0,00 0,00 2.900,00 0,00 0,00 0,00 0,00 2.912,77',
+  'julho 2.900,00 29,96 0,00 0,00 0,00 0,00 0,00 2.900,00 0,00 0,00 0,00 0,00 2.929,96',
+  'agosto 2.900,00 50,76 0,00 0,00 0,00 0,00 0,00 2.900,00 0,00 0,00 0,00 0,00 2.950,76',
+  'setembro 2.900,00 53,71 0,00 0,00 0,00 0,00 0,00 2.900,00 0,00 0,00 0,00 0,00 2.953,71',
+  'outubro 2.900,00 58,73 0,00 0,00 0,00 0,00 0,00 2.900,00 0,00 0,00 0,00 0,00 2.958,73',
+  'novembro 2.900,00 68,79 0,00 59,17 59,17 0,00 0,00 2.900,00 0,00 0,00 0,00 0,00 2.968,79',
+  'dezembro 17.900,00 461,26 0,00 0,00 0,00 0,00 0,00 17.900,00 0,00 0,00 0,00 0,00 18.361,26',
+  'TOTAL 111.829,50 744,68 0,00 59,17 59,17 0,00 0,00 111.829,50 0,00 0,00 0,00 0,00 112.574,18',
+  'Valores Pagos por Tipo de Receita:',
+  'Carteira 112.574,18',
+  'Total 112.574,18',
+]
+
+describe('parseExtratoFromRows — Demonstrativo de Valores Pagos', () => {
+  it('lê os meses do Welconx 2023 e ignora a correção monetária do PDF', () => {
+    const resultado = parseExtratoFromRows(rowsFromLines(DEMONSTRATIVO_WELCONX_2023))
+
+    expect(resultado.dataAssinatura).toBe('2023-04-14')
+    expect(resultado.lancamentos).toHaveLength(9)
+    expect(resultado.verificacao?.ok).toBe(true)
+    expect(resultado.lancamentos.map((l) => l.parcela)).toEqual([
+      'abril/2023',
+      'maio/2023',
+      'junho/2023',
+      'julho/2023',
+      'agosto/2023',
+      'setembro/2023',
+      'outubro/2023',
+      'novembro/2023',
+      'dezembro/2023',
+    ])
+    expect(resultado.lancamentos[0]).toMatchObject({
+      dataPagamento: '2023-04-30',
+      valorContratual: '73.629,50',
+      valorPago: '73.629,50',
+      jurosMora: '0,00',
+      descontos: '0,00',
+    })
+    expect(resultado.lancamentos[1]).toMatchObject({
+      dataPagamento: '2023-05-31',
+      valorContratual: '2.900,00',
+      valorPago: '2.908,70',
+    })
+    expect(resultado.lancamentos.find((l) => l.parcela === 'novembro/2023')).toMatchObject({
+      dataPagamento: '2023-11-30',
+      valorContratual: '2.900,00',
+      valorPago: '2.968,79',
+      jurosMora: '59,17',
+      descontos: '59,17',
+    })
+    expect(resultado.lancamentos.find((l) => l.parcela === 'dezembro/2023')).toMatchObject({
+      dataPagamento: '2023-12-31',
+      valorContratual: '17.900,00',
+      valorPago: '18.361,26',
+    })
+    expect(resultado.lancamentos.some((l) => l.valorPago === '112.574,18')).toBe(false)
+    expect(resultado.verificacao?.avisos.join(' ')).toMatch(/último dia/)
+  })
+
+  it('avança o ano quando o demonstrativo passa de dezembro para janeiro', () => {
+    const resultado = parseExtratoFromRows(
+      rowsFromLines([
+        'Demonstrativo de Valores Pagos',
+        'Data Contrato: 14/04/2023',
+        'Ano Base: 2023',
+        'dezembro 1.000,00 0,00 0,00 0,00 0,00 0,00 0,00 1.000,00 0,00 0,00 0,00 0,00 1.000,00',
+        'janeiro 1.000,00 10,00 0,00 0,00 0,00 0,00 0,00 1.000,00 0,00 0,00 0,00 0,00 1.010,00',
+      ]),
+    )
+
+    expect(resultado.lancamentos.map((l) => l.dataPagamento)).toEqual(['2023-12-31', '2024-01-31'])
+    expect(resultado.lancamentos[1]).toMatchObject({
+      valorContratual: '1.000,00',
+      valorPago: '1.010,00',
+    })
+  })
+
+  it('avisa quando o demonstrativo não tem ano-base', () => {
+    const resultado = parseExtratoFromRows(
+      rowsFromLines([
+        'Demonstrativos de Valores Pagos',
+        'abril 1.000,00 0,00 0,00 0,00 0,00 0,00 0,00 1.000,00 0,00 0,00 0,00 0,00 1.000,00',
+      ]),
+    )
+
+    expect(resultado.lancamentos).toHaveLength(0)
+    expect(resultado.verificacao?.ok).toBe(false)
+    expect(resultado.verificacao?.avisos.join(' ')).toMatch(/ano-base/)
+  })
+})

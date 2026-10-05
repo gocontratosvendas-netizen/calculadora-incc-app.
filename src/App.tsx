@@ -196,8 +196,10 @@ function App() {
     try {
       const resultado = await parseExtratoFinanceiroPdf(file)
       if (!resultado.lancamentos.length) {
+        const avisos = resultado.verificacao?.avisos ?? []
         setMensagemImportacao(
-          'Não encontrei lançamentos neste PDF. Confira se é um Extrato Financeiro, Posição Financeira (incl. Portal Benx ou MAC) ou Relação Valores Pagos da incorporadora.',
+          avisos[0] ??
+            'Não encontrei lançamentos neste PDF. Confira se é um Extrato Financeiro, Posição Financeira (incl. Portal Benx ou MAC), Relação Valores Pagos ou Demonstrativo de Valores Pagos da incorporadora.',
         )
         return
       }
@@ -613,8 +615,8 @@ function App() {
                   <div className="import-copy">
                     <p className="import-title">Importar PDF do extrato</p>
                     <p className="import-hint">
-                      Arraste o PDF do extrato financeiro, da posição financeira ou da relação de valores pagos da
-                      incorporadora. Foto de tela (JPEG/PNG) não serve — peça o PDF.
+                      Arraste o PDF do extrato financeiro, da posição financeira, da relação de valores pagos ou do
+                      demonstrativo de valores pagos da incorporadora. Foto de tela (JPEG/PNG) não serve — peça o PDF.
                     </p>
                   </div>
                   <button
