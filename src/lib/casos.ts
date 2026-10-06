@@ -67,6 +67,8 @@ export interface CarteiraFinanceiro {
 export const PERCENTUAIS_EXITO = [10, 20, 25, 30] as const
 export const PERCENTUAL_EXITO_PADRAO = 30
 export const HONORARIOS_EXITO_PERCENTUAL = PERCENTUAL_EXITO_PADRAO / 100
+/** Honorários de sucumbência: 10% do valor total das causas da carteira. */
+export const HONORARIOS_SUCUMBENCIA_PERCENTUAL = 0.1
 
 export function percentualExitoValido(valor: number): boolean {
   return (PERCENTUAIS_EXITO as readonly number[]).includes(valor)
@@ -78,6 +80,10 @@ export function honorariosExitoDoCaso(
 ): number | null {
   if (valorCausa == null) return null
   return valorCausa * (percentualExito / 100)
+}
+
+export function honorariosSucumbencia(valorTotalCausa: number): number {
+  return valorTotalCausa * HONORARIOS_SUCUMBENCIA_PERCENTUAL
 }
 
 /** Diferença do valor da causa após os honorários de êxito — receita da compra do crédito. */

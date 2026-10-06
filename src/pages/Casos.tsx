@@ -16,6 +16,7 @@ import {
   calcularResumoFinanceiro,
   excluirCaso,
   honorariosExitoDoCaso,
+  honorariosSucumbencia,
   listarCasos,
   pessoasDoCaso,
   rotuloResponsaveis,
@@ -819,6 +820,12 @@ export default function Casos() {
       destaque: true,
     },
     {
+      label: 'HONORÁRIOS DE SUCUMBÊNCIA',
+      value: formatMoneyCard(honorariosSucumbencia(resumoExibido.valorTotalCausa)),
+      className: 'casos-kpi-value--azul',
+      destaque: true,
+    },
+    {
       label: 'CRÉDITOS COMPRADOS',
       value: formatMoneyCard(financeiroExibido.creditosComprados),
       className: 'casos-kpi-value--azul',
@@ -880,7 +887,7 @@ export default function Casos() {
 
       <section className="casos-kpis casos-kpis--financeiro" aria-label="Indicadores financeiros">
         {loading
-          ? Array.from({ length: 3 }, (_, i) => (
+          ? Array.from({ length: 4 }, (_, i) => (
               <div key={i} className={`casos-kpi${i > 0 ? ' casos-kpi--destaque' : ''}`}>
                 <div className="casos-skeleton" />
                 <div className="casos-skeleton casos-skeleton--value" />

@@ -5,9 +5,11 @@ import {
   casoEntraNaCarteiraJudicial,
   creditoCompradoDoCaso,
   honorariosExitoDoCaso,
+  honorariosSucumbencia,
   pessoasDoCaso,
   rotuloResponsaveis,
   HONORARIOS_EXITO_PERCENTUAL,
+  HONORARIOS_SUCUMBENCIA_PERCENTUAL,
   PERCENTUAIS_EXITO,
   PERCENTUAL_EXITO_PADRAO,
   percentualExitoValido,
@@ -130,6 +132,21 @@ describe('carteira judicial', () => {
     ]
     expect(calcularResumoFinanceiro(casos).honorariosExitoEsperados).toBe(40_000)
     expect(calcularResumoFinanceiro(casos).creditosComprados).toBe(0)
+  })
+
+  it('calcula honorários de sucumbência como 10% do valor total das causas', () => {
+    expect(HONORARIOS_SUCUMBENCIA_PERCENTUAL).toBe(0.1)
+    expect(honorariosSucumbencia(0)).toBe(0)
+    expect(honorariosSucumbencia(597_254.7)).toBeCloseTo(59_725.47)
+
+    const casos = [
+      caso({ status: 'ajuizado', valorCausa: 100_000 }),
+      caso({ id: 'outro', status: 'ajuizado', valorCausa: 50_000 }),
+      caso({ id: 'venda', status: 'processo_de_venda', valorCausa: 200_000 }),
+    ]
+    const resumo = calcularResumoCarteira(casos)
+    expect(resumo.valorTotalCausa).toBe(150_000)
+    expect(honorariosSucumbencia(resumo.valorTotalCausa)).toBe(15_000)
   })
 
   it('soma a diferença do valor da causa nos créditos comprados, sem tirar dos honorários', () => {
