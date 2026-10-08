@@ -969,3 +969,112 @@ describe('parseExtratoFromRows — Demonstrativo de Valores Pagos', () => {
     expect(resultado.verificacao?.avisos.join(' ')).toMatch(/ano-base/)
   })
 })
+
+describe('parseExtratoFromRows — ExtratoPDF (Extrato de cliente)', () => {
+  const CABECALHO = [
+    ['Extrato de cliente'],
+    ['Programa:', 'ExtratoPDF'],
+    ['Data base:', '09/03/2021'],
+    ['Data referência:', '30/03/2024'],
+    ['C.', 'SÉRIE', 'P.', 'IND. VENC.', 'V.ORI.', 'V.C/P.', 'V.PAG.', 'D.PAG'],
+    ['QUITADO'],
+  ]
+
+  it('separa o índice colado no vencimento e ignora total e quadro resumo', () => {
+    const resultado = parseExtratoFromRows(
+      rowsFromCells([
+        ...CABECALHO,
+        [
+          '0003',
+          'ATO001',
+          '0001',
+          '18/03/2021',
+          '46.928,00',
+          '0,00',
+          '0,00',
+          '46.928,00',
+          '0,00',
+          '0,00',
+          '0,00',
+          '0,00',
+          '0,00',
+          '46.928,00',
+          '17/03/2021',
+          '555748',
+        ],
+        [
+          '0003',
+          'MEN004',
+          '0004',
+          'INCC2 10/04/2022',
+          '100,00',
+          '0,00',
+          '0,00',
+          '114,08',
+          '0,00',
+          '3,48',
+          '0,00',
+          '0,00',
+          '0,00',
+          '117,56',
+          '11/05/2022',
+          '640685',
+        ],
+        [
+          '0004',
+          'FIN005',
+          '0005',
+          'INCC2 10/03/2024',
+          '535.900,00',
+          '0,00',
+          '0,00',
+          '685.734,88',
+          '0,00',
+          '0,00',
+          '133,15',
+          '0,00',
+          '0,00',
+          '685.601,73',
+          '04/03/2024',
+          '835272',
+        ],
+        ['746.928,00', '0,00', '0,00', '901.707,73', '0,00', '13,35', '133,40', '0,00', '0,00', '901.587,68'],
+        ['QUADRO RESUMO'],
+        ['Total pago:', '901.587,68'],
+      ]),
+    )
+
+    expect(resultado.dataAssinatura).toBe('2021-03-09')
+    expect(resultado.verificacao?.ok).toBe(true)
+    expect(resultado.lancamentos).toHaveLength(3)
+    expect(resultado.lancamentos[0]).toMatchObject({
+      parcela: 'ATO001-0001',
+      dataVencimento: '2021-03-18',
+      dataPagamento: '2021-03-17',
+      valorContratual: '46.928,00',
+      valorPago: '46.928,00',
+      jurosMora: '0,00',
+      descontos: '0,00',
+    })
+    expect(resultado.lancamentos[1]).toMatchObject({
+      parcela: 'MEN004-0004',
+      dataVencimento: '2022-04-10',
+      dataPagamento: '2022-05-11',
+      valorContratual: '100,00',
+      valorPago: '117,56',
+      jurosMora: '3,48',
+      descontos: '0,00',
+    })
+    expect(resultado.lancamentos[2]).toMatchObject({
+      parcela: 'FIN005-0005',
+      dataVencimento: '2024-03-10',
+      dataPagamento: '2024-03-04',
+      valorContratual: '535.900,00',
+      valorPago: '685.601,73',
+      jurosMora: '0,00',
+      descontos: '133,15',
+    })
+    expect(resultado.lancamentos.some((l) => l.valorPago === '901.587,68')).toBe(false)
+    expect(resultado.lancamentos.some((l) => l.valorContratual === '114,08')).toBe(false)
+  })
+})

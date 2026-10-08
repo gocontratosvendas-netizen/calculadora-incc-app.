@@ -199,7 +199,7 @@ function App() {
         const avisos = resultado.verificacao?.avisos ?? []
         setMensagemImportacao(
           avisos[0] ??
-            'Não encontrei lançamentos neste PDF. Confira se é um Extrato Financeiro, Posição Financeira (incl. Portal Benx ou MAC), Relação Valores Pagos ou Demonstrativo de Valores Pagos da incorporadora.',
+            'Não encontrei lançamentos neste PDF. Confira se é um Extrato Financeiro, Extrato de cliente (ExtratoPDF), Posição Financeira (incl. Portal Benx ou MAC), Relação Valores Pagos ou Demonstrativo de Valores Pagos da incorporadora.',
         )
         return
       }

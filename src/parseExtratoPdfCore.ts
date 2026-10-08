@@ -817,10 +817,126 @@ function parseDemonstrativoValoresPagosFromRows(rows: PdfTextRow[]): ExtratoPars
   }
 }
 
-/** Interpreta linhas já extraídas do PDF (CivilWeb, Posição Financeira, Benx, MAC, Relação ou Demonstrativo de Valores Pagos).
+/**
+ * Extrato de cliente do programa ExtratoPDF (UAU e similares):
+ * C. | SÉRIE | P. | IND. | VENC. | V.ORI. | V.ACR. | V.SGO. | V.C/P. | PRI. | T.ENC. |
+ * D.COM. | D.FIN. | A.PAG. | V.PAG. | D.PAG | FAT.
+ *
+ * O PDF cola o índice na data de vencimento ("INCC2 10/04/2021").
+ * V.C/P. é a parcela já corrigida e é ignorada: a calculadora reaplica o INCC sobre V.ORI.
+ * A.PAG. é saldo em aberto da parcela, não um ajuste do que foi pago.
+ */
+function pareceExtratoPdfPrograma(fullText: string) {
+  const t = semAcento(fullText).toLowerCase()
+  if (t.includes('extratopdf')) return true
+  return t.includes('v.ori.') && t.includes('v.c/p.') && t.includes('v.pag.')
+}
+
+function dataAssinaturaExtratoPdfPrograma(fullText: string) {
+  const m = fullText.match(/Data\s+base:\s*(\d{2}\/\d{2}\/\d{4})/i)
+  return m ? brDateToIso(m[1]) : null
+}
+
+function tokensExtratoPdfPrograma(row: PdfTextRow) {
+  return row.cells.flatMap((cell) => cell.str.trim().split(/\s+/)).filter(Boolean)
+}
+
+function isSerieExtratoPdf(token: string) {
+  return /^[A-Za-z]{2,}\d+$/.test(token)
+}
+
+function linhaExtratoPdfPrograma(tokens: string[]) {
+  if (tokens.length < 8) return false
+  if (!/^\d+$/.test(tokens[0]) || !isSerieExtratoPdf(tokens[1]) || !/^\d+$/.test(tokens[2])) {
+    return false
+  }
+  return tokens.some(isDateBr)
+}
+
+function parseLancamentoExtratoPdfPrograma(tokens: string[]): LancamentoExtraido | null {
+  if (!linhaExtratoPdfPrograma(tokens)) return null
+
+  let i = 3
+  if (!isDateBr(tokens[i] ?? '')) i += 1
+  if (!isDateBr(tokens[i] ?? '')) return null
+  const dataVencimento = brDateToIso(tokens[i])
+  if (!dataVencimento) return null
+  i += 1
+
+  const moneys: string[] = []
+  while (i < tokens.length && moneys.length < 10) {
+    const money = normalizeFlexibleMoney(tokens[i] ?? '')
+    if (!money) break
+    moneys.push(money)
+    i += 1
+  }
+  if (moneys.length < 10 || !isDateBr(tokens[i] ?? '')) return null
+  const dataPagamento = brDateToIso(tokens[i])
+  if (!dataPagamento) return null
+
+  const [vOri, vAcr, vSgo, , pri, tEnc, dCom, dFin, , vPag] = moneys
+  return {
+    dataPagamento,
+    dataVencimento,
+    valorContratual: vOri,
+    valorPago: vPag,
+    renegociacao: ZERO,
+    multa: ZERO,
+    jurosMora: somarMoedaBr(pri, tEnc),
+    descontos: somarMoedaBr(dCom, dFin),
+    taxasAdicionais: somarMoedaBr(vAcr, vSgo),
+    parcela: `${tokens[1]}-${tokens[2]}`,
+  }
+}
+
+function parseExtratoPdfProgramaFromRows(rows: PdfTextRow[]): ExtratoParseResult {
+  const fullText = rows.map((r) => r.text).join('\n')
+  const lancamentos: LancamentoExtraido[] = []
+  const seen = new Set<string>()
+  const ignoradas: string[] = []
+  let esperadas = 0
+
+  for (const row of rows) {
+    const tokens = tokensExtratoPdfPrograma(row)
+    if (!linhaExtratoPdfPrograma(tokens)) continue
+    esperadas += 1
+    const parsed = parseLancamentoExtratoPdfPrograma(tokens)
+    if (!parsed) {
+      ignoradas.push(`${tokens[1]}-${tokens[2]}`)
+      continue
+    }
+    const key = chaveLancamento(parsed)
+    if (seen.has(key)) continue
+    seen.add(key)
+    lancamentos.push(parsed)
+  }
+
+  const avisos: string[] = []
+  if (esperadas !== lancamentos.length) {
+    avisos.push(
+      `O PDF tem ${esperadas} parcela(s) paga(s) e a importação trouxe ${lancamentos.length}. Não lidas: ${ignoradas.slice(0, 8).join(', ')}${ignoradas.length > 8 ? '…' : ''}.`,
+    )
+  }
+
+  return {
+    dataAssinatura: dataAssinaturaExtratoPdfPrograma(fullText),
+    lancamentos,
+    verificacao: {
+      ok: esperadas === lancamentos.length && esperadas > 0,
+      linhasEsperadas: esperadas,
+      linhasLidas: lancamentos.length,
+      avisos,
+    },
+  }
+}
+
+/** Interpreta linhas já extraídas do PDF (CivilWeb, ExtratoPDF, Posição Financeira, Benx, MAC, Relação ou Demonstrativo de Valores Pagos).
  *  Os lançamentos saem na ordem em que aparecem no documento. */
 export function parseExtratoFromRows(rows: PdfTextRow[]): ExtratoParseResult {
   const fullText = rows.map((r) => r.text).join('\n')
+  if (pareceExtratoPdfPrograma(fullText)) {
+    return parseExtratoPdfProgramaFromRows(rows)
+  }
   if (pareceDemonstrativoValoresPagos(fullText)) {
     return parseDemonstrativoValoresPagosFromRows(rows)
   }
